@@ -188,7 +188,7 @@ create index if not exists ix_terms_deal on terms(deal_id, version);
 
 # columns added after the first release: added in place on start (portable `alter table ... add column`)
 COLUMNS = {
-    "parties": {"account_id": "text", "can_confirm": "integer not null default 0"},
+    "parties": {"account_id": "text", "can_confirm": "integer not null default 0", "phone": "text"},
     "creators": {"niches_json": "text not null default '[]'", "city": "text", "country": "text",
                  "languages_json": "text not null default '[]'", "styles_json": "text not null default '[]'",
                  "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
@@ -196,7 +196,8 @@ COLUMNS = {
                  "address": "text", "phone": "text"},
     "deals": {"brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
               "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
-              "posted_at": "text", "completed_at": "text"},
+              "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",
+              "post_removed_at": "text", "is_try": "integer not null default 0"},
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
                 "delta_cents": "integer not null default 0"},

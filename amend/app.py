@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, briefs, changes, deals, discovery, engine, inbox, money, shipping, webhooks
+from amend import ai, auth, briefs, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -1014,6 +1014,335 @@ def save_address(body: AddressIn, c: dict = Depends(require_creator)):
     return {"ok": True}
 
 
+# ---------- delivery, posting, money out (Phase 6) ----------
+
+def _work(deal_id: str) -> dict:
+    d = get_db()
+    deal = deals.get_deal(d, deal_id)
+    draft, post = delivery.latest(d, deal_id, "draft"), delivery.latest(d, deal_id, "post")
+    for x in (draft, post):
+        if x:
+            x.pop("frames", None) if x is post else None
+    if draft:
+        draft["frames"] = [{"url": f"/api/media/{f['media']}", "t": f["t"]} for f in draft["frames"]]
+    review = d.one("select rating, text, at from reviews where deal_id = :d", {"d": deal_id})
+    return {"status": deal["status"], "draft": draft, "post": post, "gaps_open": len(delivery.open_gaps(d, deal_id)),
+            "release": delivery.release_view(d, deal_id), "requirements": delivery.requirements(deal),
+            "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
+            "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
+            "silent_approval_days": deal.get("silent_approval_days")}
+
+
+@app.get("/api/d/{token}/work")
+def brand_work(token: str):
+    deal, _ = _brand_ctx(token)
+    return _work(deal["id"])
+
+
+@app.get("/api/deals/{deal_id}/work")
+def creator_work(deal_id: str, c: dict = Depends(require_creator)):
+    _creator_ctx(deal_id, c)
+    return _work(deal_id)
+
+
+class FrameIn(BaseModel):
+    data_b64: str = Field(max_length=420_000)
+    t: float = 0
+
+
+class DraftIn(BaseModel):
+    frames: list[FrameIn] = Field(min_length=1, max_length=8)
+    caption: str = Field("", max_length=2200)
+
+
+@app.post("/api/deals/{deal_id}/draft")
+async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    rate_limit(f"draft:{deal_id}", 6, 600)
+    try:
+        dv = delivery.save_draft(get_db(), deal, pid, frames=[f.model_dump() for f in body.frames], caption=body.caption)
+    except (delivery.DeliveryError, ValueError) as e:
+        raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "A frame couldn't be read.")
+    frames = [{"data_url": f"data:image/jpeg;base64,{f.data_b64}", "t": f.t} for f in body.frames]
+    try:
+        checks = await delivery.check_frames(frames, body.caption, delivery.requirements(deal))
+    except (ai.ProviderError, ai.DraftRejected):
+        checks = [{"check": "AI check", "ok": False, "frame": None, "time": None, "note": "Couldn't check the frames right now; the brand reviews by eye."}]
+    delivery.set_draft_result(get_db(), dv["id"], checks)
+    changes.post_message(get_db(), deal_id, pid, f"Draft uploaded ({len(frames)} frames). Please review.", kind="text")
+    return _work(deal_id)
+
+
+@app.post("/api/d/{token}/draft/approve")
+def brand_draft_approve(token: str):
+    deal, pid = _brand_ctx(token)
+    if pid != deal["brand_party_id"]:
+        raise HTTPException(400, "Only the brand's main contact approves drafts.")
+    try:
+        delivery.approve_draft(get_db(), deal, pid)
+    except delivery.DeliveryError as e:
+        raise HTTPException(400, str(e))
+    changes.post_message(get_db(), deal["id"], pid, "Draft approved ✅", kind="text")
+    return _work(deal["id"])
+
+
+class PostIn(BaseModel):
+    post_url: str = Field(max_length=500)
+    posted_on: str
+    delivered: dict[str, int]
+    caption: str = Field("", max_length=2200)
+
+
+@app.post("/api/deals/{deal_id}/post")
+def creator_post(deal_id: str, body: PostIn, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        delivery.submit_post(get_db(), deal, pid, **body.model_dump())
+    except (delivery.DeliveryError, ValueError) as e:
+        raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "Posted on must be a date.")
+    return _work(deal_id)
+
+
+class GapIn(BaseModel):
+    resolution: str = Field(pattern="^(add|free|remove|drop|will_deliver|accept)$")
+
+
+def _gap(deal: dict, pid: str, gid: str, res: str) -> dict:
+    try:
+        delivery.resolve_gap(get_db(), deal, pid, gid, res)
+    except (delivery.DeliveryError, changes.ChangeError, money.ApprovalError) as e:
+        raise HTTPException(400, str(e))
+    return _work(deal["id"])
+
+
+@app.post("/api/d/{token}/gaps/{gid}")
+def brand_gap(token: str, gid: str, body: GapIn):
+    return _gap(*_brand_ctx(token), gid, body.resolution)
+
+
+@app.post("/api/deals/{deal_id}/gaps/{gid}")
+def creator_gap(deal_id: str, gid: str, body: GapIn, c: dict = Depends(require_creator)):
+    return _gap(*_creator_ctx(deal_id, c), gid, body.resolution)
+
+
+async def _release(deal: dict, pid: str) -> dict:
+    d = get_db()
+    try:
+        delivery.plan_release(d, deals.get_deal(d, deal["id"]))
+        delivery.approve_release(d, deal, pid)
+        items = delivery.release_view(d, deal["id"])["items"]
+        if items and all(i["status"] != "planned" for i in items if not i["note"].startswith("holdback")):
+            await delivery.execute_release(d, rail(), deals.get_deal(d, deal["id"]), actor=pid)
+    except (delivery.DeliveryError, money.ApprovalError) as e:
+        raise HTTPException(400, str(e))
+    return _work(deal["id"])
+
+
+@app.post("/api/d/{token}/release/approve")
+async def brand_release(token: str):
+    return await _release(*_brand_ctx(token))
+
+
+@app.post("/api/deals/{deal_id}/release/approve")
+async def creator_release(deal_id: str, c: dict = Depends(require_creator)):
+    return await _release(*_creator_ctx(deal_id, c))
+
+
+class EditorIn(BaseModel):
+    email: str = Field(max_length=120)
+    pct: int
+
+
+@app.post("/api/deals/{deal_id}/editor")
+def creator_editor(deal_id: str, body: EditorIn, c: dict = Depends(require_creator)):
+    deal, _ = _creator_ctx(deal_id, c)
+    try:
+        delivery.set_editor(get_db(), deal, email=body.email, pct=body.pct)
+    except delivery.DeliveryError as e:
+        raise HTTPException(400, str(e))
+    return _work(deal_id)
+
+
+@app.post("/api/d/{token}/removed")
+def brand_removed(token: str):
+    deal, pid = _brand_ctx(token)
+    try:
+        delivery.report_removed(get_db(), deal, pid)
+    except delivery.DeliveryError as e:
+        raise HTTPException(400, str(e))
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/restored")
+def creator_restored(deal_id: str, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    delivery.report_restored(get_db(), deal, pid)
+    return _work(deal_id)
+
+
+class ReviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    text: str = Field("", max_length=500)
+
+
+@app.post("/api/d/{token}/review")
+def brand_review(token: str, body: ReviewIn):
+    deal, pid = _brand_ctx(token)
+    try:
+        discovery.leave_review(get_db(), deal, pid, body.rating, body.text)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _work(deal["id"])
+
+
+def _story(deal_id: str) -> dict:
+    """The money story: every version, every quote, every PayPal action, in time order."""
+    d = get_db()
+    nice = {"deal.accepted": "Accepted", "change.applied": "Change applied", "money.planned": "Money planned",
+            "approval.recorded": "Approved", "paypal.called": "PayPal", "money.status": "Money status", "fact.added": "Words recorded",
+            "brief.submitted": "Brief sent", "deal.drafted": "Draft priced", "post.submitted": "Posted", "delivery.checked": "Delivery checked",
+            "gap.resolved": "Gap resolved", "draft.approved": "Draft approved", "draft.silently_approved": "Draft approved (silent)",
+            "holdback.released": "Holdback paid", "holdback.returned": "Holdback returned", "change.detected": "Change proposed",
+            "change.confirmed": "Change confirmed", "review.left": "Review", "money.collect_planned": "Release planned"}
+    kinds = {"paypal.called": "money", "money.status": "money", "money.planned": "money", "approval.recorded": "money",
+             "money.collect_planned": "money", "holdback.released": "money", "holdback.returned": "money",
+             "fact.added": "words", "brief.submitted": "words", "change.detected": "changes", "change.confirmed": "changes",
+             "change.applied": "changes"}
+    names = {p["id"]: p["name"] for p in d.all("select id, name from parties")}
+    version, out = 0, []
+    for e in d.events_for(deal_id):
+        if e["type"] not in nice:
+            continue
+        if e["type"] in ("deal.accepted", "change.applied"):
+            version = e["payload"].get("version", version + 1)
+        p = e["payload"]
+        detail = p.get("quote") or p.get("call") or (f"{p.get('from')} → {p.get('to')}" if p.get("to") else "") or ""
+        amt = p.get("amount_cents") or p.get("total_cents") or p.get("delta_cents")
+        out.append({"at": e["at"], "version": version, "title": nice[e["type"]], "kind": kinds.get(e["type"], "other"),
+                    "who": names.get(e["actor"], e["actor"]), "detail": str(detail)[:200],
+                    "amount_cents": amt if isinstance(amt, int) else None,
+                    "paypal_id": p.get("order") or p.get("authorization") or p.get("capture") or p.get("batch")})
+    return {"deal": deal_id, "entries": out}
+
+
+@app.get("/api/d/{token}/story")
+def brand_story(token: str):
+    deal, _ = _brand_ctx(token)
+    return _story(deal["id"])
+
+
+@app.get("/api/deals/{deal_id}/story")
+def creator_story(deal_id: str, c: dict = Depends(require_creator)):
+    _creator_ctx(deal_id, c)
+    return _story(deal_id)
+
+
+@app.get("/story/{key}")
+def story_page(key: str):
+    return page("story.html")
+
+
+@app.get("/api/studio/ledger")
+def ledger(c: dict = Depends(require_creator)):
+    d = get_db()
+    rows = []
+    for it in d.all("select m.*, d.brand_org, d.version as deal_version from money_items m join deals d on d.id = m.deal_id "
+                    "where d.creator_id = :c order by m.created_at desc", {"c": c["id"]}):
+        facts = json.loads(it["depends_on_fact_ids"] or "[]")
+        q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
+        rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "brand": it["brand_org"], "item": it.get("note") or it["kind"],
+                     "kind": it["kind"], "amount_usd": it["amount_cents"] / 100, "aed": money.aed_cents(it["amount_cents"]) / 100,
+                     "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
+                     "version": it["deal_version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
+                     "updated": it["updated_at"]})
+    return {"rows": rows, "fees_usd": sum(r["fee_usd"] for r in rows)}
+
+
+# ---------- "try it yourself" for judges (S42) ----------
+
+TRY_CAP_CENTS = 10_000
+TRY_COOKIE = "amend_try"
+
+
+def _try_ok(request: Request) -> bool:
+    raw = request.cookies.get(TRY_COOKIE)
+    if not raw:
+        return False
+    try:
+        return bool(serializer().loads(raw, max_age=86400).get("try"))
+    except BadSignature:
+        return False
+
+
+@app.get("/try")
+def try_page():
+    return page("try.html")
+
+
+class TryIn(BaseModel):
+    password: str = Field(max_length=200)
+
+
+@app.post("/api/try/start")
+def try_start(body: TryIn, request: Request):
+    _, fails = _check_rate(request)
+    want = get_settings().amend_demo_password.get_secret_value()
+    if not want or not hmac.compare_digest(body.password.encode(), want.encode()):
+        _login_fails[request.client.host if request.client else "?"] = fails + [time.time()]
+        raise HTTPException(401, "That password isn't right.")
+    r = JSONResponse({"ok": True})
+    r.set_cookie(TRY_COOKIE, serializer().dumps({"try": 1}), max_age=86400, httponly=True, samesite="lax",
+                 secure=get_settings().base_url.startswith("https"))
+    return r
+
+
+@app.post("/api/try/reset")
+def try_reset(request: Request):
+    """A fresh demo deal: Demo Creator × Judge Brand, Reel $50 + Story set $20 = $70, accepted and ready to hold."""
+    if not _try_ok(request):
+        raise HTTPException(401, "Enter the demo password first.")
+    rate_limit(f"try:{request.client.host if request.client else '?'}", 6, 600)
+    from scripts.seed import ensure_try_creator
+    d = get_db()
+    cid = ensure_try_creator(d)
+    deal, token = deals.create_deal(d, cid, brand_org="Judge Brand", contact_name="Judge", actor="try")
+    d.update("deals", "id", deal["id"], {"is_try": 1})
+    brief = "1 Reel showing our new snack, plus 1 Story set. Post Friday. #ad."
+    plist = {p["code"]: p for p in engine.price_items(d, cid)}
+    lines = [ai.DraftLine("reel", plist["reel"]["id"], plist["reel"]["name"], 1, "1 Reel showing our new snack", 5000, 5000),
+             ai.DraftLine("story_set", plist["story_set"]["id"], plist["story_set"]["name"], 1, "plus 1 Story set", 2000, 2000)]
+    draft = ai.Draft(lines=lines, not_on_list=[], post_date={"value": "Friday", "quote": "Post Friday"}, done_means=[],
+                     total_cents=7000, provider="demo", attempts=0, fell_back=False, fields=[])
+    d.update("deal_links", "token", token, {"opened_at": db_now()})
+    deals.store_draft(d, token, brief, draft)
+    creator_party = d.one("select party_id from creators where id = :c", {"c": cid})["party_id"]
+    deals.accept(d, deal["id"], creator_party=creator_party)
+    d.log_event("demo.reset", actor="try", deal_id=deal["id"], payload={})
+    base = get_settings().base_url.rstrip("/")
+    return {"deal": deal["id"], "brand_link": f"{base}/d/{token}", "creator_link": f"{base}/try/creator/{deal['id']}",
+            "cap_cents": TRY_CAP_CENTS}
+
+
+@app.get("/try/creator/{deal_id}")
+def try_creator(deal_id: str, request: Request):
+    """Judges act as the demo creator too (only on try deals)."""
+    if not _try_ok(request):
+        return RedirectResponse("/try", 303)
+    d = get_db()
+    deal = d.one("select * from deals where id = :d and is_try = 1", {"d": deal_id})
+    if not deal:
+        return RedirectResponse("/try", 303)
+    acc = d.one("select id from accounts where creator_id = :c", {"c": deal["creator_id"]})
+    if not acc:
+        from scripts.seed import ensure_demo_accounts
+        ensure_demo_accounts(d)
+        acc = d.one("select id from accounts where creator_id = :c", {"c": deal["creator_id"]})
+    r = RedirectResponse(f"/studio/deals/{deal_id}", 303)
+    r.set_cookie(COOKIE, serializer().dumps({"a": acc["id"]}), max_age=86400, httponly=True, samesite="lax",
+                 secure=get_settings().base_url.startswith("https"))
+    return r
+
+
 # ---------- deal chat and change cards (Phase 3) ----------
 
 def _brand_ctx(token: str) -> tuple[dict, str]:
@@ -1043,6 +1372,12 @@ async def _detect(deal: dict, party_id: str, text: str, source: str, message_id:
     if out.kind == "revision" or out.lines:
         d.log_event("feedback.classified", actor="ai", deal_id=deal["id"], payload={"kind": out.kind, "source": source})
     c = changes.build(d, deal, out, message=text, proposer=party_id, source=source, message_id=message_id)
+    if c:
+        creator_party = d.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
+        other = deal["brand_party_id"] if party_id == creator_party else creator_party
+        who = (d.one("select name from parties where id = :p", {"p": party_id}) or {}).get("name", "Someone")
+        await notify.send(d, other, "change", [who, deal.get("brand_org") or "your deal", (c.get("quote") or "")[:80],
+                                               f"{get_settings().base_url.rstrip('/')}/"])
     return {"change": changes.card(d, c)} if c else {}
 
 
@@ -1215,7 +1550,7 @@ def get_media(mid: str, request: Request, t: str | None = None):
 
 
 @app.post("/internal/tick")
-def tick(request: Request):  # S59: protected by the secret header, not the Origin check
+async def tick(request: Request):  # S59: protected by the secret header, not the Origin check
     want = get_settings().amend_tick_secret.get_secret_value()
     got = request.headers.get("x-amend-tick", "")
     if not want or not hmac.compare_digest(got.encode(), want.encode()):
@@ -1226,13 +1561,14 @@ def tick(request: Request):  # S59: protected by the secret header, not the Orig
         if money.mark_expired_if_due(d, it)["status"] == "expired":
             expired += 1
     result = {"expired_holds": expired, **changes.tick(d)}
-    for extra in TICK_TASKS:  # later phases add checks here (shipping nudges, silent approval, holdback, call nudges)
+    for extra in TICK_TASKS:  # shipping nudges, silent approval, call nudges
         result.update(extra(d))
+    result.update(await delivery.tick_holdback(d, rail()))
     d.log_event("tick.ran", actor="system", payload=result)
     return {"ok": True, **result}
 
 
-TICK_TASKS: list = [shipping.tick]
+TICK_TASKS: list = [shipping.tick, delivery.tick_silent]
 
 
 @app.post("/api/paypal/webhook")

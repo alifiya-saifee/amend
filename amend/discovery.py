@@ -175,7 +175,7 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
 
 
 def search(db: Database, q: dict) -> dict:
-    rows = db.all("select * from creators order by created_at")
+    rows = db.all("select * from creators where handle <> 'try.demo' order by created_at")
     cards = [card(db, c) for c in rows]
     full = {c["id"]: latest_metrics(db, c["id"]) for c in rows}
     term = (q.get("q") or "").strip().lower()

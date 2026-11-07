@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money story · Amend</title>
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body>
+<header class="top"><a class="back" href="javascript:history.back()">←</a><span class="title">Money story</span><span class="auth-slot"></span></header>
+<main class="wrap" id="view"><div class="skeleton"></div><div class="skeleton"></div></main>
+<script>
+const KEY = decodeURIComponent(location.pathname.split("/")[2] || "");
+const BRAND = new URLSearchParams(location.search).get("b") === "1";
+let F = "all";
+async function load() {
+  let r;
+  try { r = await api(BRAND ? `/api/d/${KEY}/story` : `/api/deals/${KEY}/story`); }
+  catch (e) { if (e.status === 401) { location.href = "/login?next=" + encodeURIComponent(location.pathname); return; }
+    $("#view").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const items = r.entries.filter(e => F === "all" || e.kind === F);
+  const byV = {};
+  items.forEach(e => (byV[e.version] = byV[e.version] || []).push(e));
+  const icon = { money: "💰", words: "❝", changes: "💡", other: "•" };
+  $("#view").innerHTML = `<h1>Money story</h1><p class="muted small">Every version, every quote and every PayPal action, in order.</p>
+    <div class="chips" style="margin:12px 0">${[["all", "All"], ["money", "Money"], ["words", "Words"], ["changes", "Changes"]]
+      .map(([k, t]) => `<button data-f="${k}" class="${F === k ? "on" : ""}">${t}</button>`).join("")}</div>
+    ${Object.keys(byV).length ? Object.entries(byV).map(([v, es]) => `<section class="card" style="margin-top:12px"><h3>${+v ? "Version " + v : "Before acceptance"}</h3>
+      <ul class="events">${es.map(e => `<li><span>${icon[e.kind]}</span><div class="grow"><b>${esc(e.title)}</b> <span class="muted small">· ${esc(e.who || "")}</span>
+        ${e.detail ? `<div class="small">${esc(e.detail)}</div>` : ""}${e.paypal_id ? `<div class="tiny muted">PayPal ${esc(e.paypal_id)}</div>` : ""}</div>
+        <div class="amt small">${e.amount_cents ? usd(Math.abs(e.amount_cents)) : ""}<div class="tiny muted">${new Date(e.at).toLocaleString()}</div></div></li>`).join("")}</ul></section>`).join("")
+      : `<div class="empty">Nothing here yet.</div>`}`;
+  $$("[data-f]").forEach(b => b.onclick = () => { F = b.dataset.f; load(); });
+}
+load();
+</script>
+</body></html>

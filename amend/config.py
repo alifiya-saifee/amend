@@ -13,7 +13,7 @@ PAYPAL_BASE = "https://api-m.sandbox.paypal.com"  # hard-coded: sandbox only (ha
 AED_RATE = "3.6725"  # fixed display rate; PayPal charges in USD
 
 SECRET_NAMES = ("PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "GEMINI_API_KEY", "GROQ_API_KEY",
-                "NVIDIA_API_KEY", "AMEND_DEMO_PASSWORD", "AMEND_SESSION_SECRET", "AMEND_TICK_SECRET")
+                "NVIDIA_API_KEY", "AMEND_DEMO_PASSWORD", "AMEND_SESSION_SECRET", "AMEND_TICK_SECRET", "WHATSAPP_TOKEN")
 
 
 class Settings(BaseSettings):
@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     amend_demo_password: SecretStr = SecretStr("")
     amend_session_secret: SecretStr = SecretStr("")
     amend_tick_secret: SecretStr = SecretStr("")
+    whatsapp_token: SecretStr = SecretStr("")
+    whatsapp_phone_id: str = ""
     sandbox_brand_email: str = ""
     sandbox_creator_email: str = ""
     sandbox_editor_email: str = ""

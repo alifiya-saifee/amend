@@ -404,6 +404,8 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
             raise ChangeError("only the deciders can confirm")
         db.log_event("change.confirmed", actor=party_id, deal_id=deal["id"], payload={"change": change_id, "side": side})
         c = db.one("select * from changes where id = :id", {"id": change_id})
+        if deal.get("is_try") and deal["total_cents"] + (c["delta_cents"] or 0) > 10_000:
+            raise ChangeError("Try-it deals are capped at $100: this change would go over")
         if c["confirmed_brand_at"] and c["confirmed_creator_at"]:
             db.update("changes", "id", change_id, {"status": "confirmed_by_both"})
             apply(db, db.one("select * from changes where id = :id", {"id": change_id}), party_id)

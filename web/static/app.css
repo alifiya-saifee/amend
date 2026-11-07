@@ -251,3 +251,10 @@ button.pick { width: 100%; font: inherit; color: var(--ink); }
   .cgrid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (min-width: 1400px) { .cgrid { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---------- delivery (Phase 6) ---------- */
+.frames { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+.frames figure { margin: 0; } .frames img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: var(--raise); }
+.frames figcaption { font-size: .68rem; color: var(--muted); text-align: center; }
+.stars button { background: none; border: 0; font-size: 1.8rem; color: var(--gold-text); cursor: pointer; padding: 0 2px; }
+.ag-wrap { height: 70vh; width: 100%; }

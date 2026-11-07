@@ -15,7 +15,7 @@
   <a href="/studio" data-tab="inbox"><span class="ic">📥</span>Inbox<span class="badge" id="ubadge" hidden></span></a>
   <a href="/studio/deals" data-tab="deals"><span class="ic">💬</span>Deals</a>
   <a href="/studio/prices" data-tab="prices"><span class="ic">🏷️</span>Prices</a>
-  <a href="/studio/ledger" data-tab="ledger" class="off"><span class="ic">📒</span>Ledger · Tue</a>
+  <a href="/studio/ledger" data-tab="ledger"><span class="ic">📒</span>Ledger</a>
   <a href="/studio/profile" data-tab="profile"><span class="ic">👤</span>Profile</a>
   <a href="#" class="side-out" onclick="signOut(); return false;"><span class="ic">↩</span>Sign out</a>
 </nav>
@@ -42,11 +42,48 @@ async function route() {
     else if (tab === "deals") await deals();
     else if (tab === "prices") await prices();
     else if (tab === "profile") await profile();
-    else $("#view").innerHTML = `<div class="empty"><div class="ic">📒</div>The ledger arrives on Tuesday.</div>`;
+    else await ledger();
   } catch (e) {
     if (e.status === 401) { location.href = "/login"; return; }
     $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
   }
+}
+
+/* ---------- Ledger tab (AG Grid) ---------- */
+function loadGrid() {
+  if (window.agGrid) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/ag-grid-community@32.2.0/dist/ag-grid-community.min.js";
+    s.onload = res; s.onerror = () => rej(new Error("The ledger grid couldn't load. Check your connection."));
+    document.head.appendChild(s);
+  });
+}
+async function ledger() {
+  const r = await api("/api/studio/ledger");
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  $("#view").innerHTML = `<div class="row between wrapx" style="gap:8px"><h1>Ledger</h1>
+      <div class="row" style="gap:8px"><input id="lg-q" placeholder="Filter" style="max-width:200px"><button class="btn small" id="lg-csv">Export CSV</button></div></div>
+    <p class="muted small">Every payment with the words behind it. PayPal fees so far: <b>$${r.fees_usd.toFixed(2)}</b>. Tap a row for its money story.</p>
+    ${r.rows.length ? `<div id="grid" class="ag-wrap ${dark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}"></div>`
+      : `<div class="empty"><div class="ic">📒</div>No payments yet. They appear here once a brand holds money.</div>`}`;
+  if (!r.rows.length) return;
+  await loadGrid();
+  const money = p => p.value == null ? "" : "$" + Number(p.value).toFixed(2);
+  const grid = agGrid.createGrid($("#grid"), {
+    rowData: r.rows, pagination: true, paginationPageSize: 50, paginationPageSizeSelector: [20, 50, 100],
+    defaultColDef: { sortable: true, filter: true, resizable: true },
+    columnDefs: [
+      { field: "date", width: 110 }, { field: "brand", width: 150 }, { field: "item", flex: 1, minWidth: 160 }, { field: "kind", width: 100 },
+      { field: "amount_usd", headerName: "Amount", valueFormatter: money, width: 110 }, { field: "aed", headerName: "AED", width: 100 },
+      { field: "status", width: 110 }, { field: "paypal_id", headerName: "PayPal ID", width: 160 },
+      { field: "quote", headerName: "❝ Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
+      { field: "fee_usd", headerName: "Fee", valueFormatter: money, width: 90 }, { field: "request_id", headerName: "Request ID", hide: true },
+      { field: "updated", width: 170, hide: true }],
+    onRowClicked: e => { location.href = `/story/${e.data.deal}`; },
+  });
+  $("#lg-q").oninput = e => grid.setGridOption("quickFilterText", e.target.value);
+  $("#lg-csv").onclick = () => grid.exportDataAsCsv({ fileName: "amend-ledger.csv" });
 }
 
 /* ---------- Inbox tab (D4) ---------- */

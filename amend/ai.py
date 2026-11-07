@@ -60,8 +60,10 @@ class Provider:
     def available(self) -> bool:
         return bool(self.key() and self.model())
 
-    async def complete_json(self, system: str, user: str, image: str | None = None) -> dict:
-        content = user if not image else [{"type": "text", "text": user}, {"type": "image_url", "image_url": {"url": image}}]
+    async def complete_json(self, system: str, user: str, image: str | list[str] | None = None) -> dict:
+        images = [image] if isinstance(image, str) else (image or [])
+        content = user if not images else [{"type": "text", "text": user}] + [
+            {"type": "image_url", "image_url": {"url": u}} for u in images]
         body = {"model": self.model(), "temperature": 0,
                 "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}]}
@@ -112,8 +114,9 @@ VISION = {"gemini"}  # providers that read images (Groq's backup chat model is t
 
 
 async def call_json(system: str, user: str, *, retries: int = 2, base_delay: float = 0.5,
-                    use_cache: bool = True, image: str | None = None) -> AIResult:
-    key = hashlib.sha256(json.dumps([system, user, hashlib.sha256((image or "").encode()).hexdigest()]).encode()).hexdigest()
+                    use_cache: bool = True, image: str | list[str] | None = None) -> AIResult:
+    img_key = hashlib.sha256(json.dumps(image).encode()).hexdigest() if image else ""
+    key = hashlib.sha256(json.dumps([system, user, img_key]).encode()).hexdigest()
     if use_cache and key in _cache:
         r = _cache[key]
         return AIResult(r.data, r.provider, 0, r.fell_back, cached=True)

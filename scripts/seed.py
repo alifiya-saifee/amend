@@ -193,6 +193,34 @@ def seed_discovery(db: Database) -> int:
 
 STYLES_ = ["UGC", "cinematic", "talking head", "tutorial", "AI-made"]
 
+TRY_HANDLE = "try.demo"
+
+
+def ensure_try_creator(db: Database) -> str:
+    """The judges' demo creator (/try): small made-up prices so every try deal stays at or under $100."""
+    c = db.one("select id from creators where handle = :h", {"h": TRY_HANDLE})
+    if c:
+        return c["id"]
+    t = now()
+    pid, cid = new_id("p"), new_id("c")
+    db.insert("parties", {"id": pid, "name": "Demo Creator", "role": "creator", "handle": TRY_HANDLE, "confirmed": 1, "created_at": t})
+    db.insert("creators", {"id": cid, "party_id": pid, "handle": TRY_HANDLE, "display_name": "Demo Creator (try it)",
+                           "bio": "The judges' demo creator. Demo data.", "followers": 12000, "niche": "food", "city": "Dubai", "country": "UAE",
+                           "niches_json": '["food"]', "is_demo": 1, "turnaround_days": 2,
+                           "limits_json": json.dumps({"posting_days": ["mon", "tue", "wed", "thu", "fri"], "min_reel_cents": 4000,
+                                                      "banned_claims": ["health claims"], "min_notice_hours": 48}),
+                           "created_at": t})
+    for k, (code, nm, kind, std, unit, rules) in enumerate([
+            ("reel", "Reel (up to 30 s)", "deliverable", 5000, "item", {"included_revisions": 2, "note": "Includes 2 revisions"}),
+            ("story_set", "Story set (3 frames)", "deliverable", 2000, "item", {}),
+            ("extra_revision", "Extra revision", "extra", 1000, "revision", {}),
+            ("new_scene", "New scene or location", "extra", 1500, "item", {}),
+            ("date_change", "Posting date change", "rule", 500, "change", {"free_notice_hours": 48, "note": "Free with 48 h notice"})]):
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": cid, "code": code, "name": nm, "kind": kind, "min_cents": std,
+                                  "max_cents": std, "standard_cents": std, "unit": unit, "rules_json": json.dumps(rules), "hidden": 0,
+                                  "active": 1, "created_at": f"{t}-{k:02d}"})
+    return cid
+
 
 def ensure_exclusivity_item(db: Database) -> None:
     """Exclusivity is a priced item (brief builder, Phase 5). Sara: $200 a month."""
