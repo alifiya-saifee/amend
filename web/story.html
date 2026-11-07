@@ -20,7 +20,7 @@ async function load() {
   const items = r.entries.filter(e => F === "all" || e.kind === F);
   const byV = {};
   items.forEach(e => (byV[e.version] = byV[e.version] || []).push(e));
-  const icon = { money: "💰", words: "❝", changes: "💡", other: "•" };
+  const icon = { money: "<i data-lucide='wallet' aria-hidden='true'></i>", words: "<i data-lucide='quote' aria-hidden='true'></i>", changes: "<i data-lucide='lightbulb' aria-hidden='true'></i>", other: "•" };
   $("#view").innerHTML = `<h1>Money story</h1><p class="muted small">Every version, every quote and every PayPal action, in order.</p>
     <div class="chips" style="margin:12px 0">${[["all", "All"], ["money", "Money"], ["words", "Words"], ["changes", "Changes"]]
       .map(([k, t]) => `<button data-f="${k}" class="${F === k ? "on" : ""}">${t}</button>`).join("")}</div>

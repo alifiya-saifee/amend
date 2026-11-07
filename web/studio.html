@@ -56,10 +56,10 @@ async function ledger() {
   const r = await api("/api/studio/ledger");
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   $("#view").innerHTML = `<div class="row between wrapx" style="gap:8px"><h1>Ledger</h1>
-      <div class="row" style="gap:8px"><input id="lg-q" placeholder="Filter" style="max-width:200px"><button class="btn small" id="lg-csv">Export CSV</button></div></div>
+   <div class="row" style="gap:8px"><input id="lg-q" placeholder="Filter" style="max-width:200px"><button class="btn small" id="lg-csv">Export CSV</button></div></div>
     <p class="muted small">Every payment with the words behind it. PayPal fees so far: <b>$${r.fees_usd.toFixed(2)}</b>. Tap a row for its money story.</p>
     ${r.rows.length ? `<div id="grid" class="ag-wrap ${dark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}"></div>`
-      : `<div class="empty"><div class="ic">📒</div>No payments yet. They appear here once a brand holds money.</div>`}`;
+      : `<div class="empty"><div class="ic"><i data-lucide='book-open' aria-hidden='true'></i></div>No payments yet. They appear here once a brand holds money.</div>`}`;
   if (!r.rows.length) return;
   await loadGrid();
   const money = p => p.value == null ? "" : "$" + Number(p.value).toFixed(2);
@@ -70,7 +70,7 @@ async function ledger() {
       { field: "date", width: 110 }, { field: "brand", width: 150 }, { field: "item", flex: 1, minWidth: 160 }, { field: "kind", width: 100 },
       { field: "amount_usd", headerName: "Amount", valueFormatter: money, width: 110 }, { field: "aed", headerName: "AED", width: 100 },
       { field: "status", width: 110 }, { field: "paypal_id", headerName: "PayPal ID", width: 160 },
-      { field: "quote", headerName: "❝ Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
+      { field: "quote", headerName: "<i data-lucide='quote' aria-hidden='true'></i> Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
       { field: "fee_usd", headerName: "Fee", valueFormatter: money, width: 90 }, { field: "request_id", headerName: "Request ID", hide: true },
       { field: "updated", width: 170, hide: true }],
     onRowClicked: e => { location.href = `/story/${e.data.deal}`; },
@@ -86,10 +86,10 @@ async function inboxTab(append = false) {
   badge(r.unread);
   const rows = r.items.map(x => `
     <a class="inbox-row ${x.unread ? "unread" : ""}" href="/studio/deals/${x.deal}" data-ev="${x.event_id}">
-      <span class="ic">${x.icon}</span>
+      <span class="ic">${icon(x.icon)}</span>
       <div class="grow"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
         <div class="small">${esc(x.line)}</div></div>
-      ${x.unread ? '<span class="udot" aria-label="unread"></span>' : ""}
+   ${x.unread ? '<span class="udot" aria-label="unread"></span>' : ""}
     </a>`).join("");
   if (append) { $("#ib-list").insertAdjacentHTML("beforeend", rows); }
   else {
@@ -100,7 +100,7 @@ async function inboxTab(append = false) {
       <div class="chips" style="margin:12px 0">${[["all", "All"], ["needs_me", "Needs me"], ["messages", "Messages"], ["money", "Money"]]
         .map(([k, t]) => `<button data-f="${k}" class="${IF.filter === k ? "on" : ""}">${t}${k === "needs_me" && c.needs_me ? `<span class="dot">${c.needs_me}</span>` : ""}</button>`).join("")}</div>
       <div id="ib-list" class="card" style="padding:6px">${rows}</div>
-      ${!r.items.length ? `<div class="empty"><div class="ic">📥</div>Nothing new. Messages, changes and PayPal updates show up here.</div>` : ""}
+      ${!r.items.length ? `<div class="empty"><div class="ic"><i data-lucide='inbox' aria-hidden='true'></i></div>Nothing new. Messages, changes and PayPal updates show up here.</div>` : ""}
       <div id="ib-more"></div>`;
     if (!r.items.length) $("#ib-list").hidden = true;
     $$(".chips button").forEach(b => b.onclick = () => { IF = { filter: b.dataset.f, page: 0 }; inboxTab(); });
@@ -135,16 +135,16 @@ async function deals(append = false) {
   if (append) { $("#deal-list").insertAdjacentHTML("beforeend", html); }
   else {
     $("#view").innerHTML = `
-      <h1>Hi ${esc(ME.display_name.split(" ")[0])} 👋</h1>
+      <h1>Hi ${esc(ME.display_name.split(" ")[0])} </h1>
       <p class="muted">${c.all} deal${c.all === 1 ? "" : "s"} · ${usd(r.held_cents)} held · ${c.needs_me} waiting for you</p>
       <div class="chips" style="margin:12px 0">
         ${[["all", "All"], ["needs_me", "Needs me"], ["waiting", "Waiting for brand"], ["held", "Held"], ["done", "Done"], ["cancelled", "Cancelled"]]
           .map(([k, t]) => `<button data-f="${k}" class="${F.filter === k ? "on" : ""}">${t}${k === "needs_me" && c.needs_me ? `<span class="dot">${c.needs_me}</span>` : ""}</button>`).join("")}
       </div>
-      <input id="q" placeholder="Search by brand or deal number" value="${esc(F.q)}">
+   <input id="q" placeholder="Search by brand or deal number" value="${esc(F.q)}">
       <div id="deal-list" class="stack" style="margin-top:12px">${html}</div>
       ${!r.deals.length ? (c.all ? `<div class="empty">No deals match.</div>` :
-        `<div class="empty"><div class="ic">🔗</div>No deals yet. Send a brand your deal link.<br><br><button class="btn primary" onclick="newDeal()">+ New deal link</button></div>`) : ""}
+        `<div class="empty"><div class="ic"><i data-lucide='link' aria-hidden='true'></i></div>No deals yet. Send a brand your deal link.<br><br><button class="btn primary" onclick="newDeal()">+ New deal link</button></div>`) : ""}
       <div id="more"></div>
       <button class="btn primary fab" onclick="newDeal()">+ New deal link</button>`;
     $$(".chips button").forEach(b => b.onclick = () => { F.filter = b.dataset.f; F.page = 0; deals(); });
@@ -164,9 +164,9 @@ function lastLine(e) {
 function newDeal() {
   const sh = sheet(`<h2>New deal link</h2>
     <form id="nd">
-      <label>Brand name *</label><input name="brand_org" required maxlength="80" placeholder="Dune Roast Coffee">
-      <label>Contact name *</label><input name="contact_name" required maxlength="60" placeholder="Nadia">
-      <label>Contact email (optional)</label><input name="contact_email" type="email" maxlength="120" placeholder="for notifications later">
+   <label>Brand name *</label><input name="brand_org" required maxlength="80" placeholder="Dune Roast Coffee">
+   <label>Contact name *</label><input name="contact_name" required maxlength="60" placeholder="Nadia">
+   <label>Contact email (optional)</label><input name="contact_email" type="email" maxlength="120" placeholder="for notifications later">
       <label>Link valid for</label>
       <select name="days"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select>
       <div class="err" id="nd-err" hidden></div>
@@ -180,7 +180,7 @@ function newDeal() {
         const r = await api("/api/deals", { body: fd });
         linkReady(r.link, fd.contact_name);
         F = { filter: "all", q: "", page: 0 }; deals();
-      } catch (err) { $("#nd-err").textContent = err.message; $("#nd-err").hidden = false; }
+   } catch (err) { $("#nd-err").textContent = err.message; $("#nd-err").hidden = false; }
     });
   };
 }
@@ -193,7 +193,7 @@ function linkReady(link, who) {
       ${navigator.share ? `<button class="btn block" id="sh">Share…</button>` : ""}
       <button class="btn block" onclick="closeSheet()">Done</button>
     </div>`);
-  $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Copied"); } catch { $("#lk").select(); document.execCommand("copy"); toast("Copied"); } };
+ $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Copied"); } catch { $("#lk").select(); document.execCommand("copy"); toast("Copied"); } };
   if (navigator.share) $("#sh").onclick = () => navigator.share({ title: "Our deal on Amend", text: "Let's do it here, the money's protected for both of us.", url: link }).catch(() => {});
 }
 
@@ -216,18 +216,18 @@ async function prices() {
       <label>Minimum Reel price ($)</label><input id="minreel" type="number" min="0" step="1" value="${(L.min_reel_cents || 0) / 100}">
       <label>Posting days</label><div class="daypick" id="days">${DAYS.map(d => `<button type="button" data-d="${d}" class="${(L.posting_days || []).includes(d) ? "on" : ""}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</div>
       <div class="hint">Days switched off can't be posting days (e.g. Sat and Sun off = no weekend posting).</div>
-      <label>Banned claims</label><div id="claims"></div><input id="claim" placeholder="Type a claim and press Enter">
+   <label>Banned claims</label><div id="claims"></div><input id="claim" placeholder="Type a claim and press Enter">
       <label>Minimum notice for date changes (hours)</label><input id="notice" type="number" min="0" value="${L.min_notice_hours || 48}">
       <button class="btn primary block" id="sv-lim" style="margin-top:14px">Save limits</button></section>
     <section class="card" style="margin-top:14px"><h2>UAE Advertiser Permit</h2>
-      <label>Permit number</label><input id="pno" value="${esc(ME.permit_no || "")}" placeholder="AP-20260142">
+   <label>Permit number</label><input id="pno" value="${esc(ME.permit_no || "")}" placeholder="AP-20260142">
       <label>Expiry date</label><input id="pexp" type="date" value="${esc(ME.permit_expiry || "")}">
       <div id="pbadge" style="margin-top:10px">${permitBadge(ME.permit)}</div>
       <p class="hint">Format and expiry check only. Not verified with the UAE Media Council.</p>
       <button class="btn primary block" id="sv-permit">Save and check format</button></section>`;
   $$("[data-menu]").forEach(b => b.onclick = () => itemMenu(ITEMS.find(x => x.id === b.dataset.menu)));
   let claims = [...(L.banned_claims || [])];
-  const drawClaims = () => $("#claims").innerHTML = claims.map((c, i) => `<span class="tag">${esc(c)}<button data-i="${i}" aria-label="Remove">×</button></span>`).join("");
+ const drawClaims = () => $("#claims").innerHTML = claims.map((c, i) => `<span class="tag">${esc(c)}<button data-i="${i}" aria-label="Remove">×</button></span>`).join("");
   drawClaims();
   $("#claims").onclick = e => { if (e.target.dataset.i) { claims.splice(+e.target.dataset.i, 1); dirty = true; drawClaims(); } };
   $("#claim").onkeydown = e => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); claims.push(e.target.value.trim()); e.target.value = ""; dirty = true; drawClaims(); } };
@@ -237,14 +237,14 @@ async function prices() {
     try {
       ME.limits = await api("/api/studio/limits", { method: "PUT", body: { min_reel_cents: Math.round(+$("#minreel").value * 100),
         posting_days: $$("#days button.on").map(b => b.dataset.d), banned_claims: claims, min_notice_hours: +$("#notice").value } });
-      dirty = false; toast("Limits saved");
-    } catch (err) { toast(err.message, "bad"); }
+   dirty = false; toast("Limits saved");
+  } catch (err) { toast(err.message, "bad"); }
   });
   $("#sv-permit").onclick = e => busy(e.currentTarget, async () => {
     try {
       const r = await api("/api/studio/permit", { method: "PUT", body: { permit_no: $("#pno").value, permit_expiry: $("#pexp").value || null } });
-      ME.permit = r; ME.permit_no = $("#pno").value; ME.permit_expiry = $("#pexp").value; $("#pbadge").innerHTML = permitBadge(r); dirty = false; toast("Permit saved");
-    } catch (err) { toast(err.message, "bad"); }
+   ME.permit = r; ME.permit_no = $("#pno").value; ME.permit_expiry = $("#pexp").value; $("#pbadge").innerHTML = permitBadge(r); dirty = false; toast("Permit saved");
+  } catch (err) { toast(err.message, "bad"); }
   });
 }
 function priceText(p) {
@@ -255,7 +255,7 @@ function priceText(p) {
   return usd(p.standard_cents) + u;
 }
 function permitBadge(p) {
-  const ic = { ok: "✅", soon: "⚠️", expired: "❌", bad_format: "❌", missing: "➖", no_expiry: "⚠️" }[p.state] || "";
+  const ic = { ok: "<i data-lucide='circle-check' aria-hidden='true'></i>", soon: "<i data-lucide='triangle-alert' aria-hidden='true'></i>", expired: "<i data-lucide='circle-x' aria-hidden='true'></i>", bad_format: "<i data-lucide='circle-x' aria-hidden='true'></i>", missing: "<i data-lucide='minus' aria-hidden='true'></i>", no_expiry: "<i data-lucide='triangle-alert' aria-hidden='true'></i>" }[p.state] || "";
   return `<span class="pill ${p.state === "ok" ? "collected" : p.state === "soon" || p.state === "no_expiry" ? "waiting" : "failed"}">${ic} ${esc(p.label)}</span>`;
 }
 function itemMenu(p) {
@@ -265,8 +265,8 @@ function itemMenu(p) {
     <button class="btn danger block" id="m-retire">${p.active ? "Retire" : "Bring back"}</button>
     <p class="hint">Retire, not delete: old deals still point to this item, so it's kept.</p></div>`);
   $("#m-edit").onclick = () => editItem(p);
-  $("#m-hide").onclick = e => busy(e.currentTarget, async () => { await api("/api/studio/prices", { body: { ...p, hidden: !p.hidden } }); closeSheet(); toast("Saved"); prices(); });
-  $("#m-retire").onclick = e => busy(e.currentTarget, async () => { await api(`/api/studio/prices/${p.id}/retire`, { body: { active: !p.active } }); closeSheet(); toast(p.active ? "Retired" : "Back on the list"); prices(); });
+ $("#m-hide").onclick = e => busy(e.currentTarget, async () => { await api("/api/studio/prices", { body: { ...p, hidden: !p.hidden } }); closeSheet(); toast("Saved"); prices(); });
+ $("#m-retire").onclick = e => busy(e.currentTarget, async () => { await api(`/api/studio/prices/${p.id}/retire`, { body: { active: !p.active } }); closeSheet(); toast(p.active ? "Retired" : "Back on the list"); prices(); });
 }
 function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }) {
   const c = v => v == null ? "" : v / 100;
@@ -291,10 +291,10 @@ function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }
     const body = { id: p.id, name: f.name, kind: f.kind, unit: f.unit, min_cents: cents(f.min), max_cents: cents(f.max), standard_cents: cents(f.std), rules, hidden: !!p.hidden };
     const err = (body.min_cents != null && body.max_cents != null && body.min_cents > body.max_cents) ? "Minimum is above maximum"
       : (body.standard_cents != null && ((body.min_cents != null && body.standard_cents < body.min_cents) || (body.max_cents != null && body.standard_cents > body.max_cents))) ? "Standard must be between minimum and maximum" : "";
-    if (err) { $("#it-err").textContent = err; $("#it-err").hidden = false; return; }
+  if (err) { $("#it-err").textContent = err; $("#it-err").hidden = false; return; }
     busy($("#it-go"), async () => {
-      try { await api("/api/studio/prices", { body }); closeSheet(); toast("Item saved"); prices(); }
-      catch (er) { $("#it-err").textContent = er.message; $("#it-err").hidden = false; }
+   try { await api("/api/studio/prices", { body }); closeSheet(); toast("Item saved"); prices(); }
+   catch (er) { $("#it-err").textContent = er.message; $("#it-err").hidden = false; }
     });
   };
 }
@@ -324,7 +324,7 @@ async function profile() {
       <label>Search keywords</label><input name="keywords" maxlength="200" value="${esc(P.keywords || "")}">
       <button class="btn primary block" id="pf-go" style="margin-top:14px">Save profile</button></form>
     <form id="mf" class="card" style="margin-top:14px"><div class="row between"><h2 style="margin:0">Reach and audience</h2>
-        <button type="button" class="btn small" id="fill">📷 Fill from screenshot</button></div>
+        <button type="button" class="btn small" id="fill"><i data-lucide='camera' aria-hidden='true'></i> Fill from screenshot</button></div>
       <p class="hint">Engagement and view rate are worked out by Amend from these numbers. Numbers read from a screenshot are marked "from insights screenshot", never "verified".</p>
       <input type="file" id="shot" accept="image/png,image/jpeg,image/webp" hidden>
       <div id="mf-src" class="small muted"></div>
@@ -334,9 +334,9 @@ async function profile() {
       <div class="row"><div class="grow"><label>Avg likes</label><input name="avg_likes" type="number" min="0" value="${m.avg_likes ?? ""}"></div>
         <div class="grow"><label>Avg comments</label><input name="avg_comments" type="number" min="0" value="${m.avg_comments ?? ""}"></div></div>
       <label>Posts per week</label><input name="posts_per_week" type="number" min="0" value="${m.posts_per_week ?? ""}">
-      <label>Audience countries (%)</label><input name="countries" placeholder="UAE=60, KSA=20" value="${esc(pctTxt(m.audience.countries))}">
-      <label>Gender (%)</label><input name="gender" placeholder="female=65, male=35" value="${esc(pctTxt(m.audience.gender))}">
-      <label>Ages (%)</label><input name="ages" placeholder="18-24=30, 25-34=45" value="${esc(pctTxt(m.audience.ages))}">
+   <label>Audience countries (%)</label><input name="countries" placeholder="UAE=60, KSA=20" value="${esc(pctTxt(m.audience.countries))}">
+   <label>Gender (%)</label><input name="gender" placeholder="female=65, male=35" value="${esc(pctTxt(m.audience.gender))}">
+   <label>Ages (%)</label><input name="ages" placeholder="18-24=30, 25-34=45" value="${esc(pctTxt(m.audience.ages))}">
       <div class="err" id="mf-err" hidden></div>
       <button class="btn primary block" id="mf-go" style="margin-top:14px">Save numbers</button></form>
     <div class="stack" style="margin-top:14px">
@@ -351,17 +351,17 @@ async function profile() {
     busy($("#pf-go"), async () => { try {
       await api("/api/studio/profile", { method: "PUT", body: { ...f, turnaround_days: f.turnaround_days === "" ? null : +f.turnaround_days, next_available: f.next_available || null,
         languages: list(f.languages), past_brands: list(f.past_brands), niches: $$("[data-niche].on").map(b => b.dataset.niche), styles: $$("[data-style].on").map(b => b.dataset.style) } });
-      toast("Profile saved"); } catch (er) { toast(er.message, "bad"); } }); };
+   toast("Profile saved"); } catch (er) { toast(er.message, "bad"); } }); };
   $("#mf").onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const n = k => f[k] === "" ? null : Math.round(+f[k]);
     busy($("#mf-go"), async () => { $("#mf-err").hidden = true; try {
       await api("/api/studio/metrics", { body: { platform: f.platform, followers: n("followers"), avg_views: n("avg_views"), avg_likes: n("avg_likes"), avg_comments: n("avg_comments"),
         posts_per_week: n("posts_per_week"), audience: { countries: pct(f.countries), gender: pct(f.gender), ages: pct(f.ages) }, source } });
-      toast(source === "insights_screenshot" ? "Saved · marked as read from a screenshot" : "Numbers saved"); profile();
-    } catch (er) { $("#mf-err").textContent = er.message; $("#mf-err").hidden = false; } }); };
+   toast(source === "insights_screenshot" ? "Saved · marked as read from a screenshot" : "Numbers saved"); profile();
+  } catch (er) { $("#mf-err").textContent = er.message; $("#mf-err").hidden = false; } }); };
   $("#fill").onclick = () => $("#shot").click();
   $("#shot").onchange = async () => {
     const file = $("#shot").files[0]; if (!file) return;
-    if (file.size > 2_000_000) { toast("Screenshot too big (2 MB max)", "bad"); return; }
+  if (file.size > 2_000_000) { toast("Screenshot too big (2 MB max)", "bad"); return; }
     const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
     await busy($("#fill"), async () => { try {
       const r = (await api("/api/studio/metrics/read", { body: { mime: file.type, data_b64: data } })).read;
@@ -371,9 +371,9 @@ async function profile() {
       set("countries", pctTxt(r.audience.countries) || null); set("gender", pctTxt(r.audience.gender) || null); set("ages", pctTxt(r.audience.ages) || null);
       source = "insights_screenshot";
       $("#mf-src").innerHTML = `<div class="banner gold">Read from your screenshot. <b>Check every number</b>, then save. It will show as "from insights screenshot".</div>`;
-    } catch (er) { toast(er.message, "bad"); } });
+  } catch (er) { toast(er.message, "bad"); } });
   };
-  $("#cpb").onclick = async () => { const u = location.origin + "/c/" + P.handle; try { await navigator.clipboard.writeText(u); } catch {} toast("Booking link copied"); };
+ $("#cpb").onclick = async () => { const u = location.origin + "/c/" + P.handle; try { await navigator.clipboard.writeText(u); } catch {} toast("Booking link copied"); };
 }
 route();
 </script>

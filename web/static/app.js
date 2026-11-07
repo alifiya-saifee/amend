@@ -26,7 +26,7 @@ function aed(cents, compact = true) {
   return "AED " + (compact ? Math.round(v).toLocaleString("en-US") : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 }
 function money(cents) {
-  return `<span>${usd(cents)}</span> <span class="aed" title="Fixed rate 3.6725. PayPal charges in USD.">· ${aed(cents)}</span>`;
+ return `<span>${usd(cents)}</span> <span class="aed" title="Fixed rate 3.6725. PayPal charges in USD.">· ${aed(cents)}</span>`;
 }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function $(sel, root = document) { return root.querySelector(sel); }
@@ -89,7 +89,7 @@ function quoteSheet(quote, who, where, when) {
 }
 
 function sandboxStrip() {
-  if (!$(".sandbox")) { const s = document.createElement("div"); s.className = "sandbox"; s.textContent = "PayPal sandbox. No real money."; document.body.appendChild(s); }
+ if (!$(".sandbox")) { const s = document.createElement("div"); s.className = "sandbox"; s.textContent = "PayPal sandbox. No real money."; document.body.appendChild(s); }
 }
 document.addEventListener("DOMContentLoaded", sandboxStrip);
 
@@ -110,7 +110,7 @@ async function fillAuthSlots() {
     const mk = document.body.classList.contains("marketing");
     s.innerHTML = w.signed_in
       ? (mk ? `<a class="btn primary small" href="${w.home}">${w.kind === "brand" ? "Go to my workspace" : "Go to my studio"}</a>`
-            : `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand workspace" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`)
+      : `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand workspace" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`)
       : (mk ? `<a class="btn small ghost" href="/login?next=${next}">Sign in</a><a class="btn small primary" href="/signup">Get started</a>`
             : `<a class="btn small" href="/login?next=${next}">Sign in</a>`);
   });

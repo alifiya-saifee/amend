@@ -43,7 +43,7 @@ const Shell = (() => {
   const ic = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
 
   function linkHtml(it, active) {
-    if (SOON.has(it.key)) return `<span class="navitem soon" aria-disabled="true" title="Coming soon">${ic(it.icon)}<span class="lbl">${esc(it.label)}</span><span class="soon-tag">soon</span></span>`;
+  if (SOON.has(it.key)) return `<span class="navitem soon" aria-disabled="true" title="Coming soon">${ic(it.icon)}<span class="lbl">${esc(it.label)}</span><span class="soon-tag">soon</span></span>`;
     return `<a class="navitem ${it.key === active ? "on" : ""}" href="${it.href}" data-nav="${it.key}" ${it.key === active ? 'aria-current="page"' : ""}>${ic(it.icon)}<span class="lbl">${esc(it.label)}</span>${it.badge ? `<span class="badge" data-badge hidden></span>` : ""}</a>`;
   }
 
@@ -53,11 +53,11 @@ const Shell = (() => {
     try { if (localStorage.getItem("amend.nav.collapsed") === "1") document.body.classList.add("nav-collapsed"); } catch {}
     const top = document.createElement("header");
     top.className = "top apptop";
-    top.innerHTML = `<button class="iconbtn collapse" id="nav-collapse" aria-label="Collapse the menu">${ic("panel-left")}</button>
+  top.innerHTML = `<button class="iconbtn collapse" id="nav-collapse" aria-label="Collapse the menu">${ic("panel-left")}</button>
       <a class="logo" href="${cfg.home}"><span class="mark">${ic("repeat-2")}</span>Amend</a><span class="title" id="ttl">${esc(title)}</span>
       <form class="topsearch" id="topsearch" role="search"><label class="sr-only" for="topq">Search</label>${ic("search")}
-        <input id="topq" placeholder="${kind === "creator" ? "Search deals and brands" : "Search creators"}"></form>
-      <a class="iconbtn bell" href="${cfg.inbox}" aria-label="Notifications">${ic("bell")}<span class="badge" data-badge hidden></span></a>
+    <input id="topq" placeholder="${kind === "creator" ? "Search deals and brands" : "Search creators"}"></form>
+   <a class="iconbtn bell" href="${cfg.inbox}" aria-label="Notifications">${ic("bell")}<span class="badge" data-badge hidden></span></a>
       <button class="chip-me" id="me" aria-haspopup="menu" aria-expanded="false">${esc(name || "Account")} ${ic("chevron-down")}</button>
       <div class="menu" id="mm" role="menu">
         ${cfg.menu.map(m => `<a role="menuitem" href="${m.href}">${ic(m.icon)} ${esc(m.label)}</a>`).join("")}
@@ -65,12 +65,12 @@ const Shell = (() => {
     const old = document.querySelector("header.top");
     if (old) old.replaceWith(top); else document.body.prepend(top);
     const nav = document.createElement("nav");
-    nav.className = "tabs appnav"; nav.setAttribute("aria-label", "Main");
+  nav.className = "tabs appnav"; nav.setAttribute("aria-label", "Main");
     const mob = cfg.items.filter(i => cfg.mobile.includes(i.key));
     nav.innerHTML = `<div class="side">${cfg.items.map(i => linkHtml(i, active)).join("")}
         <a class="navitem side-out" href="#" id="nav-out">${ic("log-out")}<span class="lbl">Sign out</span></a></div>
       <div class="bottom">${mob.map(i => linkHtml(i, active)).join("")}
-        <button class="navitem" id="nav-more" aria-label="More">${ic("ellipsis")}<span class="lbl">More</span></button></div>`;
+    <button class="navitem" id="nav-more" aria-label="More">${ic("ellipsis")}<span class="lbl">More</span></button></div>`;
     const oldNav = document.querySelector("nav.tabs");
     if (oldNav) oldNav.replaceWith(nav); else document.body.appendChild(nav);
     const menu = $("#mm"), me = $("#me");
@@ -105,9 +105,9 @@ const Shell = (() => {
   }
   function setActive(key, title) {
     $$(".appnav a[data-nav]").forEach(a => { a.classList.toggle("on", a.dataset.nav === key); a.toggleAttribute("aria-current", a.dataset.nav === key); });
-    if (title !== undefined && $("#ttl")) $("#ttl").textContent = title;
+  if (title !== undefined && $("#ttl")) $("#ttl").textContent = title;
   }
   function setName(name) { const m = $("#me"); if (m) m.innerHTML = `${esc(name)} ${ic("chevron-down")}`; }
-  function setBadge(n) { $$("[data-badge]").forEach(b => { b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }); }
+ function setBadge(n) { $$("[data-badge]").forEach(b => { b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }); }
   return { mount, setActive, setName, setBadge, refreshBadge };
 })();

@@ -43,11 +43,11 @@ function priceCard(p) {
 async function load() {
   let c;
   try { c = await api(`/api/c/${encodeURIComponent(handle)}`); }
-  catch (e) { $("#view").innerHTML = `<div class="empty"><div class="ic">🔎</div>${esc(e.message)}</div>`; return; }
+  catch (e) { $("#view").innerHTML = `<div class="empty"><div class="ic"><i data-lucide='search' aria-hidden='true'></i></div>${esc(e.message)}</div>`; return; }
   document.title = `${c.display_name} · Amend`;
-  $("#ttl").textContent = "@" + c.handle;
+ $("#ttl").textContent = "@" + c.handle;
   const main = c.items.filter(p => p.kind === "deliverable"), extras = c.items.filter(p => p.kind !== "deliverable");
-  const permit = c.permit.state === "ok" ? `<span class="pill collected">✅ Permit ${esc(c.permit.label)}</span>`
+  const permit = c.permit.state === "ok" ? `<span class="pill collected"><i data-lucide='circle-check' aria-hidden='true'></i> Permit ${esc(c.permit.label)}</span>`
     : `<span class="pill waiting">Permit: ${esc(c.permit.label)}</span>`;
   $("#view").innerHTML = `
     <div class="card"><div class="row"><div class="avatar lg">${initials(c.display_name)}</div>
@@ -55,7 +55,7 @@ async function load() {
       <p>${esc(c.bio || "")}</p><div class="small muted">${esc(c.audience || "")} · ${esc(c.niche || "")}</div>
       <div style="margin-top:10px">${permit}<div class="hint">Format and expiry check only. Not verified with the UAE Media Council.</div></div>
       <div class="row wrapx" style="gap:6px;margin-top:10px">${(c.niches || []).map(n => `<span class="pill">${esc(n)}</span>`).join("")}
-        ${c.city ? `<span class="pill">📍 ${esc(c.city)}</span>` : ""}${(c.languages || []).map(l => `<span class="pill">${esc(l)}</span>`).join("")}
+        ${c.city ? `<span class="pill"><i data-lucide='map-pin' aria-hidden='true'></i> ${esc(c.city)}</span>` : ""}${(c.languages || []).map(l => `<span class="pill">${esc(l)}</span>`).join("")}
         ${c.is_demo ? '<span class="pill planned">Demo data</span>' : ""}</div></div>
     ${metricsHtml(c)}
     ${c.samples && c.samples.length ? `<section class="card" style="margin-top:14px"><h2>Samples</h2><div class="samples">${c.samples.map(s => `<div>${esc(s)}</div>`).join("")}</div>
@@ -66,17 +66,17 @@ async function load() {
     <section class="card" style="margin-top:14px"><h2>On Amend</h2>
       <div class="stats"><div><b>${c.track_record.completed}</b><span>deals done</span></div>
         <div><b>${c.track_record.on_time_pct != null ? c.track_record.on_time_pct + "%" : "–"}</b><span>on time</span></div>
-        <div><b>${c.track_record.rating ? "★ " + c.track_record.rating : "–"}</b><span>${c.track_record.reviews} review${c.track_record.reviews === 1 ? "" : "s"}</span></div>
+        <div><b>${c.track_record.rating ? "<i data-lucide='star' aria-hidden='true'></i> " + c.track_record.rating : "–"}</b><span>${c.track_record.reviews} review${c.track_record.reviews === 1 ? "" : "s"}</span></div>
         <div><b>${c.track_record.median_reply_minutes != null ? fmtMin(c.track_record.median_reply_minutes) : "–"}</b><span>reply time</span></div></div>
-      ${c.track_record.recent_reviews.map(r => `<blockquote class="small">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)} ${esc(r.text || "")}</blockquote>`).join("")}
+      ${c.track_record.recent_reviews.map(r => `<blockquote class="small">${"<i data-lucide='star' aria-hidden='true'></i>".repeat(r.rating)}${"<i data-lucide='star' aria-hidden='true'></i>".repeat(5 - r.rating)} ${esc(r.text || "")}</blockquote>`).join("")}
       <p class="hint">Worked out from real deals on Amend, never typed in.</p>
       ${c.past_brands && c.past_brands.length ? `<p class="small muted">Past brands (self-reported): ${c.past_brands.map(esc).join(", ")}</p>` : ""}</section>
     <section class="card" style="margin-top:14px"><h2>Prices</h2><div class="list">${main.map(priceCard).join("") || '<div class="empty">No prices yet.</div>'}</div>
       ${extras.length ? `<details style="margin-top:8px"><summary class="muted">Extras & terms</summary><div class="list">${extras.map(priceCard).join("")}</div></details>` : ""}</section>
     <div class="card" style="margin-top:14px"><div class="icons3">
-      <div><span class="ic">🔒</span><span>Money held by PayPal</span></div>
-      <div><span class="ic">🤝</span><span>Every change confirmed by both</span></div>
-      <div><span class="ic">✅</span><span>Released only when the delivery matches the deal</span></div></div></div>
+      <div><span class="ic"><i data-lucide='lock' aria-hidden='true'></i></span><span>Money held by PayPal</span></div>
+      <div><span class="ic"><i data-lucide='handshake' aria-hidden='true'></i></span><span>Every change confirmed by both</span></div>
+      <div><span class="ic"><i data-lucide='circle-check' aria-hidden='true'></i></span><span>Released only when the delivery matches the deal</span></div></div></div>
     <button class="btn primary block" style="margin-top:16px" id="req">Request a deal</button>`;
   $("#req").onclick = () => {
     const sh = sheet(`<h2>Request a deal with ${esc(c.display_name.split(" ")[0])}</h2>
@@ -90,7 +90,7 @@ async function load() {
       e.preventDefault();
       busy($("#rq-go"), async () => {
         try { const r = await api(`/api/c/${encodeURIComponent(handle)}/request`, { body: Object.fromEntries(new FormData(e.target)) }); location.href = r.go; }
-        catch (er) { $("#rq-err").textContent = er.message; $("#rq-err").hidden = false; }
+    catch (er) { $("#rq-err").textContent = er.message; $("#rq-err").hidden = false; }
       });
     };
   };

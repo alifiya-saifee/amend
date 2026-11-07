@@ -19,7 +19,7 @@ const Work = (() => {
       let h = `<div class="card"><div class="row between"><h3 style="margin:0">Draft</h3>${d ? draftPill(d) : ""}</div>`;
       if (d) {
         h += `<div class="frames">${d.frames.map(f => `<figure><img src="${ctx.IS_BRAND ? f.url + "?t=" + encodeURIComponent(location.pathname.split("/")[2]) : f.url}" alt="frame at ${f.t.toFixed(1)} s"><figcaption>${f.t.toFixed(1)} s</figcaption></figure>`).join("")}</div>
-          <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "✅" : "⚠️"}</span><div class="grow">${esc(c.check)}
+          <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "<i data-lucide='circle-check' aria-hidden='true'></i>" : "<i data-lucide='triangle-alert' aria-hidden='true'></i>"}</span><div class="grow">${esc(c.check)}
             <div class="tiny muted">${esc(c.note || "")}${c.time != null ? ` · frame at ${c.time.toFixed(1)} s` : ""}</div></div></div>`).join("")}</div>
           ${d.result.caption ? `<p class="small muted">Caption: ${esc(d.result.caption)}</p>` : ""}`;
         if (main && d.result.status === "submitted") h += `<div class="row" style="gap:8px;margin-top:8px"><button class="btn primary grow" id="w-approve">Approve draft</button>
@@ -27,7 +27,7 @@ const Work = (() => {
           ${w.silent_approval_days ? `<p class="hint">If you don't review within ${w.silent_approval_days} days, the draft counts as approved (agreed at acceptance).</p>` : ""}`;
       } else if (!brand) h += `<p class="small muted">Upload the draft video: Amend takes 6–8 still frames in your browser and checks them against the brief.</p>`;
       else h += `<p class="small muted">Waiting for ${esc(first())}'s draft.</p>`;
-      if (!brand && w.status === "in_progress") h += `<div class="stack" style="margin-top:8px"><textarea id="w-caption" placeholder="Caption (include #ad)" style="min-height:60px"></textarea>
+   if (!brand && w.status === "in_progress") h += `<div class="stack" style="margin-top:8px"><textarea id="w-caption" placeholder="Caption (include #ad)" style="min-height:60px"></textarea>
           <button class="btn ${d ? "" : "primary"} block" id="w-upload">${d ? "Upload a new draft" : "Upload draft video"}</button><input type="file" id="w-file" accept="video/*" hidden>
           <div class="hint">Requirements: ${w.requirements.map(esc).join(" · ")}</div></div>`;
       parts.push(h + `</div>`);
@@ -35,7 +35,7 @@ const Work = (() => {
     // posting
     if (!brand && w.status === "in_progress" && d && d.result.status === "approved") {
       parts.push(`<div class="card"><h3>Mark posted</h3>
-        <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/p/…">
+    <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/p/…">
         <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
         <label>Caption as posted</label><textarea id="w-pcap" style="min-height:60px"></textarea>
@@ -45,7 +45,7 @@ const Work = (() => {
       const gaps = p.result.gaps || [];
       parts.push(`<div class="card"><h3>Delivery check</h3><p class="small">Posted ${esc(p.posted_at || "")} · <a href="${esc(p.post_url)}" target="_blank" rel="noopener">open post</a>
         ${p.result.disclosure_ok === false ? ' · <span class="pill failed">no #ad in caption</span>' : p.result.disclosure_ok ? ' · <span class="pill collected">#ad found</span>' : ""}</p>
-        ${gaps.length ? gaps.map(g => gapCard(g)).join("") : `<div class="banner ok">✅ The delivery matches the latest confirmed deal (version ${ctx.V.deal.version}).</div>`}
+        ${gaps.length ? gaps.map(g => gapCard(g)).join("") : `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> The delivery matches the latest confirmed deal (version ${ctx.V.deal.version}).</div>`}
         ${w.gaps_open ? `<div class="banner bad small" style="margin-top:8px">No money is released until every gap is resolved.</div>` : ""}</div>`);
     }
     // release
@@ -63,13 +63,13 @@ const Work = (() => {
     }
     if (!ctx.IS_BRAND && w.status === "in_progress") parts.push(`<details class="card"><summary>Editor's share (optional)</summary>
       <p class="small muted">Paid by PayPal Payouts from your payment at release.</p>
-      <div class="row" style="gap:8px"><input id="w-ed-email" placeholder="editor's PayPal email" class="grow" value="${esc((w.editor || {}).email || "")}">
+   <div class="row" style="gap:8px"><input id="w-ed-email" placeholder="editor's PayPal email" class="grow" value="${esc((w.editor || {}).email || "")}">
         <input id="w-ed-pct" type="number" min="1" max="50" value="${(w.editor || {}).pct || 15}" style="max-width:80px"><span>%</span></div>
       <button class="btn small" id="w-ed-save" style="margin-top:8px">Save</button></details>`);
     if (w.status === "completed") {
-      parts.push(w.review ? `<div class="card"><h3>Review</h3><p>${"★".repeat(w.review.rating)}${"☆".repeat(5 - w.review.rating)} ${esc(w.review.text || "")}</p></div>`
-        : main ? `<div class="card"><h3>How did it go?</h3><div class="stars" id="w-stars">${[1, 2, 3, 4, 5].map(n => `<button data-star="${n}" aria-label="${n} stars">☆</button>`).join("")}</div>
-          <textarea id="w-rtext" maxlength="500" placeholder="A short review (shown on ${esc(first())}'s profile)" style="min-height:60px"></textarea>
+      parts.push(w.review ? `<div class="card"><h3>Review</h3><p>${"<i data-lucide='star' aria-hidden='true'></i>".repeat(w.review.rating)}${"<i data-lucide='star' aria-hidden='true'></i>".repeat(5 - w.review.rating)} ${esc(w.review.text || "")}</p></div>`
+    : main ? `<div class="card"><h3>How did it go?</h3><div class="stars" id="w-stars">${[1, 2, 3, 4, 5].map(n => `<button data-star="${n}" aria-label="${n} stars"><i data-lucide='star' aria-hidden='true'></i></button>`).join("")}</div>
+     <textarea id="w-rtext" maxlength="500" placeholder="A short review (shown on ${esc(first())}'s profile)" style="min-height:60px"></textarea>
           <button class="btn primary block" id="w-review" style="margin-top:8px">Leave review</button></div>` : "");
     }
     parts.push(`<p class="small"><a href="/story/${encodeURIComponent(location.pathname.split("/").pop())}${ctx.IS_BRAND ? "?b=1" : ""}">Open the money story →</a></p>`);
@@ -89,10 +89,10 @@ const Work = (() => {
   }
 
   function bind(el, w) {
-    const go = (b, fn, msg) => busy(b, async () => { try { await fn(); if (msg) toast(msg); ctx.reload(); } catch (e) { toast(e.message, "bad"); } });
+  const go = (b, fn, msg) => busy(b, async () => { try { await fn(); if (msg) toast(msg); ctx.reload(); } catch (e) { toast(e.message, "bad"); } });
     const on = (id, fn) => { const b = $("#" + id, el); if (b) b.onclick = () => fn(b); };
     on("w-approve", b => go(b, () => api(ctx.url("/draft/approve"), { method: "POST" }), "Draft approved"));
-    on("w-feedback", () => { const i = $("#chat-in"); if (i) { i.focus(); i.placeholder = "What should change? e.g. “Brighter colours” or “Can you also show the kitchen?”"; } });
+  on("w-feedback", () => { const i = $("#chat-in"); if (i) { i.focus(); i.placeholder = "What should change? e.g. “Brighter colours” or “Can you also show the kitchen?”"; } });
     on("w-upload", () => $("#w-file", el).click());
     const f = $("#w-file", el);
     if (f) f.onchange = async () => {
@@ -102,20 +102,20 @@ const Work = (() => {
         try {
           const frames = await extractFrames(file, 7);
           await api(ctx.url("/draft"), { body: { frames, caption: $("#w-caption", el).value } });
-          toast("Draft uploaded and checked"); ctx.reload();
-        } catch (e) { toast(e.message || "Couldn't read that video", "bad"); }
+     toast("Draft uploaded and checked"); ctx.reload();
+    } catch (e) { toast(e.message || "Couldn't read that video", "bad"); }
       });
     };
     on("w-post", b => go(b, () => api(ctx.url("/post"), { body: { post_url: $("#w-url", el).value, posted_on: $("#w-date", el).value, caption: $("#w-pcap", el).value,
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
-    on("w-removed", b => { if (confirm("Report the post as removed? The creator gets 48 hours to restore it.")) go(b, () => api(ctx.url("/removed"), { method: "POST" })); });
+  on("w-removed", b => { if (confirm("Report the post as removed? The creator gets 48 hours to restore it.")) go(b, () => api(ctx.url("/removed"), { method: "POST" })); });
     on("w-restored", b => go(b, () => api(ctx.url("/restored"), { method: "POST" }), "Thanks"));
     on("w-ed-save", b => go(b, () => api(ctx.url("/editor"), { body: { email: $("#w-ed-email", el).value, pct: +$("#w-ed-pct", el).value } }), "Saved"));
     let stars = 0;
-    $$("[data-star]", el).forEach(s => s.onclick = () => { stars = +s.dataset.star; $$("[data-star]", el).forEach(x => x.textContent = +x.dataset.star <= stars ? "★" : "☆"); });
-    on("w-review", b => { if (!stars) { toast("Pick 1 to 5 stars", "bad"); return; } go(b, () => api(ctx.url("/review"), { body: { rating: stars, text: $("#w-rtext", el).value } }), "Thanks for the review"); });
+  $$("[data-star]", el).forEach(s => s.onclick = () => { stars = +s.dataset.star; $$("[data-star]", el).forEach(x => x.classList.toggle("on", +x.dataset.star <= stars)); });
+  on("w-review", b => { if (!stars) { toast("Pick 1 to 5 stars", "bad"); return; } go(b, () => api(ctx.url("/review"), { body: { rating: stars, text: $("#w-rtext", el).value } }), "Thanks for the review"); });
   }
 
   // 6–8 frames from a video, in the browser (canvas), as small JPEGs (~640 px wide)

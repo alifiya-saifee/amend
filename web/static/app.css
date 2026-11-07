@@ -390,3 +390,5 @@ table.data tr:hover td { background: var(--surface-2); }
 .moneycard .mrow b { font-weight: 700; }
 
 body.app .apptop { z-index: 25; }
+.stars button.on svg { fill: currentColor; }
+.stars button svg { width: 28px; height: 28px; }

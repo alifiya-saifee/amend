@@ -13,17 +13,17 @@ from amend.money import fmt_usd
 
 # event type -> (icon, category). Category: needs_me | messages | money
 KINDS = {
-    "link.opened": ("👀", "messages"),
-    "brief.submitted": ("📝", "messages"),
-    "brief.edited": ("✏️", "messages"),
-    "deal.drafted": ("✍️", "needs_me"),
-    "approval.recorded": ("🤝", "money"),
-    "money.status": ("💰", "money"),
-    "message.sent": ("💬", "messages"),
-    "change.detected": ("💡", "needs_me"),
-    "change.suggested": ("💡", "messages"),
-    "change.applied": ("✅", "money"),
-    "change.expired": ("⌛", "messages"),
+    "link.opened": ("eye", "messages"),
+    "brief.submitted": ("file-pen", "messages"),
+    "brief.edited": ("pencil", "messages"),
+    "deal.drafted": ("pen-line", "needs_me"),
+    "approval.recorded": ("handshake", "money"),
+    "money.status": ("wallet", "money"),
+    "message.sent": ("message-circle", "messages"),
+    "change.detected": ("lightbulb", "needs_me"),
+    "change.suggested": ("lightbulb", "messages"),
+    "change.applied": ("circle-check", "money"),
+    "change.expired": ("hourglass", "messages"),
 }
 
 PAGE = 30
@@ -85,7 +85,7 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
             continue
         icon, cat = KINDS[e["type"]]
         if e["type"] == "money.status" and e["payload"].get("to") == "expired":
-            icon = "⌛"
+            icon = "hourglass"
         if e["type"] == "deal.drafted" and deal["status"] != "offered":
             cat = "messages"
         out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat,

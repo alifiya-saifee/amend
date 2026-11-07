@@ -36,7 +36,7 @@ async function reset(btn) {
         <button class="btn small" id="again">Reset: make a fresh deal</button>
         <a class="small" href="/story/${r.deal}">Money story (as the creator) →</a></div>`;
       $("#again").onclick = e => reset(e.currentTarget);
-    } catch (e) { $("#err").textContent = e.message; $("#err").hidden = false; $("#gate").hidden = false; }
+  } catch (e) { $("#err").textContent = e.message; $("#err").hidden = false; $("#gate").hidden = false; }
   });
 }
 $("#gate").onsubmit = e => {
@@ -44,7 +44,7 @@ $("#gate").onsubmit = e => {
   busy($("#go"), async () => {
     $("#err").hidden = true;
     try { await api("/api/try/start", { body: { password: $("#pw").value } }); await reset($("#go")); }
-    catch (er) { $("#err").textContent = er.message; $("#err").hidden = false; }
+  catch (er) { $("#err").textContent = er.message; $("#err").hidden = false; }
   });
 };
 </script>

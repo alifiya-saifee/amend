@@ -1101,7 +1101,7 @@ def brand_draft_approve(token: str):
         delivery.approve_draft(get_db(), deal, pid)
     except delivery.DeliveryError as e:
         raise HTTPException(400, str(e))
-    changes.post_message(get_db(), deal["id"], pid, "Draft approved ✅", kind="text")
+    changes.post_message(get_db(), deal["id"], pid, "Draft approved", kind="text")
     return _work(deal["id"])
 
 
@@ -1424,7 +1424,7 @@ class NudgeIn(BaseModel):
 
 def _nudge(deal: dict, pid: str, mid: str, body: NudgeIn) -> dict:
     d = get_db()
-    changes.post_message(d, deal["id"], pid, "Nothing changed on the call ✅" if body.answer == "nothing"
+    changes.post_message(d, deal["id"], pid, "Nothing changed on the call" if body.answer == "nothing"
                          else "Something changed on the call: I'll send a voice note or a message with the change.", kind="text")
     return _chat(deals.get_deal(d, deal["id"]), pid)
 

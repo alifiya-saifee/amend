@@ -8,7 +8,7 @@
 </head><body class="browse">
 <header class="top"><a class="logo" href="/">Amend</a><span class="title" id="ttl">Find creators</span><span class="auth-slot"></span></header>
 <div class="browse-grid wrap">
-  <aside id="filters-side" class="filters-side" aria-label="Filters"></aside>
+ <aside id="filters-side" class="filters-side" aria-label="Filters"></aside>
   <main id="view"></main>
 </div>
 <div id="cmpbar" class="cmpbar" hidden></div>
@@ -33,8 +33,8 @@ async function toggleShort(id, btn) {
   if (WHO && WHO.kind === "brand") { await api("/api/brand/shortlist", { body: { creator_id: id, on } }); }
   on ? SHORT.add(id) : SHORT.delete(id);
   if (!(WHO && WHO.kind === "brand")) { try { localStorage.setItem(LS, JSON.stringify([...SHORT])); } catch {} }
-  btn.textContent = on ? "♥" : "♡"; btn.setAttribute("aria-pressed", on);
-  toast(on ? (WHO && WHO.kind === "brand" ? "Saved to your shortlist" : "Saved in this browser only · sign in as a brand to keep it") : "Removed");
+ btn.innerHTML = "<i data-lucide='heart' aria-hidden='true'></i>"; btn.setAttribute("aria-pressed", on);
+ toast(on ? (WHO && WHO.kind === "brand" ? "Saved to your shortlist" : "Saved in this browser only · sign in as a brand to keep it") : "Removed");
 }
 
 /* ---------- filters ---------- */
@@ -46,18 +46,18 @@ function filtersHtml() {
     <div><label>Niche</label><div class="chips wrapx" style="flex-wrap:wrap">${NICHES.map(n => `<button type="button" data-niche="${n}" class="${niches.has(n) ? "on" : ""}">${n}</button>`).join("")}</div></div>
     <div><label>Platform</label>${sel("platform", [["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"]])}</div>
     <div><label>Followers</label>${sel("tier", [["nano", "Nano (under 10K)"], ["micro", "Micro (10K–100K)"], ["mid", "Mid (100K–500K)"], ["macro", "Macro (500K–1M)"], ["mega", "Mega (over 1M)"]])}</div>
-    <div class="row"><div class="grow"><label>Avg views from</label><input data-f="min_views" type="number" min="0" value="${v("min_views")}" placeholder="20000"></div>
-      <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="100000"></div></div>
-    <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="2"></div>
+  <div class="row"><div class="grow"><label>Avg views from</label><input data-f="min_views" type="number" min="0" value="${v("min_views")}" placeholder="20000"></div>
+   <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="100000"></div></div>
+  <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="2"></div>
     <div><label>Reel price up to ($): <b id="reel-out">${Q.max_reel ? "$" + Q.max_reel : "any"}</b></label>
       <input data-f="max_reel" type="range" min="100" max="2000" step="50" value="${Q.max_reel || 2000}"></div>
     <div class="row"><div class="grow"><label>Audience in</label>${sel("country", [["UAE", "UAE"], ["KSA", "KSA"], ["GCC", "GCC"]])}</div>
-      <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="50"></div></div>
+   <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="50"></div></div>
     <div class="row"><div class="grow"><label>Audience mostly</label>${sel("gender", [["female", "Women"], ["male", "Men"]])}</div>
       <div class="grow"><label>Age group</label>${sel("age", [["13-17", "13–17"], ["18-24", "18–24"], ["25-34", "25–34"], ["35-44", "35–44"], ["45+", "45+"]])}</div></div>
     <div><label>Language</label>${sel("language", [["English", "English"], ["Arabic", "Arabic"]])}</div>
     <div><label>Available by</label><input data-f="available_by" type="date" value="${v("available_by")}"></div>
-    <div><label>Minimum completed Amend deals</label><input data-f="min_deals" type="number" min="0" value="${v("min_deals")}" placeholder="0"></div>
+  <div><label>Minimum completed Amend deals</label><input data-f="min_deals" type="number" min="0" value="${v("min_deals")}" placeholder="0"></div>
     <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="permit_valid" ${Q.permit_valid ? "checked" : ""} style="width:auto"> Valid UAE permit (format check)</label>
     <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="hide_self_reported" ${Q.hide_self_reported ? "checked" : ""} style="width:auto"> Hide self-reported data</label>
     <button class="btn block" id="clear" type="button">Clear filters</button>
@@ -74,10 +74,10 @@ function bindFilters(root) {
     el.addEventListener(ev, () => {
       let val = el.type === "checkbox" ? (el.checked ? "1" : "") : el.value;
       if (el.dataset.f === "max_reel" && +val >= 2000) val = "";
-      if (el.dataset.f === "max_reel" && $("#reel-out")) $("#reel-out").textContent = val ? "$" + val : "any";
+   if (el.dataset.f === "max_reel" && $("#reel-out")) $("#reel-out").textContent = val ? "$" + val : "any";
       set(el.dataset.f, val);
     });
-    if (el.type === "range") el.addEventListener("input", () => { if ($("#reel-out")) $("#reel-out").textContent = +el.value >= 2000 ? "any" : "$" + el.value; });
+  if (el.type === "range") el.addEventListener("input", () => { if ($("#reel-out")) $("#reel-out").textContent = +el.value >= 2000 ? "any" : "$" + el.value; });
   });
   $("#clear", root).onclick = () => { Q = {}; syncUrl(); drawFilters(); search(); closeSheet(); };
 }
@@ -92,7 +92,7 @@ function cardHtml(c) {
     <div class="row"><div class="avatar">${initials(c.display_name)}</div>
       <div class="grow"><a href="/c/${esc(c.handle)}" class="cname"><b>${esc(c.display_name)}</b></a> <span class="muted small">@${esc(c.handle)}</span>
         <div class="tiny muted">${esc(c.city || "")}${c.country ? ", " + esc(c.country) : ""}${c.is_demo ? " · Demo data" : ""}</div></div>
-      <button class="heart" data-short="${c.id}" aria-label="Shortlist" aria-pressed="${SHORT.has(c.id)}">${SHORT.has(c.id) ? "♥" : "♡"}</button></div>
+   <button class="heart" data-short="${c.id}" aria-label="Shortlist" aria-pressed="${SHORT.has(c.id)}">${SHORT.has(c.id) ? "" : ""}</button></div>
     <div class="row wrapx" style="margin-top:8px;gap:6px">${c.niches.map(n => `<span class="pill">${esc(n)}</span>`).join("")}</div>
     <div class="stats">
       <div><b>${fmtN(c.followers)}</b><span>followers</span></div>
@@ -102,9 +102,9 @@ function cardHtml(c) {
     </div>
     <div class="row between wrapx" style="gap:6px">
       <span>${c.reel_standard_cents ? `Reel from <b>${usd(c.reel_from_cents || c.reel_standard_cents)}</b>` : '<span class="muted small">No Reel price</span>'}</span>
-      <span class="small">${c.rating ? `★ ${c.rating} (${c.reviews})` : '<span class="muted">No reviews yet</span>'}</span></div>
+      <span class="small">${c.rating ? `<i data-lucide='star' aria-hidden='true'></i> ${c.rating} (${c.reviews})` : '<span class="muted">No reviews yet</span>'}</span></div>
     <div class="row wrapx" style="gap:6px;margin-top:8px">${srcBadge(c.source)}${c.stale ? '<span class="pill failed">Data may be outdated</span>' : ""}
-      <span class="pill ${c.permit.state === "ok" ? "collected" : c.permit.state === "soon" ? "waiting" : ""}">${c.permit.state === "ok" ? "Permit ✓" : c.permit.state === "missing" ? "No permit" : "Permit: " + esc(c.permit.label)}</span></div>
+      <span class="pill ${c.permit.state === "ok" ? "collected" : c.permit.state === "soon" ? "waiting" : ""}">${c.permit.state === "ok" ? "Permit <i data-lucide='check' aria-hidden='true'></i>" : c.permit.state === "missing" ? "No permit" : "Permit: " + esc(c.permit.label)}</span></div>
     <div class="row" style="gap:8px;margin-top:10px">
       <a class="btn small primary grow" href="/c/${esc(c.handle)}">View</a>
       <label class="btn small" style="gap:6px"><input type="checkbox" data-cmp="${c.id}" ${CMP.has(c.id) ? "checked" : ""} style="width:auto"> Compare</label></div>
@@ -115,16 +115,16 @@ async function search(append = false) {
   let r;
   try { r = await api("/api/creators?" + new URLSearchParams({ ...Q, page: PAGE }).toString()); }
   catch (e) { $("#results").innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn" onclick="search()">Try again</button></div>`; return; }
-  $("#count").textContent = `${r.total} creator${r.total === 1 ? "" : "s"}`;
+ $("#count").textContent = `${r.total} creator${r.total === 1 ? "" : "s"}`;
   const html = r.creators.map(cardHtml).join("");
   if (append) $("#results").insertAdjacentHTML("beforeend", html);
-  else $("#results").innerHTML = html || `<div class="empty"><div class="ic">🔎</div>No creators match these filters.<br><br><button class="btn primary" id="clear2">Clear filters</button></div>`;
+  else $("#results").innerHTML = html || `<div class="empty"><div class="ic"><i data-lucide='search' aria-hidden='true'></i></div>No creators match these filters.<br><br><button class="btn primary" id="clear2">Clear filters</button></div>`;
   if ($("#clear2")) $("#clear2").onclick = () => { Q = {}; syncUrl(); drawFilters(); search(); };
   $("#more").innerHTML = r.more ? `<button class="btn block" id="lm">Load more</button>` : "";
   if (r.more) $("#lm").onclick = () => { PAGE++; search(true); };
-  $$("[data-short]").forEach(b => b.onclick = () => toggleShort(b.dataset.short, b).catch(e => toast(e.message, "bad")));
+ $$("[data-short]").forEach(b => b.onclick = () => toggleShort(b.dataset.short, b).catch(e => toast(e.message, "bad")));
   $$("[data-cmp]").forEach(b => b.onchange = () => {
-    if (b.checked && CMP.size >= 3) { b.checked = false; toast("Compare up to 3 creators", "bad"); return; }
+  if (b.checked && CMP.size >= 3) { b.checked = false; toast("Compare up to 3 creators", "bad"); return; }
     b.checked ? CMP.add(b.dataset.cmp) : CMP.delete(b.dataset.cmp); cmpBar();
   });
 }
@@ -135,7 +135,7 @@ function cmpBar() {
 }
 async function browse() {
   $("#view").innerHTML = `
-    <div class="row" style="gap:8px"><input id="q" class="grow" placeholder="Search name, handle, niche or keyword" value="${esc(Q.q || "")}">
+  <div class="row" style="gap:8px"><input id="q" class="grow" placeholder="Search name, handle, niche or keyword" value="${esc(Q.q || "")}">
       <button class="btn small hide-desktop" id="openf">Filters</button></div>
     <div class="row between wrapx" style="margin:12px 0;gap:8px"><span class="muted small" id="count"></span>
       <div class="row" style="gap:6px"><label class="small muted" for="sort">Sort</label>
@@ -147,8 +147,8 @@ async function browse() {
   $("#sort").onchange = e => set("sort", e.target.value === "match" ? "" : e.target.value);
   $("#openf").onclick = () => { const sh = sheet(`<h2>Filters</h2>` + filtersHtml() + `<button class="btn primary block" style="margin-top:12px" onclick="closeSheet()">Show results</button>`); bindFilters(sh); };
   if ($("#savesearch")) $("#savesearch").onclick = async () => {
-    const name = prompt("Name this search", Q.niche ? Q.niche + " creators" : "My search"); if (!name) return;
-    try { await api("/api/brand/searches", { body: { name, query: new URLSearchParams(Q).toString() } }); toast("Search saved · see Brand dashboard → Searches"); } catch (e) { toast(e.message, "bad"); }
+  const name = prompt("Name this search", Q.niche ? Q.niche + " creators" : "My search"); if (!name) return;
+  try { await api("/api/brand/searches", { body: { name, query: new URLSearchParams(Q).toString() } }); toast("Search saved · see Brand dashboard → Searches"); } catch (e) { toast(e.message, "bad"); }
   };
   drawFilters();
   await search();
@@ -156,7 +156,7 @@ async function browse() {
 
 /* ---------- compare (S65) ---------- */
 async function compare() {
-  $("#ttl").textContent = "Compare creators";
+ $("#ttl").textContent = "Compare creators";
   $("#filters-side").hidden = true;
   const ids = (new URLSearchParams(location.search).get("ids") || "").split(",").filter(Boolean).slice(0, 3);
   const r = await api("/api/creators/compare?ids=" + ids.join(","));
@@ -175,7 +175,7 @@ async function compare() {
     ["Turnaround", c => c.turnaround_days != null ? c.turnaround_days + " days to first draft" : "–"],
     ["Next available", c => esc(c.next_available || "–")], ["Languages", c => esc(c.languages.join(", ") || "–")],
     ["Permit", c => esc(c.permit.label)], ["Amend deals completed", c => c.track_record.completed],
-    ["Rating", c => c.track_record.rating ? `★ ${c.track_record.rating} (${c.track_record.reviews})` : "No reviews yet"],
+    ["Rating", c => c.track_record.rating ? `<i data-lucide='star' aria-hidden='true'></i> ${c.track_record.rating} (${c.track_record.reviews})` : "No reviews yet"],
   ];
   $("#view").innerHTML = `<div class="cmp-wrap"><table class="cmp"><thead><tr><th></th>${C.map(c => `<th><div class="avatar" style="margin:0 auto 6px">${initials(c.display_name)}</div>
       <a href="/c/${esc(c.handle)}">${esc(c.display_name)}</a><div class="tiny muted">@${esc(c.handle)}</div></th>`).join("")}</tr></thead>

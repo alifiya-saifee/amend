@@ -21,7 +21,7 @@
     <div><label for="email">Email</label><input id="email" type="email" required maxlength="120" autocomplete="email"></div>
     <div><label for="pw">Password</label>
       <div class="row"><input id="pw" type="password" required class="grow" autocomplete="current-password">
-        <button type="button" class="btn small" id="eye" aria-label="Show password">👁</button></div>
+    <button type="button" class="btn small" id="eye" aria-label="Show password"><i data-lucide='eye' aria-hidden='true'></i></button></div>
       <div class="hint" id="pw-hint" hidden>At least 8 characters.</div></div>
     <div id="err" class="err" hidden></div>
     <button class="btn primary block" id="go"></button>
@@ -36,13 +36,13 @@ let KIND = Q.get("tab") === "brand" || Q.get("kind") === "brand" ? "brand" : "cr
 
 function draw() {
   $$(".seg button").forEach(b => b.classList.toggle("on", b.dataset.k === KIND));
-  $("#h").textContent = SIGNUP ? (KIND === "creator" ? "Join as a creator" : "Join as a brand") : (KIND === "creator" ? "Sign in to your studio" : "Sign in to your brand account");
-  $("#ttl").textContent = SIGNUP ? "Create an account" : "Sign in";
+ $("#h").textContent = SIGNUP ? (KIND === "creator" ? "Join as a creator" : "Join as a brand") : (KIND === "creator" ? "Sign in to your studio" : "Sign in to your brand account");
+ $("#ttl").textContent = SIGNUP ? "Create an account" : "Sign in";
   $("#signup-fields").hidden = !SIGNUP;
   $("#company-wrap").hidden = KIND !== "brand";
   $("#pw-hint").hidden = !SIGNUP;
   $("#pw").autocomplete = SIGNUP ? "new-password" : "current-password";
-  $("#go").textContent = SIGNUP ? "Create account" : "Sign in";
+ $("#go").textContent = SIGNUP ? "Create account" : "Sign in";
   $("#switch").innerHTML = SIGNUP ? `Already have an account? <a href="/login?tab=${KIND}">Sign in</a>`
     : `New here? <a href="/signup?kind=${KIND}">Create a ${KIND} account</a>`;
   demo();
@@ -72,7 +72,7 @@ $("#f").onsubmit = e => {
       const next = Q.get("next") ? `?next=${encodeURIComponent(Q.get("next"))}` : "";
       const r = await api((SIGNUP ? "/signup" : "/login") + next, { body });
       location.href = r.go;
-    } catch (err) { $("#err").textContent = err.message; $("#err").hidden = false; }
+  } catch (err) { $("#err").textContent = err.message; $("#err").hidden = false; }
   });
 };
 draw();
