@@ -28,7 +28,7 @@ async function load() {
   catch (e) {
     if (!IS_BRAND && e.status === 401) { location.href = "/login"; return; }
     const kind = e.data && e.data.kind;
-    $("#view").innerHTML = `<div class="empty"><div class="ic">${kind === "expired" || kind === "revoked" ? "⌛" : "<i data-lucide='search' aria-hidden='true'></i>"}</div>
+    $("#view").innerHTML = `<div class="empty"><div class="ic">${kind === "expired" || kind === "revoked" ? "<i data-lucide='hourglass' aria-hidden='true'></i>" : "<i data-lucide='search' aria-hidden='true'></i>"}</div>
       <h2>${kind === "expired" ? "This deal link expired" : kind === "revoked" ? "This link was switched off" : "Link not found"}</h2>
       <p>${kind ? "Ask the creator for a new one." : esc(e.message)}</p></div>`;
     return;
@@ -63,7 +63,7 @@ function linesHtml(editable = false) {
           <div class="err" data-err="${t.id}" hidden></div>` : ""}
       </div>
       <div class="amt">${usd(t.amount_cents)}<div class="aed">${t.aed}</div></div>
-   ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}"></button>` : ""}
+   ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
     </div>`).join("")}
     <div class="total"><span>Total</span><span>${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span></span></div></div>`;
 }
@@ -149,16 +149,19 @@ function activeRoom(d) {
       <blockquote class="small">${esc(pa.name || "")}: “${esc(pa.quote || "")}”</blockquote><blockquote class="small">${esc(pb.name || "")}: “${esc(pb.quote || "")}”</blockquote>
       ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row" style="gap:8px"><button class="btn small" data-pick="a">Follow ${esc(pa.name || "A")}</button><button class="btn small" data-pick="b">Follow ${esc(pb.name || "B")}</button></div>` : ""}</div>`
     : d.status === "completed" ? `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> Completed</div>`
+    : d.status === "delivered" ? `<div class="banner ok"><i data-lucide='package-check' aria-hidden='true'></i> Delivered${held ? ` · ${usd(held)} still held by PayPal` : " · the held money has been collected"}</div>`
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${banner}
-    ${V.hold && V.hold.expires_at ? `<p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}. Nothing is collected until the delivery matches the deal.</p>` : ""}
+    ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}. Nothing is collected until the delivery matches the deal.</p>` : ""}
     ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
-    <div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
-    ${shipHtml()}
-    <div id="work" style="margin-top:12px"></div>
-    <div id="chat" style="margin-top:12px"></div>
-    <div id="cancelbox"></div>
+    ${nextStepHtml(d, pendingHolds)}
+    <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
+    <div class="rt" data-tab="terms"><div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div></div>
+    <div class="rt" data-tab="money"><div class="hide-desktop" style="margin-top:12px">${moneyCardHtml()}</div></div>
+    <div class="rt" data-tab="delivery">${shipHtml()}<div class="hide-desktop" style="margin-top:12px">${checklistHtml(d)}</div><div id="work" style="margin-top:12px"></div></div>
+    <div class="rt" data-tab="chat"><div id="chat" style="margin-top:12px"></div><div id="cancelbox"></div></div>
+    <div class="rt" data-tab="history"><div class="hide-desktop" style="margin-top:12px">${historyHtml()}</div></div>
     <div class="row wrapx" style="margin-top:12px;gap:8px">
       ${IS_BRAND && V.me.role === "brand_main" ? `<button class="btn small" id="invite"><i data-lucide='users' aria-hidden='true'></i> Invite teammate</button>` : ""}
       ${(IS_BRAND ? V.me.role === "brand_main" : true) && !["completed", "cancelled"].includes(d.status) ? `<button class="btn small danger" id="cancel-deal">Cancel deal…</button>` : ""}
@@ -174,8 +177,68 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
+  $$("[data-rt]").forEach(b => b.onclick = () => showRoomTab(b.dataset.rt));
+  $$("[data-goto]").forEach(b => b.onclick = () => { showRoomTab(b.dataset.goto); document.querySelector(`.rt[data-tab="${b.dataset.goto}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); });
+  showRoomTab(ROOM_TAB);
   cancelBox();
   if (typeof Work !== "undefined") Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
+}
+
+/* ---------- deal room sections (Block 6): tabs on phones, side panel on desktop ---------- */
+const ROOM_TABS = [["chat", "Chat", "messages-square"], ["terms", "Terms", "file-text"], ["money", "Money", "wallet"], ["delivery", "Delivery", "package-check"], ["history", "History", "history"]];
+let ROOM_TAB = (location.hash || "").slice(1) && ROOM_TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : "chat";
+function showRoomTab(k) {
+  ROOM_TAB = k;
+  $$(".rt").forEach(s => s.classList.toggle("on", s.dataset.tab === k));
+  $$("[data-rt]").forEach(b => { const on = b.dataset.rt === k; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+}
+function sumMoney(kind, statuses, f = i => i.amount_cents) { return (V.money || []).filter(i => i.kind === kind && statuses.includes(i.status)).reduce((a, i) => a + f(i), 0); }
+function moneyCardHtml() {
+  const held = V.held_cents || 0, collected = sumMoney("capture", ["paid", "refunded"]), refunded = sumMoney("refund", ["refunded"]);
+  const released = sumMoney("hold", ["voided"]), paidOut = IS_BRAND ? 0 : sumMoney("payout", ["paid"]);
+  const row = (ic, label, c, hint = "") => `<div class="line"><div class="grow">${icon(ic)} ${label}${hint ? `<div class="tiny muted">${hint}</div>` : ""}</div><div class="amt">${usd(c)}<div class="aed">${aed(c)}</div></div></div>`;
+  const h = V.hold;
+  return `<div class="card"><div class="row between"><h3>Money</h3>${h ? moneyPill(h.status) : ""}</div>
+    ${(V.money || []).length ? `<div class="list">${row("lock", "Held by PayPal", held, h && h.expires_at && held ? "Hold expires " + dateStr(h.expires_at) : "")}
+      ${row("wallet", "Collected", collected, "Only after the delivery matches the deal")}${released ? row("undo-2", "Released back to the brand", released) : ""}
+      ${refunded ? row("rotate-ccw", "Refunded", refunded) : ""}${paidOut ? row("send", "Paid out to you", paidOut) : ""}</div>
+      ${h && h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : ""}
+      ${!IS_BRAND ? `<a class="small" href="/studio/ledger">See every payment with the words behind it</a>` : ""}`
+      : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>`;
+}
+function checklistHtml(d) {
+  const items = d.done_means || [];
+  const done = ["delivered", "completed"].includes(d.status);
+  return `<div class="card"><h3>Delivery checklist</h3>
+    ${items.length ? `<ul class="checklist">${items.map(x => `<li class="${done ? "done" : ""}">${icon(done ? "circle-check" : "circle")}<span class="grow">${esc(x.value)}</span></li>`).join("")}</ul>
+      <p class="tiny muted">The delivery check compares the post with these and with the latest confirmed deal. No money is released until they match.</p>`
+      : `<p class="small muted">Nothing listed yet. "What done means" from the brief shows here.</p>`}</div>`;
+}
+function historyHtml() {
+  const ev = (V.events || []).filter(e => EVENT_TEXT[e.type]).slice(-20).reverse();
+  return `<div class="card"><h3>History</h3><ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
+}
+// What should happen next, and who does it. Worked out from the deal's status and money, never from the AI.
+function nextStep(d, pendingHolds) {
+  const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "the brand").split(" ")[0];
+  if (d.status === "paused") return { ic: "circle-pause", t: "Resolve the conflict", s: IS_BRAND ? "Pick whose instruction to follow. Money waits until you do." : `Waiting for ${brandName} to pick whose instruction to follow.` };
+  if (pendingHolds.length) return IS_BRAND ? { ic: "wallet", t: `Hold ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more`, s: "A confirmed change added work. Pay with PayPal to hold the extra." }
+    : { ic: "hourglass", t: "Waiting for the extra hold", s: `${brandName} needs to hold the money for the confirmed change.` };
+  if (d.status === "completed") return { ic: "circle-check", t: "Done", s: "Every payment is in the ledger with the words behind it.", tab: "money" };
+  if (d.status === "delivered" && !(V.held_cents || 0) && (V.money || []).some(i => i.kind === "capture" && i.status === "paid"))
+    return { ic: "circle-check", t: "Money collected", s: IS_BRAND ? "Nothing more to do. Any holdback goes to the creator later, only if the post is still live." : "Any holdback is paid on its day if the post is still live.", tab: "money" };
+  if (d.status === "delivered") return IS_BRAND ? { ic: "eye", t: "Check the delivery", s: `Compare what ${first} delivered with the deal, then release.`, tab: "delivery" }
+    : { ic: "hourglass", t: "Waiting for the brand's sign-off", s: "Money is released once the delivery matches the latest confirmed deal.", tab: "delivery" };
+  if (d.status === "in_progress") return IS_BRAND ? { ic: "messages-square", t: `${first} is working on it`, s: "Changes you ask for in chat become change cards you both confirm.", tab: "chat" }
+    : { ic: "upload", t: "Send your draft", s: "Upload the draft or post link. The delivery check runs against the deal.", tab: "delivery" };
+  return null;
+}
+function nextStepHtml(d, pendingHolds) {
+  const n = nextStep(d, pendingHolds);
+  if (!n) return "";
+  return `<div class="card nextstep" style="margin-top:12px"><div class="row" style="gap:12px"><span class="ic">${icon(n.ic)}</span>
+    <div class="grow"><div class="tiny muted">Next step</div><b>${esc(n.t)}</b><div class="small muted">${esc(n.s)}</div></div>
+    ${n.tab ? `<button class="btn small hide-desktop" data-goto="${n.tab}">Open</button>` : ""}</div></div>`;
 }
 
 /* ---------- cancellation with a fair split (Phase 7) ---------- */
@@ -266,11 +329,8 @@ function panel() {
   $("#panel").innerHTML = `
     <div class="card"><div class="row between"><h3>The deal</h3>${dealPill(V.deal.status)}</div>
       ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is drafted.</p>`}</div>
-    <div class="card" style="margin-top:14px"><div class="row between"><h3>Money</h3>${h ? moneyPill(h.status) : ""}</div>
-      ${h ? `<p class="small">${usd(h.amount_cents)} <span class="aed">· ${aed(h.amount_cents)}</span></p>
-        ${h.expires_at ? `<p class="small muted">Hold expires ${dateStr(h.expires_at)}${h.honor_until ? `<br>Best collected by ${dateStr(h.honor_until)}` : ""}</p>` : ""}
-        ${h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : h.paypal_id ? `<p class="tiny muted">PayPal order ${esc(h.paypal_id)}</p>` : ""}`
-        : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>
+    <div style="margin-top:14px">${moneyCardHtml()}</div>
+    ${["accepted", "in_progress", "delivered", "completed", "paused"].includes(V.deal.status) ? `<div style="margin-top:14px">${checklistHtml(V.deal)}</div>` : ""}
     <div class="card" style="margin-top:14px"><h3>History</h3>
       <ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
   bindQuotes($("#panel"));

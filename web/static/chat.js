@@ -73,7 +73,7 @@ const Chat = (() => {
 
   function changeCard(c) {
     const open = c.status === "previewed" || c.status === "detected";
-    const title = c.suggestion ? "<i data-lucide='lightbulb' aria-hidden='true'></i> Suggestion" : c.kind === "revision" ? "<i data-lucide='pencil' aria-hidden='true'></i> Revision" : c.kind === "new_work" ? "🆕 New work detected" : "<i data-lucide='lightbulb' aria-hidden='true'></i> Change detected";
+    const title = c.suggestion ? "<i data-lucide='lightbulb' aria-hidden='true'></i> Suggestion" : c.kind === "revision" ? "<i data-lucide='pencil' aria-hidden='true'></i> Revision" : c.kind === "new_work" ? "<i data-lucide='sparkle' aria-hidden='true'></i> New work detected" : "<i data-lucide='lightbulb' aria-hidden='true'></i> Change detected";
     const status = { applied: "<i data-lucide='circle-check' aria-hidden='true'></i> Confirmed by both · applied", rejected: "Rejected", expired: "Expired · the last confirmed version stays" }[c.status] || "";
     const exp = open ? Math.max(0, Math.round((new Date(c.expires_at) - Date.now()) / 3600000)) : 0;
     const iOk = isBrand ? c.brand_ok : c.creator_ok;
@@ -83,12 +83,12 @@ const Chat = (() => {
       ${c.suggestion ? `<p class="small muted">From ${esc(c.proposed_by || "a teammate")}. Suggestions can't move money until the brand's main contact proposes them.</p>` : ""}
       <div class="list">${c.lines.map(l => `<div class="line"><div class="grow">${esc(l.label)}
           ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}</div>
-          <div class="amt">${l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
-     <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words"></button></div>`).join("")}</div>
+          <div class="amt cc-amt ${l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
+     <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
       ${c.override_reason ? `<div class="tiny muted">Creator's override: “${esc(c.override_reason)}”</div>` : ""}
-      <div class="small muted" style="margin-top:6px">${c.untouched} other item${c.untouched === 1 ? "" : "s"} unchanged</div>
-      <div class="small"><b>Money:</b> ${c.money.map(esc).join(" · ")}</div>
+      <div class="cc-foot"><span><i data-lucide='lock' aria-hidden='true'></i> ${c.untouched} other item${c.untouched === 1 ? "" : "s"} unchanged</span>
+        <span><i data-lucide='wallet' aria-hidden='true'></i> ${c.money.map(esc).join(" · ")}</span></div>
       ${open ? `<div class="row wrapx" style="margin-top:10px;gap:8px">
           ${c.suggestion ? (isBrand ? `<button class="btn primary small" data-act="propose" data-id="${c.id}">Propose this change</button>` : "")
             : (iOk ? `<span class="pill held">You confirmed</span>` : `<button class="btn primary small" data-act="confirm" data-id="${c.id}" data-conflict="${c.conflicts.length && !isBrand && !c.override_reason ? 1 : 0}">Confirm</button>`)}

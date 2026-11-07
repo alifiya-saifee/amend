@@ -70,7 +70,7 @@ def main() -> None:
             pg.on("pageerror", lambda e, w=who: errors.append(f"{w}: {e}"))
 
         print("Phase 0: accounts")
-        n.goto(BASE + "/"); n.wait_for_selector(".auth-slot a"); shot(n, "phase0", "01-home-sign-in-header")
+        n.goto(BASE + "/"); n.wait_for_selector(".auth-slot a", state="attached"); shot(n, "phase0", "01-home-sign-in-header")
         n.goto(BASE + "/signup?kind=brand"); shot(n, "phase0", "02-signup-brand")
         login(n, "nadia@duneroast.example", "brand"); n.wait_for_selector("h1"); shot(n, "phase0", "03-brand-dashboard")
 
@@ -118,6 +118,9 @@ def main() -> None:
         deal_id = s.url.rstrip("/").rsplit("/", 1)[1]
         status = s.evaluate(frames_js(), f"/api/deals/{deal_id}/draft")
         assert status == 200, status
+        # On a phone the deal room shows one section at a time: open the Delivery tab (the URL hash keeps it on reload)
+        for pg in (s, n):
+            pg.goto(pg.url.split("#")[0] + "#delivery")
         s.reload(); s.wait_for_selector(".frames"); shot(s, "phase6", "01-draft-checked-S31")
         n.reload(); n.wait_for_selector("#w-approve"); shot(n, "phase6", "02-brand-reviews-draft"); n.click("#w-approve")
         s.reload(); s.wait_for_selector("#w-post")
@@ -138,7 +141,7 @@ def main() -> None:
         s.goto(f"{BASE}/story/{deal_id}"); s.wait_for_selector("h1"); shot(s, "phase6", "06-money-story-S39")
 
         print("Phase 7: second deal, conflict pause, cancellation split")
-        s.goto(BASE + "/studio/deals"); s.click(".fab"); s.fill("input[name=brand_org]", "Dune Roast Coffee"); s.fill("input[name=contact_name]", "Nadia")
+        s.goto(BASE + "/studio/deals"); s.click("#d-new"); s.fill("input[name=brand_org]", "Dune Roast Coffee"); s.fill("input[name=contact_name]", "Nadia")
         s.click("#nd-go"); s.wait_for_selector("#lk"); link2 = s.input_value("#lk")
         n.goto(link2); n.click("#welcome-go"); n.click("#yes"); n.fill("#brief", "1 Reel showing our cold brew at home. Post Friday. #ad.")
         n.click("#draft"); n.wait_for_selector("text=Waiting for Sara to accept")

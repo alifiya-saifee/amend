@@ -376,7 +376,15 @@ table.data tr:hover td { background: var(--surface-2); }
 .bubble.mine { align-self: flex-end; background: var(--gold-soft); border-radius: 16px 16px 4px 16px; }
 .sysline { align-self: center; font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; padding: 2px 10px; text-align: center; }
 .sysline svg { width: 14px; height: 14px; }
-.changecard { border: 1px solid var(--gold); border-radius: 16px; padding: 14px; background: var(--surface); }
+.changecard { border: 1px solid var(--gold); border-left-width: 4px; border-radius: 16px; padding: 14px; background: var(--surface); box-shadow: 0 1px 0 var(--border); }
+.changecard .cc-foot { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 14px; color: var(--muted); }
+/* Deal room sections: tabs on phones and tablets; everything shown on desktop with the side panel */
+.room-tabs { margin-top: 12px; position: sticky; top: calc(var(--topbar) + 4px); z-index: 5; }
+.seg.room-tabs button { display: flex; flex-direction: column; align-items: center; justify-content: center; white-space: nowrap; min-width: 0; gap: 2px; font-size: 12px; padding: 6px 2px; }
+.seg.room-tabs button svg { width: 18px; height: 18px; }
+@media (max-width: 1024px) { body.dealroom .rt:not(.on) { display: none; } }
+.nextstep { border-color: var(--gold); background: var(--gold-soft); }
+.nextstep .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface); color: var(--gold-ink); flex: none; }
 .changecard .cc-head { display: flex; gap: 8px; align-items: center; font-weight: 700; }
 .changecard .cc-head svg { color: var(--gold-ink); }
 .changecard .cc-line { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); align-items: flex-start; }

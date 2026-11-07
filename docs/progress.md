@@ -167,3 +167,13 @@ Done:
 - Screenshots: docs/screenshots/tonight/block5/ (no JS errors, no sideways scroll).
 Note: the local demo server on port 8020 needs BASE_URL=http://127.0.0.1:8020 or sign-in is refused by the origin check.
 Next: Block 6 (brand workspace + deal room polish).
+
+## Block 6: brand workspace + deal room polish (7 Nov, night)
+Done:
+- Brand workspace (amend/brandspace.py + web/static/brand-pages.js): Home (money held, paid to creators, refunded, approvals needed, upcoming posts, pipeline: all from real tables), Deals board/list with receipt PDFs, named Shortlists shared with the team (teammates matched by the email added on the Team page; only the list's maker can make it private or delete it), Payments (table + CSV; creator payouts not shown to brands), Team with "Can confirm" toggle, Settings (company, theme, sign out).
+- Find creators: Quick view side drawer (reach with source + as-of date, prices, track record, add to a shortlist).
+- Deal room: Next step card (worked out from deal status and money, not AI), Money card (held / collected / released / refunded / paid out), Delivery checklist, phone tabs Chat · Terms · Money · Delivery · History (URL hash keeps the tab), cleaner change card (+/− colours, untouched count and money on one line), quote buttons have their icon back, delivered deals no longer say "can start work".
+- Tests: tests/test_brandspace.py (S93 ×2, S94, payments/CSV/receipt, team, stages). Suite: 460 passed, 3 skipped.
+- Browser walk (tests/browser/walk_full.py, test mode) passes end to end again; two selectors were stale since the marketing and Deals rewrites, now fixed. No JS errors.
+Open: "Can confirm" on the Team page is saved and shown, but the money rules still use the deal-link invite's can_confirm (unchanged; linking the two is a money-rule change, so not done tonight without your OK).
+Next: Block 7 (states, accessibility, smoke both roles, checkpoint 3 screenshots, sitemap, ticks S84–S97).
