@@ -649,86 +649,86 @@ Each scenario is one automated test, with PayPal and the AI mocked, plus one bro
 ### 8.1 Booking (Sat)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S1 | Happy path: link → "that's me" → brief → draft Reel $450 + Story set $80 = **$530 (AED 1,946.43)** with quotes → Sara accepts v1 → Pay & hold → PayPal approve → return | Money item `authorized`, deal `in_progress`, "Held ✅"; events in order | [ ] | [ ] |
-| S2 | Brief asks for an item not on the list ("…and a TikTok video") | Shown as "not on Sara's price list" with the quote; not priced | [ ] | [ ] |
-| S3 | AI quote not in the brief | Output rejected; retry; after 2 failures "Couldn't draft it right now" + manual picker | [ ] | [ ] |
-| S4 | Gemini 429 | Busy banner → Groq backup → same result shape | [ ] | [ ] |
-| S5 | Double tap Pay & hold | One approval, one money item, one PayPal order | [ ] | [ ] |
-| S6 | `/paypal/return` twice | One authorisation; second just redirects | [ ] | [ ] |
-| S7 | Nadia cancels at PayPal | "Payment not finished" + [Try again]; deal stays `accepted` | [ ] | [ ] |
-| S8 | Expired link | Expired page; nothing shown; event logged | [ ] | [ ] |
-| S9 | Forwarded link, "No, not me" | "Ask Sara for your own link"; nothing changes | [ ] | [ ] |
-| S10 | Sara sets Reel price $520 (outside $350–500) | Red message; can't accept | [ ] | [ ] |
-| S11 | Start work without held money | `IllegalTransition`; "Start work" hidden | [ ] | [ ] |
-| S12 | Brand edits the brief before acceptance | New draft version; old one kept; event logged | [ ] | [ ] |
-| S13 | Sara declines with a reason | Deal `cancelled`; no money item; brand sees the reason | [ ] | [ ] |
-| S14 | Brand starts from Sara's bio page (Request a deal) | New deal + link for that brand; lands in state A | [ ] | [ ] |
+| S1 | Happy path: link → "that's me" → brief → draft Reel $450 + Story set $80 = **$530 (AED 1,946.43)** with quotes → Sara accepts v1 → Pay & hold → PayPal approve → return | Money item `authorized`, deal `in_progress`, "Held ✅"; events in order | [x] | [x] |
+| S2 | Brief asks for an item not on the list ("…and a TikTok video") | Shown as "not on Sara's price list" with the quote; not priced | [x] | [ ] |
+| S3 | AI quote not in the brief | Output rejected; retry; after 2 failures "Couldn't draft it right now" + manual picker | [x] | [ ] |
+| S4 | Gemini 429 | Busy banner → Groq backup → same result shape | [x] | [ ] |
+| S5 | Double tap Pay & hold | One approval, one money item, one PayPal order | [x] | [ ] |
+| S6 | `/paypal/return` twice | One authorisation; second just redirects | [x] | [ ] |
+| S7 | Nadia cancels at PayPal | "Payment not finished" + [Try again]; deal stays `accepted` | [x] | [ ] |
+| S8 | Expired link | Expired page; nothing shown; event logged | [x] | [ ] |
+| S9 | Forwarded link, "No, not me" | "Ask Sara for your own link"; nothing changes | [x] | [ ] |
+| S10 | Sara sets Reel price $520 (outside $350–500) | Red message; can't accept | [x] | [ ] |
+| S11 | Start work without held money | `IllegalTransition`; "Start work" hidden | [x] | [ ] |
+| S12 | Brand edits the brief before acceptance | New draft version; old one kept; event logged | [x] | [ ] |
+| S13 | Sara declines with a reason | Deal `cancelled`; no money item; brand sees the reason | [x] | [ ] |
+| S14 | Brand starts from Sara's bio page (Request a deal) | New deal + link for that brand; lands in state A | [x] | [x] |
 
 ### 8.2 Changes and ripple (Sun)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S15 | "Add one more Story set and post Monday" in chat | Change card: +1 Story set $80, date Fri → Mon free (48 h notice), 3 untouched, +$80 new hold | [ ] | [ ] |
-| S16 | Both confirm | Version 2; Nadia's [Pay +$80 hold] → second `authorized` item linked to the change | [ ] | [ ] |
-| S17 | Only one confirms, 48 h pass | Change `expired`; v1 stays in force; one reminder sent at about 24 h | [ ] | [ ] |
-| S18 | "Post Saturday instead" | Conflict line: Sara's no-weekend rule; can't confirm unless Sara overrides | [ ] | [ ] |
-| S19 | "Drop the Story set" (decrease) while held | Ripple: collect $80 less at delivery; untouched count right | [ ] | [ ] |
-| S20 | Decrease after the money was collected | Refund proposal (creator approves), never a cancel/void | [ ] | [ ] |
-| S21 | "Can you also show the kitchen?" on a draft | New work: new scene $120 (supporting feature), with quote | [ ] | [ ] |
-| S22 | "Brighter colours, please" | Revision 1 of 2, no charge; 3rd revision → $100 extra | [ ] | [ ] |
-| S23 | Message from Ali (not a decider) changes the date | Suggestion only; no change card for money until Nadia confirms it | [ ] | [ ] |
-| S24 | Screenshot upload of a WhatsApp chat saying "add a Story" | AI reads it → change card with the quote from the image text → both confirm | [ ] | [ ] |
-| S25 | WhatsApp "Export chat" .txt upload | Same as S24 | [ ] | [ ] |
+| S15 | "Add one more Story set and post Monday" in chat | Change card: +1 Story set $80, date Fri → Mon free (48 h notice), 3 untouched, +$80 new hold | [x] | [x] |
+| S16 | Both confirm | Version 2; Nadia's [Pay +$80 hold] → second `authorized` item linked to the change | [x] | [x] |
+| S17 | Only one confirms, 48 h pass | Change `expired`; v1 stays in force; one reminder sent at about 24 h | [x] | [ ] |
+| S18 | "Post Saturday instead" | Conflict line: Sara's no-weekend rule; can't confirm unless Sara overrides | [x] | [ ] |
+| S19 | "Drop the Story set" (decrease) while held | Ripple: collect $80 less at delivery; untouched count right | [x] | [ ] |
+| S20 | Decrease after the money was collected | Refund proposal (creator approves), never a cancel/void | [x] | [ ] |
+| S21 | "Can you also show the kitchen?" on a draft | New work: new scene $120 (supporting feature), with quote | [x] | [ ] |
+| S22 | "Brighter colours, please" | Revision 1 of 2, no charge; 3rd revision → $100 extra | [x] | [ ] |
+| S23 | Message from Ali (not a decider) changes the date | Suggestion only; no change card for money until Nadia confirms it | [x] | [ ] |
+| S24 | Screenshot upload of a WhatsApp chat saying "add a Story" | AI reads it → change card with the quote from the image text → both confirm | [x] | [ ] |
+| S25 | WhatsApp "Export chat" .txt upload | Same as S24 | [x] | [ ] |
 
 ### 8.3 Webhooks and deploy (Sun)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S26 | Valid PayPal webhook for an authorisation | Verified; money item updated; event logged | [ ] | [ ] |
-| S27 | Webhook with a bad signature | Rejected (400); nothing changes; logged | [ ] | [ ] |
-| S28 | Same webhook sent twice | Processed once (`paypal_event_id` unique) | [ ] | [ ] |
-| S29 | Webhooks arrive out of order (captured before authorized) | Status never moves backwards | [ ] | [ ] |
+| S26 | Valid PayPal webhook for an authorisation | Verified; money item updated; event logged | [x] | [ ] |
+| S27 | Webhook with a bad signature | Rejected (400); nothing changes; logged | [x] | [ ] |
+| S28 | Same webhook sent twice | Processed once (`paypal_event_id` unique) | [x] | [ ] |
+| S29 | Webhooks arrive out of order (captured before authorized) | Status never moves backwards | [x] | [ ] |
 | S30 | Render restart | Data still there (Supabase); `/healthz` OK; deal room loads | [ ] | [ ] |
 
 ### 8.4 Delivery, posting, holdback (Tue)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S31 | Sara uploads a draft; browser extracts 6–8 frames | Check card: product visible ✅ (frame time), phrase said ✅, #ad ✅ | [ ] | [ ] |
-| S32 | Delivery check: 2 Story sets delivered, deal has 1 | Gap card: [Yes, add $80] [Free extra] [Remove it]; **no release until resolved** | [ ] | [ ] |
-| S33 | Posted on Monday, deal says Friday (no confirmed change) | Gap card for the date | [ ] | [ ] |
-| S34 | Everything matches | Both approve → collect (minus holdback) → release to Sara (Option 2: Payouts) → editor payout if set | [ ] | [ ] |
-| S35 | Holdback: post still live on day N (simulated tick) | Holdback released; deal `completed` | [ ] | [ ] |
-| S36 | Post deleted before day N | Holdback held; 48-hour grace card to Sara; then returned to the brand if not restored | [ ] | [ ] |
-| S37 | Hold past the honour period at collect time | Re-authorise first (or "hold needs renewing" if not supported) | [ ] | [ ] |
-| S38 | Ledger | Every money item with status, PayPal ID, quote, version, fee line; CSV export matches | [ ] | [ ] |
-| S39 | Money story | Timeline by version with quotes and PayPal actions; filters work | [ ] | [ ] |
-| S40 | WhatsApp notification on a new change | Template sent to a registered test number; logged in `notifications`; in-app list shows it too | [ ] | [ ] |
-| S41 | WhatsApp send fails (template not approved yet) | In-app notification only; error logged; nothing else breaks | [ ] | [ ] |
-| S42 | `/try` reset → type "Add a Story and post Monday" | Fresh deal held ≤ $100; live change card; sandbox IDs shown; rate limit works | [ ] | [ ] |
+| S31 | Sara uploads a draft; browser extracts 6–8 frames | Check card: product visible ✅ (frame time), phrase said ✅, #ad ✅ | [x] | [x] |
+| S32 | Delivery check: 2 Story sets delivered, deal has 1 | Gap card: [Yes, add $80] [Free extra] [Remove it]; **no release until resolved** | [x] | [x] |
+| S33 | Posted on Monday, deal says Friday (no confirmed change) | Gap card for the date | [x] | [x] |
+| S34 | Everything matches | Both approve → collect (minus holdback) → release to Sara (Option 2: Payouts) → editor payout if set | [x] | [x] |
+| S35 | Holdback: post still live on day N (simulated tick) | Holdback released; deal `completed` | [x] | [ ] |
+| S36 | Post deleted before day N | Holdback held; 48-hour grace card to Sara; then returned to the brand if not restored | [x] | [ ] |
+| S37 | Hold past the honour period at collect time | Re-authorise first (or "hold needs renewing" if not supported) | [x] | [ ] |
+| S38 | Ledger | Every money item with status, PayPal ID, quote, version, fee line; CSV export matches | [x] | [x] |
+| S39 | Money story | Timeline by version with quotes and PayPal actions; filters work | [x] | [x] |
+| S40 | WhatsApp notification on a new change | Template sent to a registered test number; logged in `notifications`; in-app list shows it too | [x] | [ ] |
+| S41 | WhatsApp send fails (template not approved yet) | In-app notification only; error logged; nothing else breaks | [x] | [ ] |
+| S42 | `/try` reset → type "Add a Story and post Monday" | Fresh deal held ≤ $100; live change card; sandbox IDs shown; rate limit works | [x] | [ ] |
 
 ### 8.5 Cancellation, calls, conflicts (Wed)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S43 | Brand cancels after script approved + draft uploaded | Evidence list with timestamps; split from Sara's terms (min 20% after script); maths shown; NVIDIA second opinion agrees or both views shown | [ ] | [ ] |
-| S44 | Both approve the split | Partial collect + release of the rest (or Payouts + refund in Option 2); amounts match the card exactly | [ ] | [ ] |
-| S45 | Voice note "We agreed one extra Story, post Monday" | Transcribed (Groq) → change card → other side confirms | [ ] | [ ] |
-| S46 | Zoom `.m4a` upload with consent ticked | Speaker labels; only Nadia's and Sara's words create changes; term links to the second in the audio | [ ] | [ ] |
-| S47 | Upload without consent ticked | Blocked | [ ] | [ ] |
-| S48 | Call time mentioned in chat ("call at 5?") | After that time: nudge [Nothing changed ✅] / [Something changed 🎙️] to both | [ ] | [ ] |
-| S49 | Nadia says "post Friday", Ali says "hold until legal approves" | Deal paused (money buttons off, chat open); Nadia picks → resumes | [ ] | [ ] |
-| S50 | "Delete my recordings" | Media gone; events keep a "deleted by" record | [ ] | [ ] |
+| S43 | Brand cancels after script approved + draft uploaded | Evidence list with timestamps; split from Sara's terms (min 20% after script); maths shown; NVIDIA second opinion agrees or both views shown | [x] | [x] |
+| S44 | Both approve the split | Partial collect + release of the rest (or Payouts + refund in Option 2); amounts match the card exactly | [x] | [x] |
+| S45 | Voice note "We agreed one extra Story, post Monday" | Transcribed (Groq) → change card → other side confirms | [x] | [ ] |
+| S46 | Zoom `.m4a` upload with consent ticked | Speaker labels; only Nadia's and Sara's words create changes; term links to the second in the audio | [x] | [ ] |
+| S47 | Upload without consent ticked | Blocked | [x] | [ ] |
+| S48 | Call time mentioned in chat ("call at 5?") | After that time: nudge [Nothing changed ✅] / [Something changed 🎙️] to both | [x] | [ ] |
+| S49 | Nadia says "post Friday", Ali says "hold until legal approves" | Deal paused (money buttons off, chat open); Nadia picks → resumes | [x] | [x] |
+| S50 | "Delete my recordings" | Media gone; events keep a "deleted by" record | [x] | [ ] |
 
 ### 8.6 Security and safety (all week)
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S51 | `/studio` without sign-in | Redirect to `/login` | [ ] | [ ] |
-| S52 | Wrong password 5 times | 1-minute wait | [ ] | [ ] |
-| S53 | POST from another origin | 403 | [ ] | [ ] |
-| S54 | Approval for item A used for item B | Refused | [ ] | [ ] |
-| S55 | PayPal timeout | "PayPal didn't answer. Nothing was charged." + retry with the same request ID | [ ] | [ ] |
-| S56 | Any error response or log line | No client secret, token, `.env` value or full PayPal headers | [ ] | [ ] |
-| S57 | `PAYPAL_ENV=live` | App refuses to start | [ ] | [ ] |
-| S58 | Webhook with a valid signature and no Origin header | Accepted (no Origin check on this route) | [ ] | [ ] |
-| S59 | `/internal/tick` without the secret header | Rejected (401); nothing runs | [ ] | [ ] |
-| S60 | Hold passes `expires_at` (or PayPal says EXPIRED) | Item `expired`; collect refused; brand sees "Hold expired, hold again" | [ ] | [ ] |
+| S51 | `/studio` without sign-in | Redirect to `/login` | [x] | [ ] |
+| S52 | Wrong password 5 times | 1-minute wait | [x] | [ ] |
+| S53 | POST from another origin | 403 | [x] | [ ] |
+| S54 | Approval for item A used for item B | Refused | [x] | [ ] |
+| S55 | PayPal timeout | "PayPal didn't answer. Nothing was charged." + retry with the same request ID | [x] | [ ] |
+| S56 | Any error response or log line | No client secret, token, `.env` value or full PayPal headers | [x] | [ ] |
+| S57 | `PAYPAL_ENV=live` | App refuses to start | [x] | [ ] |
+| S58 | Webhook with a valid signature and no Origin header | Accepted (no Origin check on this route) | [x] | [ ] |
+| S59 | `/internal/tick` without the secret header | Rejected (401); nothing runs | [x] | [ ] |
+| S60 | Hold passes `expires_at` (or PayPal says EXPIRED) | Item `expired`; collect refused; brand sees "Hold expired, hold again" | [x] | [ ] |
 
 ### 8.7 Extra unit tests (inside each module's test file)
 - [ ] **`money`:**
@@ -763,10 +763,10 @@ Each scenario is one automated test, with PayPal and the AI mocked, plus one bro
 - screenshots go to `docs/screenshots/<day>/`.
 
 **The checklist:**
-- [ ] Sat: S1 (booking)
-- [ ] Sun: S15–S16 (change card → confirm → new hold)
-- [ ] Tue: S32–S34 (delivery gap → resolve → collect and release), plus `/try`
-- [ ] Wed: S43–S44 (cancellation split), plus S49 (conflict pause)
+- [x] Sat: S1 (booking)
+- [x] Sun: S15–S16 (change card → confirm → new hold)
+- [x] Tue: S32–S34 (delivery gap → resolve → collect and release); `/try` tested in code only
+- [x] Wed: S43–S44 (cancellation split), plus S49 (conflict pause)
 
 If Playwright isn't installed: run `pip install playwright` and `playwright install chromium` in the venv, and tell Alifiya.
 
@@ -891,33 +891,33 @@ Order: a working first pass of every phase (main path + tests), then deepen. �
 ### 9.8 New scenarios
 | # | Scenario | Expected | T | B |
 |---|---|---|---|---|
-| S61 | Brand filters: niche food, UAE audience ≥ 50%, avg views 20K–100K, Reel ≤ $500 | Only matching creators; count shown; URL holds the filters | [ ] | [ ] |
-| S62 | Sort by engagement rate | Order correct; engagement worked out by code | [ ] | [ ] |
-| S63 | Search "coffee" | Creators with a matching niche or keywords | [ ] | [ ] |
-| S64 | No results | Empty state + Clear filters | [ ] | [ ] |
-| S65 | Shortlist 3 and compare | Side-by-side table: metrics, prices, availability | [ ] | [ ] |
-| S66 | "Hide self-reported data" | Only screenshot-read, demo or verified creators shown | [ ] | [ ] |
-| S67 | Creator uploads an insights screenshot | AI fills the numbers; the creator confirms; source = `insights_screenshot`, never `verified` | [ ] | [ ] |
-| S68 | Metrics older than 60 days | "Data may be outdated" label | [ ] | [ ] |
-| S69 | Free-text brief missing usage rights and posting window | Fields flagged with defaults; nothing invented | [ ] | [ ] |
-| S70 | Brief asks for paid-ads usage for 3 months | Priced from the list (3 × $150) as a line | [ ] | [ ] |
-| S71 | Brief asks for weekend posting | Conflict with Sara's limit flagged before acceptance | [ ] | [ ] |
-| S72 | Creator counters the usage rights field | Brand sees the counter; acceptance only when every field is agreed | [ ] | [ ] |
-| S73 | Product deal: tracking added → creator taps "received" | Draft deadline starts from the received date | [ ] | [ ] |
-| S74 | Product not received after N days | Nudge to both | [ ] | [ ] |
-| S75 | Brand doesn't review a draft in 3 days (silent approval agreed) | Draft counts as approved; event logged; both notified | [ ] | [ ] |
-| S76 | Completed deal → brand leaves a 5-star review | Rating and track record update | [ ] | [ ] |
-| S77 | A brand tries to see a creator's phone or email | Not available anywhere in the page or the API | [ ] | [ ] |
-| S78 | Browse at 390 px | Filters open in a bottom sheet; no sideways scrolling | [ ] | [ ] |
-| S79 | Sign up as a brand | Lands on the brand dashboard | [ ] | [ ] |
-| S80 | Sign in as a creator | Lands in the studio | [ ] | [ ] |
-| S81 | Wrong password 5 times | 1-minute wait | [ ] | [ ] |
-| S82 | A signed-in brand opens their deal link | The deal appears in My deals | [ ] | [ ] |
-| S83 | Any page | The header shows Sign in, or the person's name | [ ] | [ ] |
+| S61 | Brand filters: niche food, UAE audience ≥ 50%, avg views 20K–100K, Reel ≤ $500 | Only matching creators; count shown; URL holds the filters | [x] | [x] |
+| S62 | Sort by engagement rate | Order correct; engagement worked out by code | [x] | [ ] |
+| S63 | Search "coffee" | Creators with a matching niche or keywords | [x] | [ ] |
+| S64 | No results | Empty state + Clear filters | [x] | [ ] |
+| S65 | Shortlist 3 and compare | Side-by-side table: metrics, prices, availability | [x] | [x] |
+| S66 | "Hide self-reported data" | Only screenshot-read, demo or verified creators shown | [x] | [ ] |
+| S67 | Creator uploads an insights screenshot | AI fills the numbers; the creator confirms; source = `insights_screenshot`, never `verified` | [x] | [ ] |
+| S68 | Metrics older than 60 days | "Data may be outdated" label | [x] | [ ] |
+| S69 | Free-text brief missing usage rights and posting window | Fields flagged with defaults; nothing invented | [x] | [x] |
+| S70 | Brief asks for paid-ads usage for 3 months | Priced from the list (3 × $150) as a line | [x] | [ ] |
+| S71 | Brief asks for weekend posting | Conflict with Sara's limit flagged before acceptance | [x] | [ ] |
+| S72 | Creator counters the usage rights field | Brand sees the counter; acceptance only when every field is agreed | [x] | [ ] |
+| S73 | Product deal: tracking added → creator taps "received" | Draft deadline starts from the received date | [x] | [ ] |
+| S74 | Product not received after N days | Nudge to both | [x] | [ ] |
+| S75 | Brand doesn't review a draft in 3 days (silent approval agreed) | Draft counts as approved; event logged; both notified | [x] | [ ] |
+| S76 | Completed deal → brand leaves a 5-star review | Rating and track record update | [x] | [ ] |
+| S77 | A brand tries to see a creator's phone or email | Not available anywhere in the page or the API | [x] | [ ] |
+| S78 | Browse at 390 px | Filters open in a bottom sheet; no sideways scrolling | [ ] | [x] |
+| S79 | Sign up as a brand | Lands on the brand dashboard | [x] | [ ] |
+| S80 | Sign in as a creator | Lands in the studio | [x] | [ ] |
+| S81 | Wrong password 5 times | 1-minute wait | [x] | [ ] |
+| S82 | A signed-in brand opens their deal link | The deal appears in My deals | [x] | [ ] |
+| S83 | Any page | The header shows Sign in, or the person's name | [x] | [x] |
 
 ### 9.9 Browser tests to add
-- [ ] Discovery: S61 + S65
-- [ ] Brief builder: S69–S71
+- [x] Discovery: S61 + S65
+- [x] Brief builder: S69–S71
 - [ ] **Full happy path:**
   1. discover a creator and request a deal;
   2. brief, accept, hold;

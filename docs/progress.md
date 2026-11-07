@@ -107,3 +107,52 @@
 ### Open questions
 - **The repo is private for now.** It goes public when you say, after your reviewer has seen it.
 - **Call audio (Wed):** Groq Whisper doesn't say who spoke. Decide between Gemini audio and tagging speakers by hand.
+
+
+## Day 1, evening (Sat 7 Nov): full build, every phase touched
+
+**Order of work:** each phase got a working first pass with tests, then a commit and a push to the private repo.
+**Totals:**
+- **Tests:** 419 passed, 3 skipped. The 3 skipped are the Postgres tests, which run once `TEST_DATABASE_URL` is in `.env`.
+- **Browser:** the full happy path at 390 px in test mode (fake PayPal and rule-based AI), plus desktop at 1280 px. No JS errors, no sideways scrolling. Screenshots are in `docs/screenshots/phase0…phase7/`.
+
+| Phase | What's built | Scenarios |
+|---|---|---|
+| 0 Accounts | Creator and Brand sign-in tabs; sign-up (scrypt hashes); brand dashboard (Inbox, My deals, Shortlist, Saved searches, Company, Team); a deal link attaches to a signed-in brand; "Sign in" or the person's name in every header | S79–S83 T; S83 B |
+| 1 Deploy | Dockerfile, `.dockerignore`, `render.yaml`, `docs/deploy.md` (WhatsApp templates, Render, Supabase pooler, cron-job.org, webhook steps); concurrency test | Postgres and S30 waiting on 🙋 |
+| 2 Webhooks | verify-webhook-signature, dedupe by event ID, never backwards, no Origin check | S26–S29, S58 T |
+| 3 Chat and change cards | detect_change (codes and quotes only); priced ripple with untouched count; confirm, discuss, reject; 48 h expiry and 24 h reminder; creator override; version +1; new hold, collect less, or refund proposal; revisions and new work; reviewer suggestions; screenshot and WhatsApp import; invite teammate | S15–S25 T; S15, S16 B |
+| 4 Discovery | `creator_metrics` (rates worked out by code, source, stale flag); `/creators` filters, sort, URL state, compare 3, shortlist; upgraded profile; studio profile editor and "Fill from screenshot"; 24 demo creators | S61–S68, S77 T; S61, S65, S78 B |
+| 5 Brief builder | Free text or form; fields with quotes; flagged defaults; usage and exclusivity priced; field-by-field accept or counter; conflicts; done-means; silent-approval days; shipping (private address, received starts the clock, nudge) | S69–S74 T; S69 B |
+| 6 Delivery and money out | Browser-extracted frames and check_frames; delivery check with gap cards (no release while a gap is open); release with both approving, live status check, re-authorise, capture, Payouts minus holdback, editor share; holdback day N or grace then return; AG Grid ledger; money story; reviews; WhatsApp with in-app fallback; `/try` judge page | S31–S42, S75, S76 T; S31–S34, S38, S39 B |
+| 7 Cancellation, calls, conflicts | Split from evidence plus the creator's minimum, maths shown, NVIDIA second opinion; both approve → partial capture and Payouts; voice notes (Groq Whisper); call upload with consent, speaker tagging and seconds; call nudge; reviewer conflict pause; delete my recordings | S43–S50 T; S43, S44, S49 B |
+
+**Bugs found by walking the app, and fixed:**
+- the Work panel never showed, because `const Work` isn't on `window`;
+- a cancellation was also drawn as a change card in the chat;
+- the brand saw their name twice in the header;
+- the ledger showed raw internal labels;
+- an increase marked the original hold as "touched".
+
+**Honest limits (first pass):**
+- The **browser walks use test mode**, with a fake PayPal approval page and rule-based AI. The live sandbox and live Gemini were checked on Saturday's booking path only. The change, delivery and cancellation paths still need a live sandbox walk on Render.
+- **Draft frames in the browser walk** are drawn on a canvas, because headless Chromium has no video. The real upload takes frames from a video file in the browser (`work.js`) and hasn't been tried with a real video yet.
+- **Call speaker labels** use Gemini's audio input through its OpenAI-compatible endpoint. It's mocked in tests and not yet tried live.
+- **The NVIDIA second opinion** needs `NVIDIA_MODEL` set; without it the card says "not set up".
+- **WhatsApp** sends only when a template is approved and a phone number is on file; otherwise it's in-app only (by design).
+- **Holdback default:** 10% for "days live" days (30). It's not yet a brief field the two sides agree on.
+- **Silent approval and holdback timing** depend on `/internal/tick` being called (cron-job.org, 🙋).
+- **Not built:** "Log in with PayPal" (over the 2-hour limit), so it's on the next list. Show QR is on the next list too.
+
+### 🙋 Needs Alifiya (see `docs/deploy.md`)
+1. Submit the 2 WhatsApp templates.
+2. Supabase session-pooler URL: add it to Render as `DATABASE_URL`, and to `.env` as `TEST_DATABASE_URL` so the Postgres tests run.
+3. Render web service and its secrets (the list of names is in `docs/deploy.md`); then the restart check (S30).
+4. cron-job.org every 10 minutes, calling `/internal/tick` with the secret header.
+5. PayPal webhook URL, then `PAYPAL_WEBHOOK_ID` in Render.
+6. Then a full walk-through on the live site.
+
+### Next
+- Deploy (after steps 1–5), then a live sandbox walk of S15–S16, S32–S34, S43–S44 and S49.
+- Polish from that walk.
+- README final.

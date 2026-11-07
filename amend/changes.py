@@ -219,7 +219,7 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
         items.append({"type": "message", "id": m["id"], "at": m["at"], "kind": m["kind"], "body": m["body"],
                       "media_url": m["media_url"], "meta": json.loads(m["meta_json"] or "{}"),
                       "from": p.get("name") or "Amend", "from_id": m["party_id"], "mine": m["party_id"] == viewer})
-    for c in db.all("select * from changes where deal_id = :d order by created_at", {"d": deal_id}):
+    for c in db.all("select * from changes where deal_id = :d and coalesce(kind, '') <> 'cancel' order by created_at", {"d": deal_id}):
         items.append({"type": "change", "at": c["created_at"], **card(db, c)})
     sys_text = {"authorized": "{amt} held by PayPal", "paid": "{amt} collected", "voided": "Hold released",
                 "refunded": "{amt} refunded", "expired": "A hold expired · hold again"}

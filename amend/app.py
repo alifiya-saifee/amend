@@ -49,6 +49,11 @@ async def lifespan(_app):
     seed_discovery(d)
     ensure_exclusivity_item(d)
     ensure_demo_accounts(d)
+    from amend import fakes
+    if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
+        import sys
+        fakes.install(sys.modules[__name__])
+        log.warning("AMEND_FAKE=1: fake PayPal and rule-based AI are on (local browser tests)")
     yield
 
 
@@ -1243,6 +1248,31 @@ def story_page(key: str):
     return page("story.html")
 
 
+def _ledger_label(it: dict) -> str:
+    n = it.get("note") or ""
+    if n.startswith("release:capture"):
+        return "Collected from the hold"
+    if n == "release:creator payout":
+        return "Paid to you (Payouts)"
+    if n.startswith("release:editor"):
+        return "Editor's share " + n.split("editor", 1)[1].strip()
+    if n.startswith("holdback:creator"):
+        return "Holdback (paid on day N if still live)"
+    if n.startswith("holdback:returned"):
+        return "Holdback returned to the brand"
+    if n.startswith("cancel:creator share"):
+        return "Cancellation: your share collected"
+    if n.startswith("cancel:creator payout"):
+        return "Cancellation: your share paid"
+    if n.startswith("cancel:release"):
+        return "Cancellation: hold released"
+    if n.startswith("new hold"):
+        return "New hold for a confirmed change"
+    if n.startswith("refund proposal"):
+        return "Refund proposal (you approve)"
+    return {"hold": "Hold (brand's money reserved)", "refund": "Refund", "payout": "Payout", "capture": "Collected"}.get(it["kind"], it["kind"])
+
+
 @app.get("/api/studio/ledger")
 def ledger(c: dict = Depends(require_creator)):
     d = get_db()
@@ -1251,7 +1281,7 @@ def ledger(c: dict = Depends(require_creator)):
                     "where d.creator_id = :c order by m.created_at desc", {"c": c["id"]}):
         facts = json.loads(it["depends_on_fact_ids"] or "[]")
         q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
-        rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "brand": it["brand_org"], "item": it.get("note") or it["kind"],
+        rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "brand": it["brand_org"], "item": _ledger_label(it),
                      "kind": it["kind"], "amount_usd": it["amount_cents"] / 100, "aed": money.aed_cents(it["amount_cents"]) / 100,
                      "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
                      "version": it["deal_version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
@@ -1482,6 +1512,24 @@ def brand_delete_media(token: str):
 def creator_delete_media(deal_id: str, c: dict = Depends(require_creator)):
     deal, pid = _creator_ctx(deal_id, c)
     return {"deleted": calls.delete_mine(get_db(), deal_id, pid)}
+
+
+@app.get("/fake-paypal/checkout")
+def fake_checkout(token: str):
+    """Local browser tests only: a stand-in for PayPal's approval page."""
+    from amend import fakes
+    if not fakes.enabled():
+        raise HTTPException(404, "not found")
+    from fastapi.responses import HTMLResponse
+    o = rail().pp.orders.get(token) if hasattr(rail().pp, "orders") else None
+    if not o:
+        raise HTTPException(404, "unknown order")
+    ret = o["return"] + ("&" if "?" in o["return"] else "?") + f"token={token}"
+    return HTMLResponse(f"""<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
+      <title>Fake PayPal (test mode)</title><body style="font-family:system-ui;padding:24px;max-width:420px;margin:auto">
+      <h2>Fake PayPal · test mode</h2><p>Approve a hold of <b>${o['amount']}</b>?</p>
+      <a id="approve" href="{ret}" style="display:block;background:#0070ba;color:#fff;padding:14px;border-radius:24px;text-align:center;text-decoration:none">Continue</a>
+      </body>""")
 
 
 # ---------- "try it yourself" for judges (S42) ----------

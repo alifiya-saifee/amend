@@ -19,7 +19,14 @@ Brand deals change after the money starts moving: an extra Story, a new posting 
 | Engine: facts with quotes, supersede, ripple, untouched count, status rules | ✅ built and tested |
 | B1: creator price list, limits, permit format check | ✅ built and tested |
 | B2: deal link → brief → AI draft → accept → **money held** | ✅ built and tested |
-| Deal chat, change cards, webhooks, delivery check, ledger, cancellation split | Sun–Wed |
+| Accounts for creators and brands, brand dashboard | ✅ built and tested |
+| Deal chat with inline change cards, ripple, untouched count, both confirm | ✅ built and tested |
+| Verified PayPal webhooks (dedupe, never backwards) | ✅ built and tested (needs the live URL) |
+| Creator discovery (filters, compare, metrics with source and as-of date) | ✅ built and tested |
+| Brief builder (fields with quotes, defaults, accept/counter, shipping) | ✅ built and tested |
+| Delivery check, release, holdback, ledger (AG Grid), money story, reviews | ✅ built and tested |
+| Cancellation split from evidence + second opinion, voice notes, call uploads, reviewer conflict pause | ✅ built and tested |
+| Live deploy on Render + Supabase | next |
 
 ## How PayPal is used
 

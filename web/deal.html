@@ -39,7 +39,10 @@ async function load() {
 function header() {
   const d = V.deal;
   $("#ttl").textContent = IS_BRAND ? `Deal with ${V.creator.name}` : `${d.brand_org}`;
-  if (IS_BRAND) { $("#me").hidden = false; $("#me").textContent = `${V.me.name} · ${V.me.org}`; }
+  if (IS_BRAND) {  // the link's person is shown once; the sign-in chip would repeat it
+    $("#me").hidden = false; $("#me").textContent = `${V.me.name} · ${V.me.org}`;
+    $$(".auth-slot").forEach(s => s.hidden = true);
+  }
   else { $("#back").hidden = false; $("#logo").hidden = true; }
   const strip = $("#strip");
   if (d.status !== "draft") {
@@ -173,7 +176,7 @@ function activeRoom(d) {
     const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
   cancelBox();
-  if (window.Work) Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
+  if (typeof Work !== "undefined") Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
 }
 
 /* ---------- cancellation with a fair split (Phase 7) ---------- */
