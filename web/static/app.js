@@ -53,7 +53,7 @@ function dealPill(s) { return `<span class="pill status">${DEAL_LABEL[s] || s}</
 let toastTimer;
 function toast(msg, kind = "ok", retry) {
   let t = $("#toast");
-  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.appendChild(t); }
   t.className = `toast show ${kind}`;
   t.innerHTML = `<span class="grow">${esc(msg)}</span>` + (retry ? `<button class="btn small" id="toast-retry">Try again</button>` : "");
   if (retry) $("#toast-retry").onclick = () => { t.className = "toast"; retry(); };
@@ -107,9 +107,31 @@ async function fillAuthSlots() {
   window.WHO = w;
   const next = encodeURIComponent(location.pathname + location.search);
   slots.forEach(s => {
+    const mk = document.body.classList.contains("marketing");
     s.innerHTML = w.signed_in
-      ? `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand dashboard" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`
-      : `<a class="btn small" href="/login?next=${next}">Sign in</a>`;
+      ? (mk ? `<a class="btn primary small" href="${w.home}">${w.kind === "brand" ? "Go to my workspace" : "Go to my studio"}</a>`
+            : `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand workspace" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`)
+      : (mk ? `<a class="btn small ghost" href="/login?next=${next}">Sign in</a><a class="btn small primary" href="/signup">Get started</a>`
+            : `<a class="btn small" href="/login?next=${next}">Sign in</a>`);
   });
 }
 document.addEventListener("DOMContentLoaded", fillAuthSlots);
+
+// Icons: Lucide (one set, 1.75 px stroke). <i data-lucide="name"></i> anywhere is drawn automatically.
+(function fonts() {
+  const l = document.createElement("link");
+  l.rel = "stylesheet"; l.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+  document.head.appendChild(l);
+})();
+(function icons() {
+  let pending = false;
+  const draw = () => { pending = false; if (window.lucide) lucide.createIcons({ attrs: { "stroke-width": 1.75, width: 20, height: 20 } }); };
+  const later = () => { if (!pending) { pending = true; requestAnimationFrame(draw); } };
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js";
+  s.onload = draw;
+  document.head.appendChild(s);
+  new MutationObserver(m => { if (m.some(x => [...x.addedNodes].some(n => n.nodeType === 1))) later(); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+})();
+function icon(name, cls = "") { return `<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`; }

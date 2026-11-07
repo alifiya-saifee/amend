@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script><script src="/static/shell.js"></script>
 </head><body class="dealroom">
 <header class="top">
   <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
@@ -39,11 +39,10 @@ async function load() {
 function header() {
   const d = V.deal;
   $("#ttl").textContent = IS_BRAND ? `Deal with ${V.creator.name}` : `${d.brand_org}`;
-  if (IS_BRAND) {  // the link's person is shown once; the sign-in chip would repeat it
+  if (IS_BRAND && !document.body.classList.contains("app")) {  // the link's person is shown once
     $("#me").hidden = false; $("#me").textContent = `${V.me.name} · ${V.me.org}`;
     $$(".auth-slot").forEach(s => s.hidden = true);
   }
-  else { $("#back").hidden = false; $("#logo").hidden = true; }
   const strip = $("#strip");
   if (d.status !== "draft") {
     strip.hidden = false;
@@ -499,6 +498,11 @@ function creator(d) {
   $("#view").innerHTML = `<div class="card">${dealPill(d.status)}${linesHtml()}</div>`;
 }
 
-load();
+(async () => {  // the app layout: always for the creator; for a brand only when signed in as a brand
+  if (!IS_BRAND) Shell.mount("creator", "deals", { title: "Deal" });
+  else { try { const w = await api("/api/whoami"); if (w.signed_in && w.kind === "brand") Shell.mount("brand", "deals", { title: "Deal", name: w.name }); } catch {} }
+  if (!IS_BRAND) { try { const me = await api("/api/me"); Shell.setName(me.display_name.split(" ")[0]); } catch {} }
+  load();
+})();
 </script>
 </body></html>

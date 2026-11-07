@@ -4,46 +4,38 @@
 <title>Brand · Amend</title>
 <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
+<script src="/static/brand-pages.js"></script>
 </head><body class="studio">
-<header class="top">
-  <a class="logo" href="/brand">Amend</a><span class="title" id="ttl">Inbox</span>
-  <a class="btn small" href="/creators">Find creators</a>
-  <button class="chip-me" id="me" onclick="toggleMenu('mm')">…</button>
-  <div class="menu" id="mm"><button onclick="go('/brand/company')">Company profile</button><button onclick="signOut()">Sign out</button></div>
-</header>
 <main class="wrap" id="view"></main>
-<nav class="tabs">
-  <a href="/brand" data-tab="inbox"><span class="ic">📥</span>Inbox<span class="badge" id="ubadge" hidden></span></a>
-  <a href="/brand/deals" data-tab="deals"><span class="ic">💬</span>My deals</a>
-  <a href="/brand/shortlist" data-tab="shortlist"><span class="ic">♡</span>Shortlist</a>
-  <a href="/brand/searches" data-tab="searches"><span class="ic">🔎</span>Searches</a>
-  <a href="/brand/company" data-tab="company"><span class="ic">🏢</span>Company</a>
-  <a href="/brand/team" data-tab="team" class="side-only"><span class="ic">👥</span>Team</a>
-  <a href="#" class="side-out" onclick="signOut(); return false;"><span class="ic">↩</span>Sign out</a>
-</nav>
 <script>
 let ME = null;
-const TITLES = { inbox: "Inbox", deals: "My deals", shortlist: "Shortlist", searches: "Saved searches", company: "Company profile", team: "Team members" };
+const TABS = { "": ["home", "Home"], inbox: ["inbox", "Inbox"], deals: ["deals", "Deals"], shortlist: ["shortlist", "Shortlists"],
+  searches: ["shortlist", "Saved searches"], payments: ["payments", "Payments"], team: ["team", "Team"], settings: ["settings", "Settings"],
+  company: ["settings", "Settings"] };
 function go(path) { history.pushState({}, "", path); route(); }
-$$(".tabs a[data-tab]").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
 window.onpopstate = route;
+const isBrandPage = href => /^\/brand(\/(inbox|deals|shortlist|searches|payments|team|settings|company))?$/.test(href);
+Shell.mount("brand", "home", { onNavigate: href => { if (isBrandPage(href)) { go(href); return true; } return false; } });
 
 async function route() {
-  const seg = location.pathname.split("/")[2] || "inbox";
-  const tab = TITLES[seg] ? seg : "inbox";
-  $$(".tabs a[data-tab]").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
-  $("#ttl").textContent = TITLES[tab];
+  const seg = location.pathname.split("/")[2] || "";
+  const [key, title] = TABS[seg] || TABS[""];
+  Shell.setActive(key, title);
+  document.title = `${title} · Amend`;
   $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div>`;
   try {
-    if (!ME) { ME = await api("/api/brand/me"); $("#me").textContent = ME.name.split(" ")[0] + " ▾"; }
-    await ({ inbox, deals, shortlist, searches, company, team })[tab]();
+    if (!ME) { ME = await api("/api/brand/me"); Shell.setName(ME.name.split(" ")[0]); }
+    const page = { "": window.brandHome || inbox, inbox, deals: window.brandDeals || deals, shortlist: window.brandShortlists || shortlist, searches,
+      payments: window.brandPayments || (() => soon("Payments")), team, settings: window.brandSettings || company, company: window.brandSettings || company }[seg] || inbox;
+    await page();
   } catch (e) {
     if (e.status === 401) { location.href = "/login?tab=brand"; return; }
-    $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
+    $("#view").innerHTML = `<div class="empty">${icon("triangle-alert")}<p>${esc(e.message)}</p><button class="btn" onclick="route()">${icon("rotate-cw")} Try again</button></div>`;
   }
 }
-function badge(n) { const b = $("#ubadge"); b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }
+function soon(name) { $("#view").innerHTML = `<div class="empty">${icon("hammer")}<h2>${esc(name)} is coming soon</h2><a class="btn" href="/brand">Back to Home</a></div>`; }
+function badge(n) { Shell.setBadge(n); }
 
 async function inbox() {
   const r = await api("/api/brand/inbox"); badge(r.unread);

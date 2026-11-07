@@ -4,7 +4,7 @@
 <title>Find creators · Amend</title>
 <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
 </head><body class="browse">
 <header class="top"><a class="logo" href="/">Amend</a><span class="title" id="ttl">Find creators</span><span class="auth-slot"></span></header>
 <div class="browse-grid wrap">
@@ -184,6 +184,10 @@ async function compare() {
     <p style="margin-top:14px"><a href="/creators">← Back to results</a></p>`;
 }
 
-(async () => { await loadShort(); COMPARE ? compare() : browse(); })();
+(async () => {
+  await loadShort();
+  if (WHO && WHO.signed_in && WHO.kind === "brand") Shell.mount("brand", "discover", { title: COMPARE ? "Compare creators" : "Discover", name: WHO.name });
+  COMPARE ? compare() : browse();
+})();
 </script>
 </body></html>

@@ -3,51 +3,44 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Studio · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
+<script src="/static/studio-pages.js"></script>
 </head><body class="studio">
-<header class="top">
-  <a class="logo" href="/studio">Amend</a><span class="title" id="ttl">Inbox</span>
-  <button class="chip-me" id="me" onclick="toggleMenu('mm')">…</button>
-  <div class="menu" id="mm"><button onclick="go('/studio/profile')">Profile</button><button onclick="signOut()">Sign out</button></div>
-</header>
 <main class="wrap" id="view"></main>
-<nav class="tabs">
-  <a href="/studio" data-tab="inbox"><span class="ic">📥</span>Inbox<span class="badge" id="ubadge" hidden></span></a>
-  <a href="/studio/deals" data-tab="deals"><span class="ic">💬</span>Deals</a>
-  <a href="/studio/prices" data-tab="prices"><span class="ic">🏷️</span>Prices</a>
-  <a href="/studio/ledger" data-tab="ledger"><span class="ic">📒</span>Ledger</a>
-  <a href="/studio/profile" data-tab="profile"><span class="ic">👤</span>Profile</a>
-  <a href="#" class="side-out" onclick="signOut(); return false;"><span class="ic">↩</span>Sign out</a>
-</nav>
 <script>
 let ME = null, dirty = false;
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const TABS = { "": ["home", "Home"], inbox: ["inbox", "Inbox"], deals: ["deals", "Deals"], calendar: ["calendar", "Calendar"],
+  earnings: ["earnings", "Earnings"], ledger: ["earnings", "Ledger"], prices: ["prices", "Price list"], profile: ["profile", "Profile & media kit"],
+  brands: ["brands", "Brands"], settings: ["settings", "Settings"] };
 
 function go(path) { if (dirty && !confirm("Discard changes?")) return; dirty = false; history.pushState({}, "", path); route(); }
-$$(".tabs a[data-tab]").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
 window.onpopstate = route;
 window.onbeforeunload = () => dirty ? "unsaved" : undefined;
+const isStudioPage = href => /^\/studio(\/(inbox|deals|calendar|earnings|ledger|prices|profile|brands|settings))?$/.test(href);
+Shell.mount("creator", "home", { onNavigate: href => { if (isStudioPage(href)) { go(href); return true; } return false; } });
+function refreshBadge() { Shell.refreshBadge(); }
+function badge(n) { Shell.setBadge(n); }
 
 async function route() {
-  const p = location.pathname;
-  const tab = p.startsWith("/studio/prices") ? "prices" : p.startsWith("/studio/profile") ? "profile" : p.startsWith("/studio/ledger") ? "ledger"
-    : p.startsWith("/studio/deals") ? "deals" : "inbox";
-  $$(".tabs a[data-tab]").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
-  $("#ttl").textContent = { inbox: "Inbox", deals: "Deals", prices: "Prices", profile: "Profile", ledger: "Ledger" }[tab];
+  const seg = location.pathname.split("/")[2] || "";
+  const [tab, title] = TABS[seg] || TABS[""];
+  Shell.setActive(tab, title);
+  document.title = `${title} · Amend`;
   $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
   try {
-    if (!ME) { ME = await api("/api/me"); $("#me").textContent = ME.display_name.split(" ")[0] + " ▾"; }
+    if (!ME) { ME = await api("/api/me"); Shell.setName(ME.display_name.split(" ")[0]); }
     if (tab !== "inbox") refreshBadge();
-    if (tab === "inbox") await inboxTab();
-    else if (tab === "deals") await deals();
-    else if (tab === "prices") await prices();
-    else if (tab === "profile") await profile();
-    else await ledger();
+    const page = { home: () => window.homeTab ? homeTab() : inboxTab(), inbox: inboxTab, deals: deals, prices: prices, profile: profile,
+      earnings: () => window.earningsTab ? earningsTab(seg === "ledger") : ledger(), calendar: () => window.calendarTab ? calendarTab() : soon("Calendar"),
+      brands: () => window.brandsTab ? brandsTab() : soon("Brands"), settings: () => window.settingsTab ? settingsTab() : soon("Settings") }[tab];
+    await page();
   } catch (e) {
     if (e.status === 401) { location.href = "/login"; return; }
-    $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
+    $("#view").innerHTML = `<div class="empty">${icon("triangle-alert", "big")}<p>${esc(e.message)}</p><button class="btn" onclick="route()">${icon("rotate-cw")} Try again</button></div>`;
   }
 }
+function soon(name) { $("#view").innerHTML = `<div class="empty">${icon("hammer", "big")}<h2>${esc(name)} is coming soon</h2><p class="muted">It's being built.</p><a class="btn" href="/studio">Back to Home</a></div>`; }
 
 /* ---------- Ledger tab (AG Grid) ---------- */
 function loadGrid() {
@@ -88,8 +81,6 @@ async function ledger() {
 
 /* ---------- Inbox tab (D4) ---------- */
 let IF = { filter: "all", page: 0 };
-function badge(n) { const b = $("#ubadge"); b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }
-async function refreshBadge() { try { badge((await api("/api/studio/inbox?page=0")).unread); } catch {} }
 async function inboxTab(append = false) {
   const r = await api(`/api/studio/inbox?filter=${IF.filter}&page=${IF.page}`);
   badge(r.unread);

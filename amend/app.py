@@ -196,8 +196,21 @@ def page(name: str) -> FileResponse:
     return FileResponse(WEB / name, headers={"Cache-Control": "no-store"})
 
 
+STUDIO_TABS = {"inbox", "deals", "calendar", "earnings", "ledger", "prices", "profile", "brands", "settings"}
+BRAND_TABS = {"inbox", "deals", "shortlist", "searches", "payments", "team", "settings", "company"}
+
+
 @app.get("/")
-def home():
+def home(request: Request):
+    a = current_account(request)  # S84: signed-in people go to their own home
+    if a:
+        return RedirectResponse("/studio" if a["kind"] == "creator" else "/brand", 303)
+    return page("index.html")
+
+
+@app.get("/pricing")
+@app.get("/faq")
+def marketing_pages():
     return page("index.html")
 
 
@@ -217,6 +230,8 @@ def signup_page():
 @app.get("/brand")
 @app.get("/brand/{tab}")
 def brand_page(request: Request, tab: str = ""):
+    if tab and tab not in BRAND_TABS:
+        raise HTTPException(404, "Page not found")
     if not current_brand(request):
         return RedirectResponse("/login?tab=brand", 303)
     return page("brand.html")
@@ -229,12 +244,10 @@ def creators_page():
 
 
 @app.get("/studio")
-@app.get("/studio/inbox")
-@app.get("/studio/deals")
-@app.get("/studio/prices")
-@app.get("/studio/profile")
-@app.get("/studio/ledger")
-def studio_page(request: Request):
+@app.get("/studio/{tab}")
+def studio_page(request: Request, tab: str = ""):
+    if tab and tab not in STUDIO_TABS:
+        raise HTTPException(404, "Page not found")
     if not current_creator(request):
         return RedirectResponse("/login", 303)  # S51
     return page("studio.html")

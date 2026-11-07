@@ -4,7 +4,7 @@
 <title>Money story · Amend</title>
 <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
 </head><body>
 <header class="top"><a class="back" href="javascript:history.back()">←</a><span class="title">Money story</span><span class="auth-slot"></span></header>
 <main class="wrap" id="view"><div class="skeleton"></div><div class="skeleton"></div></main>
@@ -31,6 +31,9 @@ async function load() {
       : `<div class="empty">Nothing here yet.</div>`}`;
   $$("[data-f]").forEach(b => b.onclick = () => { F = b.dataset.f; load(); });
 }
-load();
+(async () => {
+  try { const w = await api("/api/whoami"); if (w.signed_in) Shell.mount(w.kind, w.kind === "creator" ? "earnings" : "payments", { title: "Money story", name: w.name }); } catch {}
+  load();
+})();
 </script>
 </body></html>
