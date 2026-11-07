@@ -925,3 +925,121 @@ Order: a working first pass of every phase (main path + tests), then deepen. �
   4. draft → delivery check;
   5. collect and release;
   6. review.
+
+---
+
+## 10. UI/UX polish for a market-ready product (asked 7 Nov, night)
+
+These rules don't change:
+- demo data is made up and labelled "Demo";
+- no fake testimonials and no fake user numbers;
+- the sandbox banner stays;
+- the headline stays **money that changes when the deal changes**.
+
+After each page: screenshots at 390 px and 1440 px, in light and dark (marketing pages are light only).
+
+### 10.1 Design system
+- [ ] **Layout:** one container (1200 px for marketing, 1280 px for the app), centred, 24 px padding (16 px on mobile); the header lines up with the content.
+  - **App:** a sidebar (240 px, folds to 72 px), a top bar and the main area.
+  - **Mobile:** a top bar and bottom tabs.
+  - **Spacing:** 4/8/12/16/24/32/48/64/96; sections 96 px (64 px on mobile).
+- [ ] **Type:** Inter, with a display weight for headings.
+  - Hero 64/40 px; H1 32/26; H2 40 (marketing) or 22 (app), 28/20 on mobile; body 17/16 px at 1.6; small 14.
+  - Money in tabular figures, weight 600. Body text is never below 16 px.
+- [ ] **Colour:** marketing is always light; the app follows the device, with light and dark both designed properly.
+  - **Light:** #FAFAF7 background, #FFF surface, #E7E5DF border, #15171A text, #5B616B muted.
+  - **Dark:** #0E1013, #171A1F, #262A31, #ECEDEE, #A0A6AE.
+  - **Accents:** gold #D9A441; primary buttons are **ink** (#15171A / #ECEDEE); PayPal blue appears only on PayPal buttons.
+  - **Statuses**, each with a colour **and** a label: Held amber, Collected green, Released teal, Refunded blue, Waiting grey, Problem red.
+- [ ] **Icons:** one set (Lucide, 1.75 px stroke, 20/24 px) replaces every emoji. Avatars are initials on soft colours. Product visuals are real app screenshots in device frames.
+- [ ] **Components:**
+  - Buttons: primary, secondary, ghost, danger; 44 px (app) or 52 px (marketing); one primary per area.
+  - Cards: 14 px radius, 1 px border, a shadow on hover only.
+  - Money pill, status chip, quote chip (Lucide "quote"), toast, sheet (mobile), modal (desktop), tabs, data table, illustrated empty states, skeletons.
+  - Async buttons show a spinner and block double taps.
+
+### 10.2 Marketing site (signed out)
+- [ ] Signed-in people never see it: creators go to `/studio`, brands to `/brand`, and the header says "Go to my studio".
+- [ ] **Header:** wordmark · Product · For creators · For brands · Pricing · FAQ · [Sign in] · [Get started]. On mobile: logo, [Get started] and a menu.
+- [ ] **Hero:**
+  - eyebrow, headline, sub-line;
+  - [I'm a creator: start free] (primary) · [I'm a brand: find creators] (secondary) · "Try the live demo →";
+  - an **animated product demo** (10–12 s loop, real HTML/CSS UI): a chat bubble → the change card → ✓✓ → "Held $530 → $610". It pauses on hover and is static with reduced motion.
+- [ ] **The problem:** 3 stat cards, each linked to its source. Only sourced figures.
+- [ ] **How it works:** 4 steps with real UI crops (link and price list, "Held $530", the change card, the delivery check and release).
+- [ ] **For creators / For brands:** two columns, or tabs.
+- [ ] **Trust and safety:** 4 promises, plus a "How we keep money safe" diagram.
+- [ ] **Pricing:** "Free during the beta", plus the planned platform fee clearly marked as planned (🙋 Alifiya confirms the number).
+- [ ] **FAQ accordion:** 7 questions.
+- [ ] Final call-to-action band, and the footer.
+
+### 10.3 Creator studio
+- [ ] **Navigation:** Home · Inbox · Deals · Calendar · Earnings · Price list · Profile & media kit · Brands · Settings. On mobile: Home, Inbox, Deals, Earnings, More.
+- [ ] **Home:**
+  - a greeting and "N things need you";
+  - 4 tiles: **Held for you** · **To be released** · **Paid out this month** · **Extras earned with Amend**, the last worked out by code and shown big;
+  - a Needs you list; the next 5 deadlines;
+  - a pipeline mini-kanban: Brief, Accepted, Held, In production, Delivered, Paid;
+  - a new creator's checklist: set prices → share your link → first deal.
+- [ ] **Inbox:** split view on desktop, filters, search, unread dots; change cards can be confirmed right there.
+- [ ] **Deals:**
+  - board and list views (sortable: brand, value, status, money, next deadline, last activity); filters and search;
+  - a deal page with tabs: Chat · Deal terms · Money · Delivery · History.
+- [ ] **Calendar:** month and week views showing drafts due, posting dates and windows, product arrivals, review deadlines and silent-approval dates, holdback releases and hold-expiry warnings. Colour by type; click opens the deal; `.ics` export.
+- [ ] **Earnings:**
+  - totals: lifetime, this month, held, to be released, fees;
+  - payout history (date, deal, brand, gross, fee, editor share, net, PayPal ID, status) with a CSV;
+  - a monthly statement PDF and a receipt per deal;
+  - holdbacks (what, until when, why); the payout email, masked.
+- [ ] **Price list:**
+  - **packages** at a bundle price; add-ons (extra revision, new scene, usage rights, exclusivity, rush fee);
+  - **terms templates** that become every new deal's defaults: revisions, cancellation, date change, silent approval, holdback %, days live;
+  - limits, and a "How brands see your prices" preview.
+- [ ] **Profile & media kit:** editing, "Fill from screenshot", a public page preview, [Copy link-in-bio], **QR code**, **[Download media kit PDF]** (metrics with source and as-of date, audience, prices, samples).
+- [ ] **Brands mini-CRM:** deals, total value, average rating, last deal, notes; [New deal link] prefilled for a repeat brand.
+- [ ] **Settings:**
+  - account, password, PayPal email, permit;
+  - notifications for each event (WhatsApp or in-app);
+  - language (EN/AR), theme;
+  - data: export my data, delete recordings;
+  - team (later).
+
+### 10.4 Brand workspace
+- [ ] **Navigation:** Home · Discover · Shortlists · Deals · Inbox · Payments · Team · Settings.
+- [ ] **Home:** money held, approvals needed, upcoming posts, spend this month.
+- [ ] **Discover:** filters in a side panel or bottom sheet, a grid with quick view, compare up to 3.
+- [ ] **Shortlists:** named lists, notes, shared with the team.
+- [ ] **Deals:** board and list. **Payments:** holds, collected, refunds, receipts, CSV. **Team:** invite, roles, who can confirm changes.
+
+### 10.5 Deal room
+- [ ] **Desktop:** chat 60% · a right panel 40% with a sticky **Money card** (held, collected, released, refunds, a mini timeline), **Deal terms** (versions, quotes), **Delivery** (a checklist from "what done means") and **Next step** (one action).
+- [ ] **Change card redesign:**
+  - icon and title; +/− lines with amounts aligned right;
+  - a red callout for conflicts; "N unchanged" folded away;
+  - both avatars in the confirmation row; a countdown chip for expiry;
+  - the primary button for whoever acts next.
+- [ ] **Composer:** text, attach, mic, and "Add a call recording". System events are subtle centred lines with icons.
+
+### 10.6 States and quality
+- [ ] Every screen: loading (skeletons), empty (illustration and one action), error (what happened, plus retry).
+- [ ] **Accessibility:** AA contrast, focus rings, keyboard use, labels on icon buttons, a live region for toasts. Motion of 150–250 ms, respecting reduced motion.
+- [ ] **Lighthouse mobile:** Performance ≥ 85 and Accessibility ≥ 95 on the home page, studio Home and the deal room.
+- [ ] Arabic right-to-left for the marketing site and the app.
+
+### 10.7 Scenarios
+| # | Scenario | Expected | T | B |
+|---|---|---|---|---|
+| S84 | Signed-in creator opens `/` | Redirect to `/studio` (Home) | [ ] | [ ] |
+| S85 | Creator Home with 2 active deals | Tiles: Held, To be released, Paid this month, Extras earned; Needs you list correct | [ ] | [ ] |
+| S86 | "Extras earned" | Equals the sum of confirmed paid changes + paid extra revisions (code-calculated) | [ ] | [ ] |
+| S87 | Calendar | Draft due, posting date, holdback release from real deals; `.ics` export works | [ ] | [ ] |
+| S88 | Earnings | Payout history matches the ledger; CSV and monthly statement PDF download | [ ] | [ ] |
+| S89 | Package "Reel + 3 Stories $520" | Brief → terms uses the package price when it matches | [ ] | [ ] |
+| S90 | Terms template defaults | A new deal starts with the creator's default terms | [ ] | [ ] |
+| S91 | Media kit PDF | Generated from the profile; metrics with source badges and as-of date | [ ] | [ ] |
+| S92 | Brands CRM → New deal link for a repeat brand | Prefilled brand details | [ ] | [ ] |
+| S93 | Brand Home | Money held, approvals needed, upcoming posts | [ ] | [ ] |
+| S94 | Named shortlist shared with a teammate | Visible to the team | [ ] | [ ] |
+| S95 | Marketing demo loop | Plays the change-card story; static with reduced motion | [ ] | [ ] |
+| S96 | No emoji icons anywhere in the UI | All icons from one set | [ ] | [ ] |
+| S97 | Every app screen | Loading, empty and error states | [ ] | [ ] |
