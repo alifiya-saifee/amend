@@ -41,7 +41,7 @@ async function route() {
     if (tab === "inbox") await inboxTab();
     else if (tab === "deals") await deals();
     else if (tab === "prices") await prices();
-    else if (tab === "profile") profile();
+    else if (tab === "profile") await profile();
     else $("#view").innerHTML = `<div class="empty"><div class="ic">📒</div>The ledger arrives on Tuesday.</div>`;
   } catch (e) {
     if (e.status === 401) { location.href = "/login"; return; }
@@ -272,18 +272,80 @@ function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }
 }
 
 /* ---------- Profile tab (3.6, minimum) ---------- */
-function profile() {
+async function profile() {
+  const P = await api("/api/studio/profile");
+  const m = (P.metrics || [])[0] || { platform: "instagram", audience: {} };
+  const chipsSel = (name, all, have) => `<div class="chips" style="flex-wrap:wrap">${all.map(x => `<button type="button" data-${name}="${esc(x)}" class="${have.includes(x) ? "on" : ""}">${esc(x)}</button>`).join("")}</div>`;
+  const pctTxt = o => Object.entries(o || {}).map(([k, v]) => `${k}=${v}`).join(", ");
   $("#view").innerHTML = `
-    <div class="card"><div class="row"><div class="avatar lg">${initials(ME.display_name)}</div>
-      <div><h2>${esc(ME.display_name)}</h2><div class="muted">@${esc(ME.handle)} · ${(ME.followers || 0).toLocaleString()} followers</div></div></div>
-      <p>${esc(ME.bio || "")}</p>
-      <div class="small muted">${esc(ME.audience || "")}<br>${esc(ME.niche || "")}</div>
-      ${ME.paypal_email_masked ? `<p class="small">PayPal: ${esc(ME.paypal_email_masked)}</p>` : ""}</div>
+    <div class="card"><div class="row"><div class="avatar lg">${initials(P.display_name)}</div>
+      <div><h2>${esc(P.display_name)}</h2><div class="muted">@${esc(P.handle)}</div></div></div>
+      ${ME.paypal_email_masked ? `<p class="small">PayPal: ${esc(ME.paypal_email_masked)}</p>` : ""}
+      <p class="hint">Brands never see your phone, email or address. They contact you through Amend.</p></div>
+    <form id="pf" class="card" style="margin-top:14px"><h2>Profile</h2>
+      <label>Display name</label><input name="display_name" maxlength="80" value="${esc(P.display_name)}">
+      <label>Bio (160 characters)</label><textarea name="bio" maxlength="160" style="min-height:70px">${esc(P.bio || "")}</textarea>
+      <div class="row"><div class="grow"><label>City</label><input name="city" maxlength="40" value="${esc(P.city || "")}"></div>
+        <div class="grow"><label>Country</label><input name="country" maxlength="40" value="${esc(P.country || "")}"></div></div>
+      <label>Niches</label>${chipsSel("niche", P.all_niches, P.niches)}
+      <label>Content styles</label>${chipsSel("style", P.all_styles, P.styles)}
+      <label>Languages (comma separated)</label><input name="languages" value="${esc(P.languages.join(", "))}">
+      <div class="row"><div class="grow"><label>Days to first draft</label><input name="turnaround_days" type="number" min="0" max="90" value="${P.turnaround_days ?? ""}"></div>
+        <div class="grow"><label>Next available</label><input name="next_available" type="date" value="${esc(P.next_available || "")}"></div></div>
+      <label>Past brands (comma separated, shown as self-reported)</label><input name="past_brands" value="${esc((P.past_brands || []).join(", "))}">
+      <label>Search keywords</label><input name="keywords" maxlength="200" value="${esc(P.keywords || "")}">
+      <button class="btn primary block" id="pf-go" style="margin-top:14px">Save profile</button></form>
+    <form id="mf" class="card" style="margin-top:14px"><div class="row between"><h2 style="margin:0">Reach and audience</h2>
+        <button type="button" class="btn small" id="fill">📷 Fill from screenshot</button></div>
+      <p class="hint">Engagement and view rate are worked out by Amend from these numbers. Numbers read from a screenshot are marked "from insights screenshot", never "verified".</p>
+      <input type="file" id="shot" accept="image/png,image/jpeg,image/webp" hidden>
+      <div id="mf-src" class="small muted"></div>
+      <label>Platform</label><select name="platform">${["instagram", "tiktok", "youtube"].map(p => `<option ${m.platform === p ? "selected" : ""}>${p}</option>`).join("")}</select>
+      <div class="row"><div class="grow"><label>Followers</label><input name="followers" type="number" min="1" required value="${m.followers ?? ""}"></div>
+        <div class="grow"><label>Avg views (last 12)</label><input name="avg_views" type="number" min="0" value="${m.avg_views ?? ""}"></div></div>
+      <div class="row"><div class="grow"><label>Avg likes</label><input name="avg_likes" type="number" min="0" value="${m.avg_likes ?? ""}"></div>
+        <div class="grow"><label>Avg comments</label><input name="avg_comments" type="number" min="0" value="${m.avg_comments ?? ""}"></div></div>
+      <label>Posts per week</label><input name="posts_per_week" type="number" min="0" value="${m.posts_per_week ?? ""}">
+      <label>Audience countries (%)</label><input name="countries" placeholder="UAE=60, KSA=20" value="${esc(pctTxt(m.audience.countries))}">
+      <label>Gender (%)</label><input name="gender" placeholder="female=65, male=35" value="${esc(pctTxt(m.audience.gender))}">
+      <label>Ages (%)</label><input name="ages" placeholder="18-24=30, 25-34=45" value="${esc(pctTxt(m.audience.ages))}">
+      <div class="err" id="mf-err" hidden></div>
+      <button class="btn primary block" id="mf-go" style="margin-top:14px">Save numbers</button></form>
     <div class="stack" style="margin-top:14px">
-      <a class="btn block" href="/c/${esc(ME.handle)}">Preview my public page</a>
+      <a class="btn block" href="/c/${esc(P.handle)}">Preview my public page</a>
       <button class="btn block" id="cpb">Copy my booking link</button>
       <button class="btn danger block" onclick="signOut()">Sign out</button></div>`;
-  $("#cpb").onclick = async () => { const u = location.origin + "/c/" + ME.handle; try { await navigator.clipboard.writeText(u); } catch {} toast("Booking link copied"); };
+  let source = "self_reported";
+  $$("[data-niche],[data-style]").forEach(b => b.onclick = () => b.classList.toggle("on"));
+  const list = v => v.split(",").map(x => x.trim()).filter(Boolean);
+  const pct = v => Object.fromEntries(list(v).map(x => x.split("=")).filter(p => p.length === 2 && !isNaN(+p[1])).map(([k, n]) => [k.trim(), +n]));
+  $("#pf").onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    busy($("#pf-go"), async () => { try {
+      await api("/api/studio/profile", { method: "PUT", body: { ...f, turnaround_days: f.turnaround_days === "" ? null : +f.turnaround_days, next_available: f.next_available || null,
+        languages: list(f.languages), past_brands: list(f.past_brands), niches: $$("[data-niche].on").map(b => b.dataset.niche), styles: $$("[data-style].on").map(b => b.dataset.style) } });
+      toast("Profile saved"); } catch (er) { toast(er.message, "bad"); } }); };
+  $("#mf").onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const n = k => f[k] === "" ? null : Math.round(+f[k]);
+    busy($("#mf-go"), async () => { $("#mf-err").hidden = true; try {
+      await api("/api/studio/metrics", { body: { platform: f.platform, followers: n("followers"), avg_views: n("avg_views"), avg_likes: n("avg_likes"), avg_comments: n("avg_comments"),
+        posts_per_week: n("posts_per_week"), audience: { countries: pct(f.countries), gender: pct(f.gender), ages: pct(f.ages) }, source } });
+      toast(source === "insights_screenshot" ? "Saved · marked as read from a screenshot" : "Numbers saved"); profile();
+    } catch (er) { $("#mf-err").textContent = er.message; $("#mf-err").hidden = false; } }); };
+  $("#fill").onclick = () => $("#shot").click();
+  $("#shot").onchange = async () => {
+    const file = $("#shot").files[0]; if (!file) return;
+    if (file.size > 2_000_000) { toast("Screenshot too big (2 MB max)", "bad"); return; }
+    const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(file); });
+    await busy($("#fill"), async () => { try {
+      const r = (await api("/api/studio/metrics/read", { body: { mime: file.type, data_b64: data } })).read;
+      const set = (k, v) => { if (v != null) $(`#mf [name=${k}]`).value = v; };
+      if (r.platform) $("#mf [name=platform]").value = r.platform;
+      ["followers", "avg_views", "avg_likes", "avg_comments"].forEach(k => set(k, r[k]));
+      set("countries", pctTxt(r.audience.countries) || null); set("gender", pctTxt(r.audience.gender) || null); set("ages", pctTxt(r.audience.ages) || null);
+      source = "insights_screenshot";
+      $("#mf-src").innerHTML = `<div class="banner gold">Read from your screenshot. <b>Check every number</b>, then save. It will show as "from insights screenshot".</div>`;
+    } catch (er) { toast(er.message, "bad"); } });
+  };
+  $("#cpb").onclick = async () => { const u = location.origin + "/c/" + P.handle; try { await navigator.clipboard.writeText(u); } catch {} toast("Booking link copied"); };
 }
 route();
 </script>

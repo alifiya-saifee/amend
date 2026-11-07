@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find creators · Amend</title>
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body class="browse">
+<header class="top"><a class="logo" href="/">Amend</a><span class="title" id="ttl">Find creators</span><span class="auth-slot"></span></header>
+<div class="browse-grid wrap">
+  <aside id="filters-side" class="filters-side" aria-label="Filters"></aside>
+  <main id="view"></main>
+</div>
+<div id="cmpbar" class="cmpbar" hidden></div>
+<script>
+const COMPARE = location.pathname === "/creators/compare";
+const NICHES = ["food", "coffee", "beauty", "fashion", "fitness", "family", "tech", "travel", "automotive", "real estate", "gaming", "home", "pets", "finance", "comedy"];
+const LS = "amend.shortlist";
+let Q = Object.fromEntries(new URLSearchParams(location.search)), PAGE = 0, SHORT = new Set(), CMP = new Set();
+
+function fmtN(n) { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n); }
+const SRC = { verified: ["Verified", "collected"], insights_screenshot: ["From insights screenshot", "held"], demo: ["Demo data", "planned"], self_reported: ["Self-reported", "waiting"] };
+function srcBadge(s) { if (!s) return ""; const [t, c] = SRC[s] || [s, ""]; return `<span class="pill ${c}" title="Where these numbers come from">${t}</span>`; }
+
+async function loadShort() {
+  await new Promise(r => setTimeout(r, 0));
+  if (window.WHO === undefined) await fillAuthSlots();
+  if (WHO && WHO.kind === "brand") { try { SHORT = new Set((await api("/api/brand/shortlist")).items.map(i => i.creator_id)); return; } catch {} }
+  try { SHORT = new Set(JSON.parse(localStorage.getItem(LS) || "[]")); } catch { SHORT = new Set(); }
+}
+async function toggleShort(id, btn) {
+  const on = !SHORT.has(id);
+  if (WHO && WHO.kind === "brand") { await api("/api/brand/shortlist", { body: { creator_id: id, on } }); }
+  on ? SHORT.add(id) : SHORT.delete(id);
+  if (!(WHO && WHO.kind === "brand")) { try { localStorage.setItem(LS, JSON.stringify([...SHORT])); } catch {} }
+  btn.textContent = on ? "♥" : "♡"; btn.setAttribute("aria-pressed", on);
+  toast(on ? (WHO && WHO.kind === "brand" ? "Saved to your shortlist" : "Saved in this browser only · sign in as a brand to keep it") : "Removed");
+}
+
+/* ---------- filters ---------- */
+function filtersHtml() {
+  const v = k => esc(Q[k] || "");
+  const sel = (k, opts) => `<select data-f="${k}"><option value="">Any</option>${opts.map(([val, t]) => `<option value="${val}" ${Q[k] === val ? "selected" : ""}>${t}</option>`).join("")}</select>`;
+  const niches = new Set((Q.niche || "").split(",").filter(Boolean));
+  return `<div class="stack">
+    <div><label>Niche</label><div class="chips wrapx" style="flex-wrap:wrap">${NICHES.map(n => `<button type="button" data-niche="${n}" class="${niches.has(n) ? "on" : ""}">${n}</button>`).join("")}</div></div>
+    <div><label>Platform</label>${sel("platform", [["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"]])}</div>
+    <div><label>Followers</label>${sel("tier", [["nano", "Nano (under 10K)"], ["micro", "Micro (10K–100K)"], ["mid", "Mid (100K–500K)"], ["macro", "Macro (500K–1M)"], ["mega", "Mega (over 1M)"]])}</div>
+    <div class="row"><div class="grow"><label>Avg views from</label><input data-f="min_views" type="number" min="0" value="${v("min_views")}" placeholder="20000"></div>
+      <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="100000"></div></div>
+    <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="2"></div>
+    <div><label>Reel price up to ($): <b id="reel-out">${Q.max_reel ? "$" + Q.max_reel : "any"}</b></label>
+      <input data-f="max_reel" type="range" min="100" max="2000" step="50" value="${Q.max_reel || 2000}"></div>
+    <div class="row"><div class="grow"><label>Audience in</label>${sel("country", [["UAE", "UAE"], ["KSA", "KSA"], ["GCC", "GCC"]])}</div>
+      <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="50"></div></div>
+    <div class="row"><div class="grow"><label>Audience mostly</label>${sel("gender", [["female", "Women"], ["male", "Men"]])}</div>
+      <div class="grow"><label>Age group</label>${sel("age", [["13-17", "13–17"], ["18-24", "18–24"], ["25-34", "25–34"], ["35-44", "35–44"], ["45+", "45+"]])}</div></div>
+    <div><label>Language</label>${sel("language", [["English", "English"], ["Arabic", "Arabic"]])}</div>
+    <div><label>Available by</label><input data-f="available_by" type="date" value="${v("available_by")}"></div>
+    <div><label>Minimum completed Amend deals</label><input data-f="min_deals" type="number" min="0" value="${v("min_deals")}" placeholder="0"></div>
+    <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="permit_valid" ${Q.permit_valid ? "checked" : ""} style="width:auto"> Valid UAE permit (format check)</label>
+    <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="hide_self_reported" ${Q.hide_self_reported ? "checked" : ""} style="width:auto"> Hide self-reported data</label>
+    <button class="btn block" id="clear" type="button">Clear filters</button>
+  </div>`;
+}
+function bindFilters(root) {
+  $$("[data-niche]", root).forEach(b => b.onclick = () => {
+    const s = new Set((Q.niche || "").split(",").filter(Boolean));
+    s.has(b.dataset.niche) ? s.delete(b.dataset.niche) : s.add(b.dataset.niche);
+    set("niche", [...s].join(",")); b.classList.toggle("on");
+  });
+  $$("[data-f]", root).forEach(el => {
+    const ev = el.type === "range" ? "change" : el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date" ? "change" : "input";
+    el.addEventListener(ev, () => {
+      let val = el.type === "checkbox" ? (el.checked ? "1" : "") : el.value;
+      if (el.dataset.f === "max_reel" && +val >= 2000) val = "";
+      if (el.dataset.f === "max_reel" && $("#reel-out")) $("#reel-out").textContent = val ? "$" + val : "any";
+      set(el.dataset.f, val);
+    });
+    if (el.type === "range") el.addEventListener("input", () => { if ($("#reel-out")) $("#reel-out").textContent = +el.value >= 2000 ? "any" : "$" + el.value; });
+  });
+  $("#clear", root).onclick = () => { Q = {}; syncUrl(); drawFilters(); search(); closeSheet(); };
+}
+let tmr;
+function set(k, v) { if (v) Q[k] = v; else delete Q[k]; clearTimeout(tmr); tmr = setTimeout(() => { PAGE = 0; syncUrl(); search(); }, 250); }
+function syncUrl() { const s = new URLSearchParams(Q).toString(); history.replaceState({}, "", "/creators" + (s ? "?" + s : "")); }
+function drawFilters() { $("#filters-side").innerHTML = `<h3>Filters</h3>` + filtersHtml(); bindFilters($("#filters-side")); }
+
+/* ---------- results ---------- */
+function cardHtml(c) {
+  return `<div class="card ccard">
+    <div class="row"><div class="avatar">${initials(c.display_name)}</div>
+      <div class="grow"><a href="/c/${esc(c.handle)}" class="cname"><b>${esc(c.display_name)}</b></a> <span class="muted small">@${esc(c.handle)}</span>
+        <div class="tiny muted">${esc(c.city || "")}${c.country ? ", " + esc(c.country) : ""}${c.is_demo ? " · Demo data" : ""}</div></div>
+      <button class="heart" data-short="${c.id}" aria-label="Shortlist" aria-pressed="${SHORT.has(c.id)}">${SHORT.has(c.id) ? "♥" : "♡"}</button></div>
+    <div class="row wrapx" style="margin-top:8px;gap:6px">${c.niches.map(n => `<span class="pill">${esc(n)}</span>`).join("")}</div>
+    <div class="stats">
+      <div><b>${fmtN(c.followers)}</b><span>followers</span></div>
+      <div><b>${fmtN(c.avg_views)}</b><span>avg views</span></div>
+      <div><b>${c.engagement_rate != null ? c.engagement_rate + "%" : "–"}</b><span>engagement</span></div>
+      <div><b>${c.top_country ? Math.round(c.top_country.pct) + "%" : "–"}</b><span>${c.top_country ? esc(c.top_country.name) : "audience"}</span></div>
+    </div>
+    <div class="row between wrapx" style="gap:6px">
+      <span>${c.reel_standard_cents ? `Reel from <b>${usd(c.reel_from_cents || c.reel_standard_cents)}</b>` : '<span class="muted small">No Reel price</span>'}</span>
+      <span class="small">${c.rating ? `★ ${c.rating} (${c.reviews})` : '<span class="muted">No reviews yet</span>'}</span></div>
+    <div class="row wrapx" style="gap:6px;margin-top:8px">${srcBadge(c.source)}${c.stale ? '<span class="pill failed">Data may be outdated</span>' : ""}
+      <span class="pill ${c.permit.state === "ok" ? "collected" : c.permit.state === "soon" ? "waiting" : ""}">${c.permit.state === "ok" ? "Permit ✓" : c.permit.state === "missing" ? "No permit" : "Permit: " + esc(c.permit.label)}</span></div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <a class="btn small primary grow" href="/c/${esc(c.handle)}">View</a>
+      <label class="btn small" style="gap:6px"><input type="checkbox" data-cmp="${c.id}" ${CMP.has(c.id) ? "checked" : ""} style="width:auto"> Compare</label></div>
+  </div>`;
+}
+async function search(append = false) {
+  if (!append) $("#results").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
+  let r;
+  try { r = await api("/api/creators?" + new URLSearchParams({ ...Q, page: PAGE }).toString()); }
+  catch (e) { $("#results").innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn" onclick="search()">Try again</button></div>`; return; }
+  $("#count").textContent = `${r.total} creator${r.total === 1 ? "" : "s"}`;
+  const html = r.creators.map(cardHtml).join("");
+  if (append) $("#results").insertAdjacentHTML("beforeend", html);
+  else $("#results").innerHTML = html || `<div class="empty"><div class="ic">🔎</div>No creators match these filters.<br><br><button class="btn primary" id="clear2">Clear filters</button></div>`;
+  if ($("#clear2")) $("#clear2").onclick = () => { Q = {}; syncUrl(); drawFilters(); search(); };
+  $("#more").innerHTML = r.more ? `<button class="btn block" id="lm">Load more</button>` : "";
+  if (r.more) $("#lm").onclick = () => { PAGE++; search(true); };
+  $$("[data-short]").forEach(b => b.onclick = () => toggleShort(b.dataset.short, b).catch(e => toast(e.message, "bad")));
+  $$("[data-cmp]").forEach(b => b.onchange = () => {
+    if (b.checked && CMP.size >= 3) { b.checked = false; toast("Compare up to 3 creators", "bad"); return; }
+    b.checked ? CMP.add(b.dataset.cmp) : CMP.delete(b.dataset.cmp); cmpBar();
+  });
+}
+function cmpBar() {
+  const bar = $("#cmpbar");
+  bar.hidden = CMP.size < 2;
+  bar.innerHTML = `<span>${CMP.size} selected</span><a class="btn primary small" href="/creators/compare?ids=${[...CMP].join(",")}">Compare ${CMP.size}</a>`;
+}
+async function browse() {
+  $("#view").innerHTML = `
+    <div class="row" style="gap:8px"><input id="q" class="grow" placeholder="Search name, handle, niche or keyword" value="${esc(Q.q || "")}">
+      <button class="btn small hide-desktop" id="openf">Filters</button></div>
+    <div class="row between wrapx" style="margin:12px 0;gap:8px"><span class="muted small" id="count"></span>
+      <div class="row" style="gap:6px"><label class="small muted" for="sort">Sort</label>
+        <select id="sort" style="width:auto;padding:8px">${[["match", "Best match"], ["price", "Price: low to high"], ["views", "Average views"], ["engagement", "Engagement rate"], ["rating", "Rating"], ["newest", "Newest"]]
+          .map(([k, t]) => `<option value="${k}" ${(Q.sort || "match") === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+        ${WHO && WHO.kind === "brand" ? `<button class="btn small" id="savesearch">Save search</button>` : ""}</div></div>
+    <div id="results" class="cgrid"></div><div id="more" style="margin-top:12px"></div>`;
+  let t; $("#q").oninput = e => { clearTimeout(t); t = setTimeout(() => set("q", e.target.value.trim()), 300); };
+  $("#sort").onchange = e => set("sort", e.target.value === "match" ? "" : e.target.value);
+  $("#openf").onclick = () => { const sh = sheet(`<h2>Filters</h2>` + filtersHtml() + `<button class="btn primary block" style="margin-top:12px" onclick="closeSheet()">Show results</button>`); bindFilters(sh); };
+  if ($("#savesearch")) $("#savesearch").onclick = async () => {
+    const name = prompt("Name this search", Q.niche ? Q.niche + " creators" : "My search"); if (!name) return;
+    try { await api("/api/brand/searches", { body: { name, query: new URLSearchParams(Q).toString() } }); toast("Search saved · see Brand dashboard → Searches"); } catch (e) { toast(e.message, "bad"); }
+  };
+  drawFilters();
+  await search();
+}
+
+/* ---------- compare (S65) ---------- */
+async function compare() {
+  $("#ttl").textContent = "Compare creators";
+  $("#filters-side").hidden = true;
+  const ids = (new URLSearchParams(location.search).get("ids") || "").split(",").filter(Boolean).slice(0, 3);
+  const r = await api("/api/creators/compare?ids=" + ids.join(","));
+  if (!r.creators.length) { $("#view").innerHTML = `<div class="empty">Pick 2 or 3 creators to compare.<br><br><a class="btn primary" href="/creators">Find creators</a></div>`; return; }
+  const C = r.creators;
+  const m = c => c.metrics[0] || {};
+  const aud = (c, g) => Object.entries((m(c).audience || {})[g] || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${esc(k)} ${Math.round(v)}%`).join(", ") || "–";
+  const price = (c, code) => { const p = c.items.find(i => i.code === code); return p && p.standard_cents ? usd(p.standard_cents) : "–"; };
+  const rows = [
+    ["Followers", c => fmtN(c.followers)], ["Platform", c => esc(c.platform || "–")], ["Avg views", c => fmtN(c.avg_views)],
+    ["Engagement rate", c => c.engagement_rate != null ? c.engagement_rate + "%" : "–"], ["View rate", c => c.view_rate != null ? c.view_rate + "%" : "–"],
+    ["Top countries", c => aud(c, "countries")], ["Gender", c => aud(c, "gender")], ["Ages", c => aud(c, "ages")],
+    ["Data source", c => srcBadge(c.source) + (c.stale ? ' <span class="pill failed">outdated</span>' : "") + `<div class="tiny muted">as of ${esc(c.as_of || "–")}</div>`],
+    ["Reel", c => price(c, "reel")], ["Story set", c => price(c, "story_set")], ["Extra revision", c => price(c, "extra_revision")],
+    ["Usage rights / month", c => price(c, "usage_rights")], ["Exclusivity / month", c => price(c, "exclusivity")],
+    ["Turnaround", c => c.turnaround_days != null ? c.turnaround_days + " days to first draft" : "–"],
+    ["Next available", c => esc(c.next_available || "–")], ["Languages", c => esc(c.languages.join(", ") || "–")],
+    ["Permit", c => esc(c.permit.label)], ["Amend deals completed", c => c.track_record.completed],
+    ["Rating", c => c.track_record.rating ? `★ ${c.track_record.rating} (${c.track_record.reviews})` : "No reviews yet"],
+  ];
+  $("#view").innerHTML = `<div class="cmp-wrap"><table class="cmp"><thead><tr><th></th>${C.map(c => `<th><div class="avatar" style="margin:0 auto 6px">${initials(c.display_name)}</div>
+      <a href="/c/${esc(c.handle)}">${esc(c.display_name)}</a><div class="tiny muted">@${esc(c.handle)}</div></th>`).join("")}</tr></thead>
+    <tbody>${rows.map(([label, f]) => `<tr><th scope="row">${label}</th>${C.map(c => `<td>${f(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="row wrapx" style="gap:8px;margin-top:14px">${C.map(c => `<a class="btn primary small" href="/c/${esc(c.handle)}#request">Request a deal with ${esc(c.display_name.split(" ")[0])}</a>`).join("")}</div>
+    <p style="margin-top:14px"><a href="/creators">← Back to results</a></p>`;
+}
+
+(async () => { await loadShort(); COMPARE ? compare() : browse(); })();
+</script>
+</body></html>

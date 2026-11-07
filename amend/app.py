@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, changes, deals, engine, inbox, money, webhooks
+from amend import ai, auth, changes, deals, discovery, engine, inbox, money, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -43,8 +43,10 @@ from contextlib import asynccontextmanager
 async def lifespan(_app):
     get_settings()  # refuses to start unless PAYPAL_ENV=sandbox
     d = get_db()
-    from scripts.seed import ensure_demo_accounts, seed
+    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery
     seed(d)  # adds any demo creators that are missing; existing ones are left alone
+    seed_discovery(d)
+    ensure_exclusivity_item(d)
     ensure_demo_accounts(d)
     yield
 
@@ -558,11 +560,102 @@ def public_creator(handle: str):
     if not c:
         raise HTTPException(404, "Creator not found")
     items = [p for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
-    return {"id": c["id"], "handle": c["handle"], "display_name": c["display_name"], "bio": c["bio"],
-            "followers": c["followers"], "audience": c["audience"], "niche": c["niche"],
-            "permit": deals.permit_check(c["permit_no"], c["permit_expiry"]),
-            "limits": {"posting_days": c["limits"].get("posting_days", [])},
-            "items": [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)} for p in items]}
+    raw = get_db().one("select * from creators where id = :id", {"id": c["id"]})
+    prof = discovery.profile(get_db(), raw)  # never phone, email or address (S77)
+    return prof | {"audience": c["audience"], "niche": c["niche"],
+                   "limits": {"posting_days": c["limits"].get("posting_days", [])},
+                   "items": [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)} for p in items]}
+
+
+# ---------- discovery (Phase 4) ----------
+
+@app.get("/api/creators")
+def browse(request: Request):
+    q = dict(request.query_params)
+    try:
+        return discovery.search(get_db(), q)
+    except ValueError:
+        raise HTTPException(400, "A filter value isn't valid.")
+
+
+@app.get("/api/creators/compare")
+def compare(ids: str):
+    wanted = [i for i in ids.split(",") if i][:3]
+    out = []
+    for cid in wanted:
+        raw = get_db().one("select * from creators where id = :id", {"id": cid})
+        if raw:
+            p = discovery.profile(get_db(), raw)
+            p["items"] = [_price_json(x) for x in engine.price_items(get_db(), cid) if not x["hidden"]]
+            out.append(p)
+    return {"creators": out}
+
+
+@app.get("/api/studio/profile")
+def my_profile(c: dict = Depends(require_creator)):
+    raw = get_db().one("select * from creators where id = :id", {"id": c["id"]})
+    return discovery.profile(get_db(), raw) | {"keywords": raw.get("keywords"), "all_niches": discovery.NICHES,
+                                               "all_styles": discovery.STYLES}
+
+
+class ProfileIn(BaseModel):
+    display_name: str | None = Field(None, max_length=80)
+    bio: str | None = Field(None, max_length=160)
+    city: str | None = Field(None, max_length=40)
+    country: str | None = Field(None, max_length=40)
+    niches: list[str] = Field(default_factory=list, max_length=12)
+    languages: list[str] = Field(default_factory=list, max_length=8)
+    styles: list[str] = Field(default_factory=list, max_length=6)
+    past_brands: list[str] = Field(default_factory=list, max_length=10)
+    turnaround_days: int | None = Field(None, ge=0, le=90)
+    next_available: str | None = None
+    keywords: str | None = Field(None, max_length=200)
+
+
+@app.put("/api/studio/profile")
+def save_my_profile(body: ProfileIn, c: dict = Depends(require_creator)):
+    try:
+        discovery.save_profile(get_db(), c["id"], body.model_dump(), actor=c["party_id"])
+    except ValueError:
+        raise HTTPException(400, "Next available must be a date (YYYY-MM-DD).")
+    return my_profile(c)
+
+
+class MetricsIn(BaseModel):
+    platform: str
+    followers: int
+    avg_views: int | None = None
+    avg_likes: int | None = None
+    avg_comments: int | None = None
+    posts_per_week: int | None = None
+    audience: dict = Field(default_factory=dict)
+    source: str = "self_reported"
+
+
+@app.post("/api/studio/metrics")
+def save_my_metrics(body: MetricsIn, c: dict = Depends(require_creator)):
+    try:
+        discovery.save_metrics(get_db(), c["id"], body.model_dump(), source=body.source, actor=c["party_id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return my_profile(c)
+
+
+class ShotIn(BaseModel):
+    mime: str = Field(pattern="^image/(png|jpeg|webp)$")
+    data_b64: str = Field(max_length=2_800_000)
+
+
+@app.post("/api/studio/metrics/read")
+async def read_my_insights(body: ShotIn, c: dict = Depends(require_creator)):
+    """S67: the AI reads the numbers; nothing is saved until the creator checks and saves them."""
+    rate_limit(f"insights:{c['id']}", 6, 300)
+    try:
+        nums = await discovery.read_insights(f"data:{body.mime};base64,{body.data_b64}")
+    except (ai.ProviderError, ai.DraftRejected):
+        raise HTTPException(503, "Couldn't read that screenshot right now. Type the numbers instead.")
+    get_db().log_event("metrics.read_from_screenshot", actor=c["party_id"], payload={"creator": c["id"]})
+    return {"read": nums, "source": "insights_screenshot"}
 
 
 class RequestDealIn(BaseModel):

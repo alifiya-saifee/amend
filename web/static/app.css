@@ -220,3 +220,34 @@ button.pick { width: 100%; font: inherit; color: var(--ink); }
 .composer textarea { min-height: 44px; max-height: 140px; resize: none; flex: 1; }
 .chat-img { max-width: 220px; max-height: 220px; border-radius: 10px; margin-top: 6px; display: block; }
 .filechip { display: inline-block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--chip); text-decoration: none; color: var(--ink); }
+
+/* ---------- discovery (Phase 4) ---------- */
+.cgrid { display: grid; gap: 12px; }
+.ccard .cname { color: var(--ink); text-decoration: none; }
+.heart { background: none; border: 0; font-size: 1.4rem; color: var(--gold-text); cursor: pointer; padding: 4px 8px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 8px; text-align: center; }
+.stats div { background: var(--raise); border-radius: 10px; padding: 8px 4px; }
+.stats b { display: block; font-size: 1rem; } .stats span { font-size: .7rem; color: var(--muted); }
+.filters-side { display: none; }
+.cmpbar { position: fixed; left: 16px; right: 16px; bottom: 36px; z-index: 26; max-width: 520px; margin: 0 auto; display: flex; gap: 10px; align-items: center; justify-content: space-between;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); }
+.cmp-wrap { overflow-x: auto; max-width: 100%; }
+.cmp { border-collapse: collapse; width: 100%; min-width: 520px; font-size: .9rem; }
+.cmp th, .cmp td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: center; vertical-align: top; }
+.cmp tbody th { text-align: left; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: 64px 1fr 40px; gap: 8px; align-items: center; font-size: .82rem; }
+.bar .track { height: 8px; border-radius: 4px; background: var(--raise); overflow: hidden; }
+.bar .fill { height: 100%; background: var(--gold); }
+.samples { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.samples div { aspect-ratio: 9 / 16; border-radius: 10px; background: linear-gradient(160deg, var(--gold-soft), var(--raise)); display: flex; align-items: flex-end;
+  padding: 8px; font-size: .7rem; color: var(--muted); }
+@media (min-width: 700px) { .cgrid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1025px) {
+  body.browse .browse-grid { max-width: 1240px; display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 24px; padding: 20px 24px 60px; }
+  body.browse .filters-side { display: block; position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 110px); overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  body.browse .hide-desktop { display: none !important; }
+  .cgrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1400px) { .cgrid { grid-template-columns: repeat(3, 1fr); } }
