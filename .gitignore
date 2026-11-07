@@ -6,3 +6,7 @@ __pycache__/
 *.db
 .probe_state.json
 .DS_Store
+*.db-shm
+*.db-wal
+*.db-journal
+docs/screenshots/**/18-paypal-page.png
