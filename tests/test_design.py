@@ -53,41 +53,48 @@ def test_pricing_and_faq_pages():
             assert c.get(p).status_code == 200
 
 
-# ---------- cinematic marketing pass ----------
+# ---------- cinematic marketing pass: "the deal builds itself" ----------
 CINE_JS = (ROOT / "web" / "static" / "cinema.js").read_text()
 CINE_CSS = (ROOT / "web" / "static" / "cinema.css").read_text()
 INDEX = (ROOT / "web" / "index.html").read_text()
 
 
-def test_cinema_only_on_marketing_and_pinned_libraries():
+def test_cinema_only_on_marketing_pinned_libraries_no_webgl():
     assert 'src="/static/cinema.js" defer' in INDEX and "/static/cinema.css" in INDEX
     for page in ("studio.html", "brand.html", "deal.html", "creators.html", "login.html"):
         assert "cinema" not in (ROOT / "web" / page).read_text(), page  # the app never loads it
-    assert "cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/" in CINE_JS
     assert "cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" in CINE_JS and "gsap/3.12.5/ScrollTrigger.min.js" in CINE_JS
     assert "cdn.jsdelivr.net/npm/lenis@1.1.13/" in CINE_JS
+    assert "three" not in CINE_JS.lower() and "webgl" not in CINE_JS.lower()  # three.js removed entirely (decision 2a)
 
 
-def test_cinema_text_first_and_fallbacks():
-    # the headline, sub and buttons are plain HTML; WebGL is imported after load
+def test_scene_numbers_match_the_price_list_story():
+    # 1c: Reel $450 + Story set $80 + 2 revisions "Included" = $530; +1 Story set +$80 -> $610
+    assert "$450" in INDEX and "$80" in INDEX and "2 revisions" in INDEX and 'class="inc">Included<' in INDEX
+    assert "+1 Story set" in INDEX and "$610" in INDEX and "Held by PayPal" in INDEX
+    assert "Dune Roast × Sara Malik" in INDEX and "Can we add one more Story and post Monday?" in INDEX
+    assert INDEX.index('class="sc-chat"') < INDEX.index('id="sc-card"')  # the brand's message sits above the card
+    assert INDEX.index('id="sc-card"') < INDEX.index('class="sc-note"')  # caption under the card
+
+
+def test_scene_fallbacks_and_text_first():
     assert "Brand deals change." in INDEX and "does too." in INDEX and "I'm a creator: start free" in INDEX
-    assert "afterLoad(async" in CINE_JS and "await import(THREE_URL)" in CINE_JS
-    # reduced motion, Save-Data and no WebGL -> static poster, no libraries
-    assert "prefers-reduced-motion: reduce" in CINE_JS and "saveData" in CINE_JS and "hasWebGL()" in CINE_JS
-    assert (ROOT / "web" / "static" / "img" / "hero-poster.webp").stat().st_size > 1000
-    assert (ROOT / "web" / "static" / "img" / "hero-poster-m.webp").stat().st_size > 1000
-    assert 'url("/static/img/hero-poster.webp")' in CINE_CSS and "hero-poster-m.webp" in CINE_CSS
-
-
-def test_cinema_phone_limits_and_pausing():
-    assert "phone ? 1.5 : 2" in CINE_JS                     # pixel ratio at most 1.5 on phones
-    assert "phone ? 2200 : 9000" in CINE_JS                 # about 25% of the particles on phones
+    assert "js-anim" in INDEX and "prefers-reduced-motion: reduce" in INDEX and "saveData" in INDEX  # only animates without them
+    assert "afterLoad(startHero)" in CINE_JS and "showFinal" in CINE_JS  # GSAP after load; final state if it can't load
     assert "visibilitychange" in CINE_JS and "IntersectionObserver" in CINE_JS  # paused when hidden or off-screen
-    assert ".river-band" in CINE_CSS and "height: 210px" in CINE_CSS  # fixed-size band: no layout shift from the canvas
+    assert "getBoundingClientRect" in CINE_JS and "ResizeObserver" in CINE_JS  # measured flight paths, stage refit on resize
 
 
-def test_cinema_demo_card_never_empty():
-    assert 'class="skel"' in INDEX and 'class="tskel"' in INDEX  # skeleton of the next step between beats
-    assert "Held by PayPal" in INDEX and 'id="story"' in INDEX
+def test_stage_and_layout_rules():
+    assert "width: 560px; height: 600px" in CINE_CSS and "aspect-ratio: 560 / 600" in CINE_CSS  # fixed stage, reserved box
+    assert "column-gap: 48px" in CINE_CSS and "clamp(48px, 5.2vw, 84px)" in CINE_CSS
+    assert "min(100vh - var(--topbar), 760px)" in CINE_CSS
+    assert "max-width: 420px" in CINE_CSS  # phones: stage scaled to the screen, max 420px
+    assert "width: 72px; height: 72px" in CINE_CSS  # 72px bubbles
+    assert 'class="sc-skel' not in INDEX
+
+
+def test_story_uses_the_same_card():
     for stage in ("Link sent", "Held by PayPal", "Change confirmed", "Delivery matches", "Paid out"):
         assert stage in INDEX
+    assert 'class="story-card"' in INDEX and INDEX.count('class="sc-card"') == 2

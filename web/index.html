@@ -6,6 +6,7 @@
 <meta name="description" content="Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/cinema.css">
+<script>/* the hero scene animates in only without reduced motion or Save-Data; otherwise its final state shows */ if (!matchMedia("(prefers-reduced-motion: reduce)").matches && !(navigator.connection && navigator.connection.saveData)) document.documentElement.classList.add("js-anim");</script>
 <script src="/static/app.js" defer></script><script src="/static/cinema.js" defer></script>
 </head><body class="marketing">
 <div class="grain" aria-hidden="true"></div>
@@ -21,44 +22,45 @@
 
 <main>
   <section class="cine-hero dark-zone" id="hero">
-    <div class="cine-canvas" id="hero-canvas" aria-hidden="true"></div>
-    <div class="cine-vignette" aria-hidden="true"></div>
+    <div class="cine-light" aria-hidden="true"></div>
     <div class="cursor-glow" aria-hidden="true"></div>
     <div class="mk hero-grid">
-      <div>
+      <div class="hero-text">
         <div class="eyebrow">For creators and brands · Payments by PayPal (sandbox demo)</div>
-        <h1 class="cine-h" aria-label="Brand deals change. Now the money does too."><span class="ln" aria-hidden="true"><span style="--i:0">Brand deals change.</span></span><span class="ln" aria-hidden="true"><span style="--i:1">Now the money <span class="gold" style="white-space:nowrap">does too.</span></span></span></h1>
+        <h1 class="cine-h" aria-label="Brand deals change. Now the money does too."><span class="ln" aria-hidden="true"><span style="--i:0">Brand deals change.</span></span><span class="ln" aria-hidden="true"><span style="--i:1">Now the money</span></span><span class="ln" aria-hidden="true"><span class="gold" style="--i:2">does too.</span></span></h1>
         <p class="lead">Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm, and nothing is paid out until the delivery matches the deal.</p>
         <div class="cta-row">
           <a class="btn primary lg magnetic" href="/signup?kind=creator">I'm a creator: start free</a>
           <a class="btn lg magnetic" href="/creators">I'm a brand: find creators</a>
         </div>
-        <p style="margin-top:16px"><a href="/try">Try the live demo <i data-lucide="arrow-right" aria-hidden="true"></i></a></p>
+        <p class="try-link"><a href="/try">Try the live demo <i data-lucide="arrow-right" aria-hidden="true"></i></a></p>
       </div>
-      <div class="demo" id="demo" aria-label="Animated example: a chat message becomes a change card, both sides confirm, and the held money updates">
-        <div class="dtop"><span><b>Dune Roast Coffee × Sara Malik</b></span>
-          <span class="held">Held <span class="hv-old">$530</span><span class="hv-new">$610</span></span></div>
-        <div class="msg s1"><span class="tiny" style="color:#5B616B">Nadia · brand</span><br>Can we add one more Story and post Monday?</div>
-        <div class="slot">
-          <div class="skel" aria-hidden="true"><div style="display:flex;gap:8px;align-items:center"><i data-lucide="scan-text" aria-hidden="true"></i> Reading the chat for changes…</div>
-            <div class="bar w80"></div><div class="bar w60"></div><div class="bar w40"></div></div>
-          <div class="dcard s2">
-            <div style="display:flex;gap:8px;align-items:center;font-weight:700"><i data-lucide="sparkles" aria-hidden="true"></i> Change detected</div>
-            <div class="dline"><span>+ 1 Story set <span style="color:#5B616B">(Sara's price list)</span></span><b>+$80</b></div>
-            <div class="dline"><span>Posting date Fri → Mon</span><b>free</b></div>
-            <div class="dline" style="color:#5B616B"><span>3 items unchanged</span><span></span></div>
-            <div class="tslot">
-              <div class="tskel" aria-hidden="true"><span class="pill-s"></span><span class="pill-s"></span><span>Waiting for both…</span></div>
-              <div class="ticks s3"><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Nadia confirmed</span><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Sara confirmed</span></div>
+      <div class="scene" id="demo" role="img" aria-label="Animated example: Sara's prices fly into a deal card, $530 is held by PayPal, the brand asks for one more Story and post Monday, both confirm, and the held money becomes $610">
+        <div class="stage-fit"><div class="stage" aria-hidden="true">
+          <div class="sc-bokeh"><span></span><span></span><span></span></div>
+          <div class="sc-inner">
+            <div class="sc-profile"><span class="sc-av">SM</span><span class="sc-name"><b>Sara Malik</b><small>@sara.eats</small></span></div>
+            <div class="sc-bubbles">
+              <div class="bub" data-k="reel"><span class="ring"><span class="core"><i data-lucide="clapperboard" aria-hidden="true"></i></span></span><span class="bl">Reel</span></div>
+              <div class="bub" data-k="story"><span class="ring"><span class="core"><i data-lucide="images" aria-hidden="true"></i></span></span><span class="bl">Story set</span></div>
+              <div class="bub" data-k="rev"><span class="ring"><span class="core"><i data-lucide="repeat-2" aria-hidden="true"></i></span></span><span class="bl">2 revisions</span></div>
+            </div>
+            <div class="sc-chat"><span class="who">Nadia · brand</span>Can we add one more Story and post Monday?</div>
+            <div class="sc-card" id="sc-card">
+              <div class="sc-top"><span class="sc-title">Dune Roast × Sara Malik</span><span class="sc-pill"><span class="pl-lbl">Held by PayPal</span> <b class="sc-held">$610</b></span></div>
+              <div class="sc-lines">
+                <div class="sc-ln" data-k="reel"><span class="li-ic"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span class="li-t">Reel <small>up to 45 s</small></span><b>$450</b></div>
+                <div class="sc-ln" data-k="story"><span class="li-ic"><i data-lucide="images" aria-hidden="true"></i></span><span class="li-t">Story set <small>3 frames</small></span><b>$80</b></div>
+                <div class="sc-ln" data-k="rev"><span class="li-ic"><i data-lucide="repeat-2" aria-hidden="true"></i></span><span class="li-t">2 revisions <small>part of the Reel</small></span><b class="inc">Included</b></div>
+                <div class="sc-ln new" data-k="plus"><span class="li-ic"><i data-lucide="plus" aria-hidden="true"></i></span><span class="li-t">+1 Story set <small>Sara's price list</small></span><b>+$80</b></div>
+                <div class="sc-ln new date" data-k="date"><span class="li-ic"><i data-lucide="calendar" aria-hidden="true"></i></span><span class="li-t">Post Fri → Mon</span><b class="inc">free</b></div>
+              </div>
+              <div class="sc-foot"><span class="sc-unch"><i data-lucide="lock" aria-hidden="true"></i> 3 items unchanged</span><span class="sc-total">Total <b class="sc-tot">$610</b></span></div>
+              <div class="sc-oks"><span class="sc-ok"><i data-lucide="check" aria-hidden="true"></i> Nadia confirmed</span><span class="sc-ok"><i data-lucide="check" aria-hidden="true"></i> Sara confirmed</span></div>
             </div>
           </div>
-        </div>
-        <p class="tiny" style="color:#5B616B;margin:12px 0 0">Made-up example · PayPal sandbox</p>
-      </div>
-      <div class="river-band" id="hero-band" aria-hidden="true">
-        <div class="r-node brand"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Brand</span></div>
-        <div class="r-chip">Held by PayPal <b id="chip-amt">$530</b></div>
-        <div class="r-node creator"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Creator</span></div>
+        </div></div>
+        <p class="sc-note">Made-up example · PayPal sandbox</p>
       </div>
     </div>
   </section>
@@ -66,10 +68,9 @@
   <section class="story dark-zone" id="story" aria-labelledby="story-h">
     <div class="cursor-glow" aria-hidden="true"></div>
     <div class="story-stage">
-      <div class="story-canvas" id="story-canvas" aria-hidden="true"></div>
       <div class="mk story-head"><div class="eyebrow">One deal, start to finish</div>
         <h2 class="mk-h2 leak" id="story-h" style="color:#fff">Follow the money.</h2></div>
-      <div class="mk"><ol class="story-list">
+      <div class="mk story-body"><ol class="story-list">
         <li data-stage="0"><div class="n"><i data-lucide="link" aria-hidden="true"></i> 1 · Link sent</div><h3>One link, your prices.</h3>
           <p>Sara sends Dune Roast her deal link. The brief is priced from her own list, with the words it came from.</p></li>
         <li data-stage="1"><div class="n"><i data-lucide="lock" aria-hidden="true"></i> 2 · Held by PayPal</div><h3>$530 held. Nothing taken.</h3>
@@ -80,15 +81,22 @@
           <p>Amend compares the post with the latest confirmed version. No match, no release.</p></li>
         <li data-stage="4"><div class="n"><i data-lucide="send" aria-hidden="true"></i> 5 · Paid out</div><h3>Collected and paid out.</h3>
           <p>The money reaches Sara, and every dollar in the ledger shows the words behind it.</p></li>
-      </ol></div>
-      <div class="story-band" id="story-band" aria-hidden="true">
-        <div class="r-node brand"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Brand</span></div>
-        <div class="r-chip" id="story-chip">Deal link sent</div>
-        <div class="r-node creator"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Creator</span></div>
-      </div>
+      </ol>
+      <div class="story-card" aria-hidden="true" data-stage="2"><div class="sc-card" id="story-card">
+          <div class="sc-top"><span class="sc-title">Dune Roast × Sara Malik</span><span class="sc-pill"><span class="pl-lbl">Held by PayPal</span> <b class="sc-held">$610</b></span></div>
+          <div class="sc-lines">
+            <div class="sc-ln" data-k="reel"><span class="li-ic"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span class="li-t">Reel <small>up to 45 s</small></span><b>$450</b><span class="mt"><i data-lucide="check" aria-hidden="true"></i></span></div>
+            <div class="sc-ln" data-k="story"><span class="li-ic"><i data-lucide="images" aria-hidden="true"></i></span><span class="li-t">Story set <small>3 frames</small></span><b>$80</b><span class="mt"><i data-lucide="check" aria-hidden="true"></i></span></div>
+            <div class="sc-ln" data-k="rev"><span class="li-ic"><i data-lucide="repeat-2" aria-hidden="true"></i></span><span class="li-t">2 revisions <small>part of the Reel</small></span><b class="inc">Included</b><span class="mt"><i data-lucide="check" aria-hidden="true"></i></span></div>
+            <div class="sc-ln new" data-k="plus"><span class="li-ic"><i data-lucide="plus" aria-hidden="true"></i></span><span class="li-t">+1 Story set <small>Sara's price list</small></span><b>+$80</b><span class="mt"><i data-lucide="check" aria-hidden="true"></i></span></div>
+            <div class="sc-ln new date" data-k="date"><span class="li-ic"><i data-lucide="calendar" aria-hidden="true"></i></span><span class="li-t">Post Fri → Mon</span><b class="inc">free</b><span class="mt"><i data-lucide="check" aria-hidden="true"></i></span></div>
+          </div>
+          <div class="sc-foot"><span class="sc-unch"><i data-lucide="lock" aria-hidden="true"></i> 3 items unchanged</span><span class="sc-total">Total <b class="sc-tot">$610</b></span></div>
+          <div class="sc-oks"><span class="sc-ok" data-who="brand"><i data-lucide="check" aria-hidden="true"></i> Nadia confirmed</span><span class="sc-ok" data-who="creator"><i data-lucide="check" aria-hidden="true"></i> Sara confirmed</span></div>
+        </div></div></div>
       <div class="story-rail" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
     </div>
-    <p class="mk tiny" style="color:#9AA0A8;position:relative;z-index:2;margin-top:12px">Made-up example · PayPal sandbox</p>
+    <p class="mk tiny story-note">Made-up example · PayPal sandbox</p>
   </section>
 
   <section class="section alt" id="problem">

@@ -192,3 +192,18 @@ Marketing page only (web/index.html + web/static/cinema.css + web/static/cinema.
 - Output: docs/screenshots/cinema/ (hero, story stages, light sections, reduced motion at 1440 and 390; recording-1440.mp4 and recording-390.mp4 are 10 s each). Script: tests/browser/cinema.py (poster | shots | record | fallback).
 - Tests: 4 new checks in tests/test_design.py. Suite: 464 passed, 3 skipped.
 Next: Block 7.
+
+## Hero v2: "the deal builds itself" + layout fixes (8 Nov, early)
+Replaced the particle river with a GSAP 3.12.5 scene (three.js removed entirely, posters deleted). Marketing page only.
+- Scene: a fixed 560 x 600 stage scaled to its box (box height reserved by aspect-ratio, so no layout shift). Top to bottom: Sara's profile + 3 gold-ring bubbles (Reel, Story set, 2 revisions; 72px), Nadia's message, the deal card ("Dune Roast × Sara Malik", pill on the same line), caption 12px under the card.
+- Timeline (~9 s + 3 s hold, loops): each bubble lifts and curves into its card line (shadow grows on approach, squash on impact, spring landing), total counts to $530, "Held by PayPal $530" pill; Nadia's message → "+1 Story" pops out and drops into the card → +1 Story set +$80 and Post Fri → Mon (free) highlighted, "3 items unchanged", total $610; both confirm (glow); Held $530 → $610; slow push-out. Flight paths use measured positions at run time (stage units), re-fitted on resize.
+- Numbers: Reel $450 + Story set $80 + 2 revisions "Included" (part of the Reel) = $530; +$80 = $610 (decision 1c).
+- Layout (decision on your spec): header in the 1200px container, logo 20 / wordmark 18 / menu 15 / buttons 40; hero 2 x 6/12 columns, 48px gap, centred, height min(100vh − header, 760px); headline 3 lines inside the left column (size capped by column width: 59px at 1280–1920). Phones: text → buttons → stage (max 420px) → caption.
+- Scroll story: the same card, one stage at a time (pill, +1 Story lines, confirmations, delivery checks per line, "Collected · paid to Sara").
+- Fallbacks: reduced motion / Save-Data → final state, no libraries (checked); GSAP can't load → final state; paused off-screen and in hidden tabs.
+- Layout tests: tests/browser/hero_layout.py at 1280, 1440, 1920, 390 — all checks pass (results in docs/screenshots/hero-layout/test-results.txt, screenshots final + mid there). Fixed on the way: the push-out lifted the card off its caption (32px gap) → scale around the bottom edge; cursor glow box was wider than the screen → gradient inside its section; story card text inherited light colour.
+- Lighthouse mobile (3 runs): Performance 94 / 97 / 96, CLS 0, TBT 0 ms; Accessibility 100 / 100 / 96 (the 96 caught the pill mid-fade; at rest it passes).
+- Recordings: docs/screenshots/cinema/recording-1440.mp4 and recording-390.mp4 (10 s each).
+- Note: on phones the stage is scaled to about 0.64, so card text is about 9–10px on screen.
+- Suite: 465 passed, 3 skipped.
+Next: Block 7.
