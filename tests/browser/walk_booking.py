@@ -57,7 +57,7 @@ def main() -> None:
         s.click(".fab"); s.fill("input[name=brand_org]", "Dune Roast Coffee"); s.fill("input[name=contact_name]", "Nadia")
         s.click("#nd-go"); s.wait_for_selector("#lk"); shot(s, "05-link-ready")
         link = s.input_value("#lk")
-        s.click("text=Done")
+        s.click("#sheet >> text=Done")
 
         print("3. prices + profile + public page")
         s.click("a[data-tab=prices]"); s.wait_for_selector("text=My limits"); shot(s, "06-prices")
@@ -74,7 +74,7 @@ def main() -> None:
         n.fill("#brief", BRIEF); n.click("#draft")
         n.wait_for_selector("text=Waiting for Sara to accept", timeout=90000); shot(n, "12-draft-waiting")
         n.click("[data-quote]"); n.wait_for_selector("blockquote"); shot(n, "13-quote-sheet")
-        n.click("text=Close")
+        n.click("#sheet >> text=Close")
 
         print("5. Sara accepts")
         s.goto(BASE + "/studio"); s.wait_for_selector(".dealcard"); shot(s, "14-studio-needs-me")
