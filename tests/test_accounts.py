@@ -122,7 +122,7 @@ def test_s83_whoami_for_header(client):
 def test_pages_have_a_sign_in_slot(client):
     for p in ("/", "/c/sara.eats", "/d/x", "/creators"):
         html = client.get(p).text
-        assert 'class="auth-slot"' in html, p
+        assert 'class="auth-slot' in html, p
 
 
 def test_login_next_param_only_local(client):

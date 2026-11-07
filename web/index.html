@@ -1,46 +1,172 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Amend</title>
-<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
-<meta name="description" content="Amend holds brand-deal money with PayPal and changes it only when both sides confirm.">
+<title>Amend · Brand deals change. Now the money does too.</title>
+<meta name="theme-color" content="#FAFAF7">
+<meta name="description" content="Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
-</head><body>
-<header class="top"><a class="logo" href="/">Amend</a><span class="title"></span><span class="auth-slot"></span></header>
-<main class="wrap home">
-  <section class="hero">
-    <div class="tag-line">Money that changes when the truth changes.</div>
-    <h1>Brand deals change. Now the money does too.</h1>
-    <p class="lead">Amend is a deal link for creators and brands. The brand pays with PayPal and the money is <b>held</b>, not taken.</p>
-    <p class="lead">When the deal changes in the chat, Amend prices the change from the creator's own list and shows exactly what moves.</p>
-    <p class="lead">Nothing is paid out until both sides confirm and the delivery matches the deal.</p>
-    <div class="row wrapx hero-cta">
-      <a class="btn primary" href="/signup?kind=creator">Join as a creator</a>
-      <a class="btn" href="/signup?kind=brand">Join as a brand</a>
+</head><body class="marketing">
+<header class="top">
+  <a class="logo" href="/"><span class="mark"><i data-lucide="repeat-2" aria-hidden="true"></i></span>Amend</a>
+  <nav class="mk-nav" aria-label="Main">
+    <a href="/#how">Product</a><a href="/#creators">For creators</a><a href="/#brands">For brands</a><a href="/pricing">Pricing</a><a href="/faq">FAQ</a>
+  </nav>
+  <span class="auth-slot mk-only-desktop"></span>
+  <a class="btn small primary mk-only-mobile" href="/signup">Get started</a>
+  <button class="iconbtn mk-only-mobile" id="mk-menu" aria-label="Menu"><i data-lucide="menu" aria-hidden="true"></i></button>
+</header>
+
+<main>
+  <section class="mk hero-grid">
+    <div>
+      <div class="eyebrow">For creators and brands · Payments by PayPal (sandbox demo)</div>
+      <h1 class="hero-h">Brand deals change. Now the money does too.</h1>
+      <p class="lead">Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm, and nothing is paid out until the delivery matches the deal.</p>
+      <div class="cta-row">
+        <a class="btn primary lg" href="/signup?kind=creator">I'm a creator: start free</a>
+        <a class="btn lg" href="/creators">I'm a brand: find creators</a>
+      </div>
+      <p style="margin-top:16px"><a href="/try">Try the live demo <i data-lucide="arrow-right" aria-hidden="true"></i></a></p>
     </div>
-    <div class="row wrapx" style="margin-top:10px;gap:10px">
-      <a class="btn small" href="/creators">Browse creators</a>
-      <a class="btn small" href="/login">Sign in as creator</a>
-      <a class="btn small" href="/try">Try it yourself</a>
+    <div class="demo" id="demo" aria-label="Animated example: a chat message becomes a change card, both sides confirm, and the held money updates">
+      <div class="dtop"><span><b>Dune Roast Coffee × Sara Malik</b></span>
+        <span class="held">Held <span class="hv-old">$530</span><span class="hv-new">$610</span></span></div>
+      <div class="msg s1"><span class="tiny" style="color:#5B616B">Nadia · brand</span><br>Can we add one more Story and post Monday?</div>
+      <div class="dcard s2">
+        <div style="display:flex;gap:8px;align-items:center;font-weight:700"><i data-lucide="sparkles" aria-hidden="true"></i> Change detected</div>
+        <div class="dline"><span>+ 1 Story set <span style="color:#5B616B">(Sara's price list)</span></span><b>+$80</b></div>
+        <div class="dline"><span>Posting date Fri → Mon</span><b>free</b></div>
+        <div class="dline" style="color:#5B616B"><span>3 items unchanged</span><span></span></div>
+        <div class="ticks s3"><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Nadia confirmed</span><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Sara confirmed</span></div>
+      </div>
+      <p class="tiny" style="color:#5B616B;margin:12px 0 0">Made-up example · PayPal sandbox</p>
     </div>
   </section>
 
-  <h2 class="section-h">How it works</h2>
-  <ol class="steps">
-    <li><span class="num">1</span><div><b>Send the brand your deal link</b><p class="muted">No account for them. They write a brief; the AI drafts the deal from your price list, with the exact words behind every line.</p></div></li>
-    <li><span class="num">2</span><div><b>They pay, PayPal holds it</b><p class="muted">The money is reserved, not taken. You start work once it's held.</p></div></li>
-    <li><span class="num">3</span><div><b>Changes are confirmed by both, money moves only when it matches</b><p class="muted">An extra Story, a new date, a cancellation: each becomes a card you both confirm. Paid means refund, never cancel.</p></div></li>
-  </ol>
-
-  <div class="card" style="margin-top:20px">
-    <div class="icons3">
-      <div><span class="ic"><i data-lucide='lock' aria-hidden='true'></i></span><span>Money held by PayPal before work starts</span></div>
-      <div><span class="ic"><i data-lucide='quote' aria-hidden='true'></i></span><span>Every term shows the words it came from</span></div>
-      <div><span class="ic"><i data-lucide='circle-check' aria-hidden='true'></i></span><span>Released only when the delivery matches the deal</span></div>
+  <section class="section alt" id="problem">
+    <div class="mk">
+      <div class="eyebrow">The problem</div>
+      <h2 class="mk-h2">Deals change after the money is agreed. Payments don't.</h2>
+      <div class="grid3" style="margin-top:32px">
+        <div class="statcard"><div class="big">48%</div><p>of creators were paid late in a year.</p>
+          <a class="small" href="https://www.lumanu.com/blog/insights-from-500-influencers-on-their-payment-experience" target="_blank" rel="noopener">Source: Lumanu, survey of 500+ creators</a></div>
+        <div class="statcard"><div class="big">30–90 days</div><p>is a common wait for payment after the work is done.</p>
+          <a class="small" href="https://infmap.com/blog/why-creators-get-paid-late-and-what-it-costs-brands" target="_blank" rel="noopener">Source: Infmap, why creators get paid late</a></div>
+        <div class="statcard"><div class="big" style="font-size:28px">Extra revisions and new scenes</div><p>get asked for after the price is set, and often go unpaid.</p>
+          <a class="small" href="https://influenceflow.io/resources/influencer-content-approval-workflows-the-complete-2026-guide/" target="_blank" rel="noopener">Source: InfluenceFlow, content approval workflows</a></div>
+      </div>
     </div>
-  </div>
-  <p style="margin-top:16px"><a href="/c/sara.eats">See a creator page →</a></p>
-  <p class="muted small" style="margin-top:24px">MIT licence · Made-up people and brands · PayPal sandbox only.</p>
+  </section>
+
+  <section class="section" id="how">
+    <div class="mk">
+      <div class="eyebrow">How it works</div>
+      <h2 class="mk-h2">Four steps. Money only moves when you both agree.</h2>
+      <div class="how" style="margin-top:32px">
+        <div><div class="shot"><img src="/static/img/how-link.png" alt="A creator's public page with prices" loading="lazy"></div>
+          <h3>1 · Send your link</h3><p class="muted">Your prices, your terms, one link for your bio or a DM. The brand needs no account.</p></div>
+        <div><div class="shot"><img src="/static/img/how-held.png" alt="The deal room showing $530 held by PayPal" loading="lazy"></div>
+          <h3>2 · The brand pays, PayPal holds</h3><p class="muted">The money is reserved, not taken. You start work once it's held.</p></div>
+        <div><div class="shot"><img src="/static/img/how-change.png" alt="A change card priced from the creator's list" loading="lazy"></div>
+          <h3>3 · Changes become cards</h3><p class="muted">"Can we add a Story?" becomes a priced card with the exact words. You both confirm.</p></div>
+        <div><div class="shot"><img src="/static/img/how-delivery.png" alt="The delivery check comparing the post with the deal" loading="lazy"></div>
+          <h3>4 · Delivery matches, you get paid</h3><p class="muted">Amend checks the post against the latest deal. No match, no release.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt">
+    <div class="mk grid2">
+      <div id="creators" class="card">
+        <div class="eyebrow">For creators</div><h2 class="mk-h2" style="font-size:32px">Get paid for everything you do</h2>
+        <ul class="checklist">
+          <li><i data-lucide="clock" aria-hidden="true"></i> Money held before you start, released when the post matches</li>
+          <li><i data-lucide="badge-dollar-sign" aria-hidden="true"></i> Never do free extras: every change is priced from your list</li>
+          <li><i data-lucide="link" aria-hidden="true"></i> One link instead of chasing emails and DMs</li>
+          <li><i data-lucide="user-round" aria-hidden="true"></i> A public profile and media kit for your bio</li>
+          <li><i data-lucide="wallet" aria-hidden="true"></i> Earnings, holdbacks and payouts in one place</li></ul>
+        <a class="btn primary" href="/signup?kind=creator" style="margin-top:16px">Start free</a></div>
+      <div id="brands" class="card">
+        <div class="eyebrow">For brands</div><h2 class="mk-h2" style="font-size:32px">Pay for what you actually get</h2>
+        <ul class="checklist">
+          <li><i data-lucide="search" aria-hidden="true"></i> Find creators by audience, reach and engagement, with where each number came from</li>
+          <li><i data-lucide="credit-card" aria-hidden="true"></i> No account needed to pay: PayPal holds the money</li>
+          <li><i data-lucide="file-check" aria-hidden="true"></i> Every change priced and confirmed by both sides</li>
+          <li><i data-lucide="shield-check" aria-hidden="true"></i> Money released only when the work matches the deal</li>
+          <li><i data-lucide="badge-check" aria-hidden="true"></i> UAE Advertiser Permit format check on every creator</li></ul>
+        <a class="btn" href="/creators" style="margin-top:16px">Find creators</a></div>
+    </div>
+  </section>
+
+  <section class="section" id="trust">
+    <div class="mk">
+      <div class="eyebrow">Trust and safety</div>
+      <h2 class="mk-h2">How we keep money safe</h2>
+      <div class="grid2" style="margin-top:32px;align-items:center">
+        <ul class="checklist">
+          <li><i data-lucide="lock" aria-hidden="true"></i> <span><b>Money held by PayPal</b> (sandbox demo). Amend never touches card details.</span></li>
+          <li><i data-lucide="quote" aria-hidden="true"></i> <span><b>Every term shows the exact words it came from</b>, checked word for word.</span></li>
+          <li><i data-lucide="undo-2" aria-hidden="true"></i> <span><b>Paid means refund, never cancel.</b> A correction after payment is a refund the creator approves.</span></li>
+          <li><i data-lucide="users" aria-hidden="true"></i> <span><b>Only the deciders' words move money.</b> Anyone else's are suggestions.</span></li>
+          <li><i data-lucide="trash-2" aria-hidden="true"></i> <span><b>Your data:</b> delete recordings and screenshots any time.</span></li></ul>
+        <div class="card" aria-label="Diagram: words, then a card both confirm, then PayPal">
+          <ol class="steps compact" style="margin:0">
+            <li><span class="num">1</span><div><b>Words</b><p>A message, voice note or call says the deal changed.</p></div></li>
+            <li><span class="num">2</span><div><b>A priced card</b><p>Prices come from the creator's list; the AI never sets them.</p></div></li>
+            <li><span class="num">3</span><div><b>Both confirm</b><p>An approval record is saved for each payment.</p></div></li>
+            <li><span class="num">4</span><div><b>PayPal updates</b><p>A new hold, collect less, or a refund. Every call has its own request ID, so it can't run twice.</p></div></li>
+          </ol></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="pricing">
+    <div class="mk" style="max-width:760px">
+      <div class="eyebrow">Pricing</div>
+      <h2 class="mk-h2">Free during the beta</h2>
+      <div class="card" style="margin-top:24px">
+        <div class="row between wrapx"><div><h3 style="margin:0">Beta</h3><p class="muted small" style="margin:0">Everything in Amend, for creators and brands</p></div><span class="statcard" style="padding:8px 16px;border:0"><span class="big" style="font-size:32px">$0</span></span></div>
+        <p class="small" style="margin-top:16px"><span class="pill held">Planned</span> After the beta: a small platform fee per completed deal, paid from the deal. The exact fee will be announced before it starts. PayPal's own fees apply as usual.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="mk faq" style="max-width:820px">
+      <div class="eyebrow">FAQ</div>
+      <h2 class="mk-h2">Questions</h2>
+      <details><summary>Is my money safe? <i data-lucide="plus" aria-hidden="true"></i></summary><p>The brand's payment is held by PayPal (an authorisation), not by Amend. Money is collected only when both sides approve the release, and only after the delivery check passes. This is a sandbox demo: no real money moves.</p></details>
+      <details><summary>What if the brand cancels? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Amend proposes a fair split from the evidence (draft uploaded, approved, posted) and the creator's own cancellation terms, with the maths shown and a second-opinion check. Both approve; PayPal collects the creator's share and releases the rest.</p></details>
+      <details><summary>What if the creator doesn't deliver? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Nothing is released until the delivery matches the latest confirmed deal. Missing items become cards: remove them from the deal (and collect less) or wait for delivery.</p></details>
+      <details><summary>Do brands need an account? <i data-lucide="plus" aria-hidden="true"></i></summary><p>No. The creator's link is enough to write a brief, pay with PayPal and confirm changes. Brands can create an account to keep a shortlist and see all their deals.</p></details>
+      <details><summary>Which countries and currencies? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Payments are in USD (PayPal doesn't support AED); AED is shown beside every amount at a fixed rate. The demo is built for the UAE and the GCC.</p></details>
+      <details><summary>Is this live? <i data-lucide="plus" aria-hidden="true"></i></summary><p>It's a working demo on PayPal's sandbox. People, brands and numbers are made up and labelled "Demo".</p></details>
+      <details><summary>How are creator metrics checked? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Every number shows where it came from: self-reported, read from an insights screenshot (checked by the creator, not verified), verified, or demo, plus how old it is. Engagement and view rate are worked out by Amend, never typed.</p></details>
+    </div>
+  </section>
+
+  <section class="mk" style="padding-bottom:64px">
+    <div class="band"><h2 class="mk-h2">Send your first deal link in 2 minutes</h2>
+      <p style="color:#C9CCD1">Set your prices, share your link, and let PayPal hold the money.</p>
+      <a class="btn primary lg" href="/signup?kind=creator">Start free</a></div>
+  </section>
 </main>
+<footer class="footer"><div class="mk row between wrapx" style="gap:16px">
+  <div><a class="logo" href="/"><span class="mark"><i data-lucide="repeat-2" aria-hidden="true"></i></span>Amend</a>
+    <p style="margin-top:8px">Money that changes when the truth changes.</p></div>
+  <div class="row wrapx" style="gap:16px"><a href="/#how">Product</a><a href="/creators">Find creators</a><a href="/pricing">Pricing</a><a href="/faq">FAQ</a><a href="/try">Live demo</a><a href="/login">Sign in</a></div>
+  <p style="width:100%">Made-up people and brands · PayPal sandbox only · MIT licence</p>
+</div></footer>
+<script>
+(() => {
+  const demo = document.getElementById("demo");
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) demo.classList.add("play");
+  const sec = { "/pricing": "pricing", "/faq": "faq" }[location.pathname];
+  if (sec) setTimeout(() => document.getElementById(sec).scrollIntoView(), 50);
+  document.getElementById("mk-menu").onclick = () => sheet('<div class="stack"><a class="btn block" href="/#how">Product</a><a class="btn block" href="/#creators">For creators</a>' +
+    '<a class="btn block" href="/#brands">For brands</a><a class="btn block" href="/pricing">Pricing</a><a class="btn block" href="/faq">FAQ</a>' +
+    '<span class="auth-slot" style="justify-content:center"></span></div>', { onOpen: () => fillAuthSlots() });
+})();
+</script>
 </body></html>

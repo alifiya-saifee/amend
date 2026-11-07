@@ -249,8 +249,8 @@ table.data tr:hover td { background: var(--surface-2); }
 .section { padding: var(--s8) 0; } @media (min-width: 768px) { .section { padding: var(--s9) 0; } }
 .section.alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .eyebrow { font-size: 14px; font-weight: 600; color: var(--gold-ink); text-transform: uppercase; letter-spacing: .06em; margin-bottom: var(--s3); }
-.hero-grid { display: grid; gap: var(--s7); align-items: center; padding: var(--s7) 0 var(--s8); }
-@media (min-width: 1025px) { .hero-grid { grid-template-columns: 1.05fr 1fr; padding: var(--s8) 0 var(--s9); } }
+.hero-grid { display: grid; gap: var(--s7); align-items: center; padding-top: var(--s7); padding-bottom: var(--s8); }
+@media (min-width: 1025px) { .hero-grid { grid-template-columns: 1.05fr 1fr; padding-top: var(--s8); padding-bottom: var(--s9); } }
 .hero-h { font-size: 40px; line-height: 1.05; font-weight: 750; letter-spacing: -.02em; margin: 0 0 var(--s4); }
 @media (min-width: 768px) { .hero-h { font-size: 64px; } }
 .lead { font-size: 18px; color: var(--muted); max-width: 580px; } @media (min-width: 768px) { .lead { font-size: 20px; } }
