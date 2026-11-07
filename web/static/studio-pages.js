@@ -173,6 +173,114 @@ async function earningsTab(ledgerView = false) {
   };
 }
 
+/* ---------- Price list: packages, terms template, brand preview (Block 5) ---------- */
+async function pricesPlus() {
+  await prices();
+  const t = await api("/api/studio/terms");
+  const f = (k, label, unit, step = 1) => `<div><label>${label}</label><div class="row"><input type="number" min="0" step="${step}" data-t="${k}" value="${k === "date_change_fee_cents" ? t[k] / 100 : t[k]}"><span class="small muted">${unit}</span></div></div>`;
+  $("#view").insertAdjacentHTML("beforeend", `
+    <section class="card" style="margin-top:14px"><h2>Terms template</h2>
+      <p class="small muted">Your defaults for every new deal. Brands see them in the brief; you can still change a deal's terms before you accept.</p>
+      <div class="grid2">${f("revisions_included", "Revisions included", "rounds")}${f("cancellation_min_pct", "Minimum if cancelled after work starts", "%")}
+        ${f("date_change_free_hours", "Date change free with notice of", "hours")}${f("date_change_fee_cents", "Date change fee otherwise", "$")}
+        ${f("silent_approval_days", "Silent approval after", "days without review")}${f("holdback_pct", "Holdback", "% until days live")}
+        ${f("days_live", "Days live", "days")}</div>
+      <button class="btn primary block" id="t-save" style="margin-top:14px">Save terms template</button></section>
+    <section class="card" style="margin-top:14px"><div class="row between"><h2 style="margin:0">How brands see your prices</h2>
+      <a class="btn small" href="/c/${esc(ME.handle)}" target="_blank" rel="noopener">${I("external-link")} Open</a></div>
+      <div id="t-preview" style="margin-top:10px"></div></section>`);
+  $("#t-save").onclick = e => busy(e.currentTarget, async () => {
+    const body = Object.fromEntries($$("[data-t]").map(i => [i.dataset.t, i.dataset.t === "date_change_fee_cents" ? Math.round(+i.value * 100) : Math.round(+i.value)]));
+    try { await api("/api/studio/terms", { method: "PUT", body }); toast("Terms template saved"); } catch (er) { toast(er.message, "bad"); }
+  });
+  const pub = await api(`/api/c/${encodeURIComponent(ME.handle)}`);
+  $("#t-preview").innerHTML = `<div class="list">${pub.items.filter(p => p.standard_cents != null).map(p => `<div class="line"><div class="grow"><b>${esc(p.name)}</b>
+    ${p.kind === "package" ? '<span class="pill held">Package</span>' : ""}${p.rules && p.rules.note ? `<div class="small muted">${esc(p.rules.note)}</div>` : ""}</div>
+    <div class="amt">${usd(p.standard_cents)}<div class="aed">${p.aed}</div></div></div>`).join("")}</div>`;
+}
+
+/* ---------- Profile & media kit: QR code, link-in-bio, media kit PDF (Block 5) ---------- */
+function loadQR() {
+  if (window.qrcode) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js";
+    s.onload = res; s.onerror = () => rej(new Error("QR code couldn't load")); document.head.appendChild(s); });
+}
+async function profilePlus() {
+  await profile();
+  const url = location.origin + "/c/" + ME.handle;
+  $("#view").insertAdjacentHTML("afterbegin", `<section class="card" style="margin-bottom:14px"><div class="row between wrapx" style="gap:12px">
+      <div class="grow"><h2 style="margin:0">Your link and media kit</h2><p class="small muted" style="margin:4px 0 0">Put the link in your bio. Brands see your prices and can book you with money held by PayPal.</p>
+        <input readonly value="${esc(url)}" style="margin-top:10px" onclick="this.select()">
+        <div class="row wrapx" style="gap:8px;margin-top:10px"><button class="btn small primary" id="pk-copy">${I("copy")} Copy link-in-bio</button>
+          <a class="btn small" href="/api/studio/mediakit.pdf">${I("file-down")} Download media kit PDF</a>
+          <a class="btn small" href="/c/${esc(ME.handle)}" target="_blank" rel="noopener">${I("eye")} Preview public page</a></div></div>
+      <div id="pk-qr" aria-label="QR code for your link" style="background:#fff;padding:8px;border-radius:12px;width:148px;height:148px"></div></div></section>`);
+  $("#pk-copy").onclick = async () => { try { await navigator.clipboard.writeText(url); } catch {} toast("Link copied"); };
+  try { await loadQR(); const q = qrcode(0, "M"); q.addData(url); q.make(); $("#pk-qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 0 }); }
+  catch { $("#pk-qr").innerHTML = '<p class="tiny muted">QR code unavailable offline</p>'; }
+}
+
+/* ---------- Brands (mini-CRM) ---------- */
+async function brandsTab() {
+  const r = await api("/api/studio/brands");
+  $("#view").innerHTML = `<div class="row between"><h1>Brands</h1></div>
+    <p class="muted">Every brand you've worked with on Amend.</p>
+    ${r.brands.length ? `<div class="grid2">${r.brands.map((b, i) => `<section class="card"><div class="row between"><div class="row"><div class="avatar">${initials(b.brand)}</div>
+        <div><b>${esc(b.brand)}</b> ${b.is_demo ? '<span class="pill">Demo</span>' : ""}<div class="small muted">${esc(b.contact || "")}</div></div></div>
+        <button class="btn small primary" data-again="${i}">${I("link")} New deal link</button></div>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)"><div><b>${b.deals}</b><span>deals</span></div><div><b>${usd(b.value_cents)}</b><span>total value</span></div>
+        <div><b>${b.avg_rating ? b.avg_rating + " / 5" : "–"}</b><span>review score</span></div></div>
+      <p class="small muted">Last deal ${b.last_deal ? ago(b.last_deal) : "–"}</p>
+      <label for="note-${i}">Notes (only you see these)</label><textarea id="note-${i}" data-note="${i}" style="min-height:70px" maxlength="2000">${esc(b.notes || "")}</textarea>
+      <button class="btn small" data-save="${i}" style="margin-top:6px">Save notes</button></section>`).join("")}</div>`
+      : emptyState("building-2", "No brands yet", "Brands you work with show up here, with their deals and your notes.", `<button class="btn primary" onclick="newDeal()">${I("plus")} New deal link</button>`)}`;
+  $$("[data-again]").forEach(b => b.onclick = () => { const x = r.brands[+b.dataset.again]; newDeal();
+    setTimeout(() => { const s = $("#sheet"); $("input[name=brand_org]", s).value = x.brand; $("input[name=contact_name]", s).value = x.contact || "";
+      if (x.contact_email) $("input[name=contact_email]", s).value = x.contact_email; }, 30); });
+  $$("[data-save]").forEach(b => b.onclick = () => busy(b, async () => { const i = +b.dataset.save;
+    await api("/api/studio/brands/notes", { method: "PUT", body: { brand: r.brands[i].brand, notes: $(`[data-note="${i}"]`).value } }); toast("Notes saved"); }));
+}
+
+/* ---------- Settings ---------- */
+async function settingsTab() {
+  const s = await api("/api/studio/settings");
+  const sel = (k, v) => `<select data-n="${k}">${[["whatsapp", "WhatsApp + in-app"], ["in-app", "In-app only"], ["off", "Off"]].map(([x, l]) => `<option value="${x}" ${v === x ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  $("#view").innerHTML = `<h1>Settings</h1>
+    <div class="grid2" style="align-items:start">
+      <section class="card"><h2>Account</h2>
+        <label>Name</label><input id="s-name" value="${esc(s.account.name)}" maxlength="80">
+        <label>Email</label><input value="${esc(s.account.email)}" disabled>
+        ${s.account.demo ? '<p class="hint">Demo account: it uses the shared demo password, which can\'t be changed here.</p>'
+          : `<label>Current password</label><input id="s-cur" type="password" autocomplete="current-password"><label>New password</label><input id="s-new" type="password" autocomplete="new-password">
+             <button class="btn small" id="s-pw" style="margin-top:8px">Change password</button>`}
+        <label>PayPal payout email</label><input id="s-pp" type="email" value="${esc(s.paypal_email || "")}" placeholder="your PayPal email">
+        <p class="hint">Payouts from released deals go here (PayPal sandbox in this demo).</p>
+        <label>UAE Advertiser Permit</label><p class="small">${esc(s.permit.label)} · <a href="/studio/prices">Edit in Price list</a></p></section>
+      <section class="card"><h2>Notifications</h2>
+        ${[["change", "Change cards"], ["money", "Money updates (held, paid)"], ["message", "New messages"], ["delivery", "Drafts, gaps and delivery"]].map(([k, l]) => `<label>${l}</label>${sel(k, s.notify[k])}`).join("")}
+        <p class="hint">WhatsApp is sent from Amend's own number once the template is approved; in-app is always on in your Inbox.</p>
+        <h2 style="margin-top:16px">Language and theme</h2>
+        <label>Language</label><select id="s-lang"><option value="en" ${s.language === "en" ? "selected" : ""}>English</option><option value="ar" ${s.language === "ar" ? "selected" : ""}>العربية (Arabic, coming soon)</option></select>
+        <label>Theme</label><select id="s-theme">${[["system", "Follow my device"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<option value="${v}" ${s.theme === v ? "selected" : ""}>${l}</option>`).join("")}</select></section>
+    </div>
+    <button class="btn primary" id="s-save" style="margin-top:14px">Save settings</button>
+    <section class="card" style="margin-top:14px"><h2>Your data</h2>
+      <div class="row wrapx" style="gap:8px"><a class="btn" href="/api/studio/export">${I("download")} Export my data (JSON)</a>
+        <button class="btn danger" id="s-del">${I("trash-2")} Delete my recordings and screenshots</button></div>
+      <p class="hint">Deleting keeps a record that the files were deleted, as the deal history requires.</p></section>`;
+  $("#s-save").onclick = e => busy(e.currentTarget, async () => {
+    try {
+      await api("/api/studio/settings", { method: "PUT", body: { name: $("#s-name").value, paypal_email: $("#s-pp").value, language: $("#s-lang").value,
+        theme: $("#s-theme").value, notify: Object.fromEntries($$("[data-n]").map(x => [x.dataset.n, x.value])) } });
+      applyTheme($("#s-theme").value); toast("Settings saved");
+    } catch (er) { toast(er.message, "bad"); }
+  });
+  if ($("#s-pw")) $("#s-pw").onclick = e => busy(e.currentTarget, async () => {
+    try { await api("/api/account/password", { body: { current: $("#s-cur").value, new: $("#s-new").value } }); toast("Password changed"); } catch (er) { toast(er.message, "bad"); } });
+  $("#s-del").onclick = e => { if (confirm("Delete all your voice notes, call transcripts, screenshots and files on every deal?")) busy(e.currentTarget, async () => {
+    const r = await api("/api/studio/media/delete-all", { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); }); };
+}
+
 /* ---------- Calendar ---------- */
 let CAL = { month: new Date(), view: "month" };
 async function calendarTab() {

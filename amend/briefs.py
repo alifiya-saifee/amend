@@ -68,11 +68,15 @@ def complete(db: Database, deal: dict, fields: dict, *, lines: list[dict], post_
     plist = {p["code"]: p for p in engine.price_items(db, deal["creator_id"])}
     if post_date and "post_date" not in fields:
         fields["post_date"] = {"value": post_date["value"], "quote": post_date["quote"], "source": "brief", "status": "pending"}
-    included = ((plist.get("reel") or {}).get("rules") or {}).get("included_revisions")
+    from amend.business import terms as creator_terms
+    tt = creator_terms(db, deal["creator_id"])
+    included = ((plist.get("reel") or {}).get("rules") or {}).get("included_revisions", tt["revisions_included"])
     codes = {l["item_code"] for l in lines}
+    template = {"days_live": str(tt["days_live"]), "silent_approval_days": str(tt["silent_approval_days"])}
     for k, (label, required, default) in FIELDS.items():
         if k in fields:
             continue
+        default = template.get(k, default)
         if k == "revision_rounds" and included is not None:
             default = f"{included} (from the creator's price list)"
         if k == "usage_rights" and "usage_rights" in codes:

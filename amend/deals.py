@@ -58,8 +58,12 @@ def check_price_item(p: dict) -> None:
         if v is not None and (not isinstance(v, int) or v < 0):
             raise DealError(f"{k} must be a whole number of cents, 0 or more")
     lo, hi, std = p.get("min_cents"), p.get("max_cents"), p.get("standard_cents")
-    if p.get("kind", "deliverable") == "deliverable" and not std:
-        raise DealError("a deliverable needs a standard price above $0")
+    if p.get("kind", "deliverable") in ("deliverable", "package") and not std:
+        raise DealError("a deliverable or package needs a standard price above $0")
+    if p.get("kind") == "package":
+        inc = (p.get("rules") or {}).get("includes") or {}
+        if not inc or any(not isinstance(v, int) or not 1 <= v <= 10 for v in inc.values()):
+            raise DealError("a package needs what it includes, e.g. 1 Reel and 3 Story sets")
     if lo is not None and hi is not None and lo > hi:
         raise DealError("minimum is above maximum")
     if std is not None and lo is not None and std < lo:
@@ -308,8 +312,11 @@ def accept(db: Database, deal_id: str, *, creator_party: str) -> dict:
     bdoc = briefs.agree_all(bdoc)
     with db.tx():
         db.execute("update terms set version = 1 where deal_id = :d and version = 0", {"d": deal_id})
+        from amend.business import terms as creator_terms
+        tt = creator_terms(db, deal["creator_id"])
         deal = _move(db, deal, "accepted", creator_party, version=1, brief_json=json.dumps(bdoc),
-                     silent_approval_days=briefs.silent_days(bdoc), done_means_json=json.dumps(briefs.done_means(bdoc)))
+                     silent_approval_days=briefs.silent_days(bdoc), done_means_json=json.dumps(briefs.done_means(bdoc)),
+                     holdback_pct=tt["holdback_pct"], holdback_days=tt["days_live"])
         hold = money.plan_item(db, deal_id, "hold", deal["total_cents"], [t["fact_id"] for t in terms], actor=creator_party)
         db.log_event("deal.accepted", actor=creator_party, deal_id=deal_id,
                      payload={"version": 1, "total_cents": deal["total_cents"], "hold": hold["id"]})

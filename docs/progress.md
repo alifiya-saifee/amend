@@ -156,3 +156,14 @@
 - Deploy (after steps 1–5), then a live sandbox walk of S15–S16, S32–S34, S43–S44 and S49.
 - Polish from that walk.
 - README final.
+
+## Block 5: creator business tools (7 Nov, evening)
+Done:
+- Price list: packages (bundle price; when a brief's lines match a package exactly, the code swaps in the package, the AI still only picks items), rush fee add-on, terms template (revisions, cancellation minimum, date-change rule, silent approval, holdback %, days live) used as defaults for new deals, "How brands see your prices" preview.
+- Profile & media kit: copy link-in-bio, QR code (qrcode-generator 1.4.4 from jsdelivr), media kit PDF with each number's source and "as of" date.
+- Brands mini-CRM: deals, value, review score, last deal, private notes, "New deal link" prefilled.
+- Settings: name, password (not for demo accounts), PayPal payout email, permit, notifications per event (WhatsApp / in-app / off), language (Arabic marked coming soon), theme (system / light / dark), export my data, delete my recordings.
+- Tests: tests/test_business.py (S89 ×2, S90, S91, S92, settings, export). Suite: 454 passed, 3 skipped.
+- Screenshots: docs/screenshots/tonight/block5/ (no JS errors, no sideways scroll).
+Note: the local demo server on port 8020 needs BASE_URL=http://127.0.0.1:8020 or sign-in is refused by the origin check.
+Next: Block 6 (brand workspace + deal room polish).

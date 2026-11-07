@@ -179,6 +179,12 @@ create table if not exists shipments (
 create table if not exists media (
   id text primary key, deal_id text not null, party_id text, kind text not null, mime text not null, name text,
   size integer not null, data_b64 text, created_at text not null, deleted_at text, deleted_by text);
+create table if not exists brand_notes (
+  creator_id text not null, brand_org text not null, notes text, updated_at text not null, primary key (creator_id, brand_org));
+create table if not exists shortlists (
+  id text primary key, account_id text not null, name text not null, notes text, shared integer not null default 1, at text not null);
+create table if not exists shortlist_items (
+  list_id text not null, creator_id text not null, note text, at text not null, primary key (list_id, creator_id));
 create table if not exists chat_reads (
   deal_id text not null, party_id text not null, last_at text not null, primary key (deal_id, party_id));
 create index if not exists ix_money_deal on money_items(deal_id);
@@ -193,7 +199,7 @@ COLUMNS = {
                  "languages_json": "text not null default '[]'", "styles_json": "text not null default '[]'",
                  "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
                  "samples_json": "text not null default '[]'", "keywords": "text", "is_demo": "integer not null default 0",
-                 "address": "text", "phone": "text"},
+                 "address": "text", "phone": "text", "terms_json": "text not null default '{}'"},
     "deals": {"brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
               "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
               "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",
@@ -203,6 +209,8 @@ COLUMNS = {
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
                 "delta_cents": "integer not null default 0"},
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text"},
+    "accounts": {"settings_json": "text not null default '{}'"},
+    "team_members": {"can_confirm": "integer not null default 0"},
     "messages": {"meta_json": "text not null default '{}'"},
 }
 

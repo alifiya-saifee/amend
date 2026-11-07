@@ -134,4 +134,11 @@ document.addEventListener("DOMContentLoaded", fillAuthSlots);
   new MutationObserver(m => { if (m.some(x => [...x.addedNodes].some(n => n.nodeType === 1))) later(); })
     .observe(document.documentElement, { childList: true, subtree: true });
 })();
+// Theme choice (Settings): system, light or dark. Stored per browser; marketing pages stay light.
+function applyTheme(t) {
+  try { localStorage.setItem("amend.theme", t); } catch {}
+  document.documentElement.classList.toggle("theme-dark", t === "dark");
+  document.documentElement.classList.toggle("theme-light", t === "light");
+}
+try { const t = localStorage.getItem("amend.theme"); if (t) applyTheme(t); } catch {}
 function icon(name, cls = "") { return `<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`; }

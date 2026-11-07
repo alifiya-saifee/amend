@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, briefs, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
+from amend import ai, auth, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -406,7 +406,7 @@ def my_prices(c: dict = Depends(require_creator)):
 class PriceIn(BaseModel):
     id: str | None = None
     name: str
-    kind: str = Field("deliverable", pattern="^(deliverable|extra|rule)$")
+    kind: str = Field("deliverable", pattern="^(deliverable|extra|rule|package)$")
     min_cents: int | None = None
     max_cents: int | None = None
     standard_cents: int | None = None
@@ -1005,6 +1005,121 @@ def studio_ics(c: dict = Depends(require_creator)):
     from fastapi.responses import Response
     return Response(studio.ics(get_db(), c), media_type="text/calendar",
                     headers={"Content-Disposition": 'attachment; filename="amend-calendar.ics"'})
+
+
+# ---------- creator business tools (Block 5) ----------
+
+class TermsIn(BaseModel):
+    revisions_included: int
+    cancellation_min_pct: int
+    date_change_free_hours: int
+    date_change_fee_cents: int
+    silent_approval_days: int
+    holdback_pct: int
+    days_live: int
+
+
+@app.get("/api/studio/terms")
+def my_terms(c: dict = Depends(require_creator)):
+    return business.terms(get_db(), c["id"])
+
+
+@app.put("/api/studio/terms")
+def save_my_terms(body: TermsIn, c: dict = Depends(require_creator)):
+    try:
+        return business.save_terms(get_db(), c["id"], body.model_dump(), actor=c["party_id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/studio/mediakit.pdf")
+def my_mediakit(c: dict = Depends(require_creator)):
+    from fastapi.responses import Response
+    return Response(business.mediakit_pdf(get_db(), c), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="amend-media-kit-{c["handle"]}.pdf"'})
+
+
+@app.get("/api/studio/brands")
+def my_brands(c: dict = Depends(require_creator)):
+    return {"brands": business.brands(get_db(), c["id"])}
+
+
+class NoteIn(BaseModel):
+    brand: str = Field(min_length=1, max_length=120)
+    notes: str = Field("", max_length=2000)
+
+
+@app.put("/api/studio/brands/notes")
+def my_brand_note(body: NoteIn, c: dict = Depends(require_creator)):
+    business.save_note(get_db(), c["id"], body.brand, body.notes)
+    return my_brands(c)
+
+
+def _my_account(request: Request) -> dict:
+    a = current_account(request)
+    if not a or not a.get("id"):
+        raise HTTPException(401, "Please sign in.")
+    return get_db().one("select * from accounts where id = :i", {"i": a["id"]})
+
+
+@app.get("/api/studio/settings")
+def my_settings(request: Request, c: dict = Depends(require_creator)):
+    a = _my_account(request)
+    party = get_db().one("select paypal_email from parties where id = :p", {"p": c["party_id"]}) or {}
+    return {"account": {"name": a["name"], "email": a["email"], "demo": a["password_hash"] is None},
+            "paypal_email": party.get("paypal_email"), "permit": deals.permit_check(c["permit_no"], c["permit_expiry"]),
+            **business.settings(get_db(), a)}
+
+
+class SettingsIn(BaseModel):
+    name: str | None = Field(None, max_length=80)
+    paypal_email: str | None = Field(None, max_length=120)
+    language: str | None = None
+    theme: str | None = None
+    notify: dict = Field(default_factory=dict)
+
+
+@app.put("/api/studio/settings")
+def save_my_settings(body: SettingsIn, request: Request, c: dict = Depends(require_creator)):
+    d, a = get_db(), _my_account(request)
+    if body.name and body.name.strip():
+        d.update("accounts", "id", a["id"], {"name": body.name.strip()})
+    if body.paypal_email is not None:
+        if body.paypal_email and not auth.EMAIL_RE.match(body.paypal_email.strip()):
+            raise HTTPException(400, "That PayPal email doesn't look right.")
+        d.update("parties", "id", c["party_id"], {"paypal_email": body.paypal_email.strip() or None})
+    business.save_settings(d, d.one("select * from accounts where id = :i", {"i": a["id"]}), body.model_dump())
+    return my_settings(request, c)
+
+
+class PasswordIn(BaseModel):
+    current: str = Field(max_length=200)
+    new: str = Field(max_length=200)
+
+
+@app.post("/api/account/password")
+def change_password(body: PasswordIn, request: Request):
+    d, a = get_db(), _my_account(request)
+    if a["password_hash"] is None:
+        raise HTTPException(400, "Demo accounts use the shared demo password and can't change it.")
+    if not auth.check_password(body.current, a["password_hash"]):
+        raise HTTPException(400, "Your current password isn't right.")
+    if len(body.new) < 8:
+        raise HTTPException(400, "Use at least 8 characters.")
+    d.update("accounts", "id", a["id"], {"password_hash": auth.hash_password(body.new)})
+    return {"ok": True}
+
+
+@app.get("/api/studio/export")
+def my_export(c: dict = Depends(require_creator)):
+    return JSONResponse(business.export(get_db(), c), headers={"Content-Disposition": 'attachment; filename="amend-my-data.json"'})
+
+
+@app.post("/api/studio/media/delete-all")
+def my_delete_all_media(c: dict = Depends(require_creator)):
+    d = get_db()
+    n = sum(calls.delete_mine(d, x["id"], c["party_id"]) for x in d.all("select id from deals where creator_id = :c", {"c": c["id"]}))
+    return {"deleted": n}
 
 
 # ---------- brief builder and shipping (Phase 5) ----------

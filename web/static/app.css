@@ -20,7 +20,7 @@
   --teal-soft: var(--teal-bg); --blue-soft: var(--blue-bg); --on-gold: #15171A; --radius: var(--r);
 }
 @media (prefers-color-scheme: dark) {
-  body:not(.marketing) {
+  html:not(.theme-light) body:not(.marketing) {
     color-scheme: dark;
     --bg: #0E1013; --surface: #171A1F; --surface-2: #1C2026; --raise: #20242B; --border: #262A31; --border-2: #343943;
     --ink: #ECEDEE; --muted: #A0A6AE; --faint: #959BA4;
@@ -30,6 +30,16 @@
     --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
   }
 }
+/* Theme chosen in Settings: dark on any device */
+html.theme-dark body:not(.marketing) {
+    color-scheme: dark;
+    --bg: #0E1013; --surface: #171A1F; --surface-2: #1C2026; --raise: #20242B; --border: #262A31; --border-2: #343943;
+    --ink: #ECEDEE; --muted: #A0A6AE; --faint: #959BA4;
+    --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C;
+    --held: #F0B35E; --held-bg: rgba(240,179,94,.14); --ok: #82D99F; --ok-bg: rgba(130,217,159,.13); --teal: #5CCFB5; --teal-bg: rgba(92,207,181,.13);
+    --blue: #93B4FA; --blue-bg: rgba(126,166,248,.14); --wait: #A0A6AE; --wait-bg: rgba(255,255,255,.07); --bad: #F58A8A; --bad-bg: rgba(242,125,125,.13);
+    --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
+  }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font); overflow-x: hidden; -webkit-font-smoothing: antialiased; }
@@ -394,3 +404,4 @@ body.app .apptop { z-index: 25; }
 .stars button svg { width: 28px; height: 28px; }
 .hide-mobile { display: none; }
 @media (min-width: 1025px) { .hide-mobile { display: block; } }
+body { min-height: 100vh; }

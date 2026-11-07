@@ -31,7 +31,7 @@ async function route() {
   try {
     if (!ME) { ME = await api("/api/me"); Shell.setName(ME.display_name.split(" ")[0]); }
     if (tab !== "inbox") refreshBadge();
-    const page = { home: () => window.homeTab ? homeTab() : inboxTab(), inbox: () => window.inboxSplit ? inboxSplit() : inboxTab(), deals: () => window.dealsBoard ? dealsBoard() : deals(), prices: prices, profile: profile,
+    const page = { home: () => window.homeTab ? homeTab() : inboxTab(), inbox: () => window.inboxSplit ? inboxSplit() : inboxTab(), deals: () => window.dealsBoard ? dealsBoard() : deals(), prices: () => window.pricesPlus ? pricesPlus() : prices(), profile: () => window.profilePlus ? profilePlus() : profile(),
       earnings: () => window.earningsTab ? earningsTab(seg === "ledger") : ledger(), calendar: () => window.calendarTab ? calendarTab() : soon("Calendar"),
       brands: () => window.brandsTab ? brandsTab() : soon("Brands"), settings: () => window.settingsTab ? settingsTab() : soon("Settings") }[tab];
     await page();
@@ -272,13 +272,14 @@ function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }
   const c = v => v == null ? "" : v / 100;
   const sh = sheet(`<h2>${p.id ? "Edit item" : "Add item"}</h2><form id="it">
     <label>Name *</label><input name="name" required maxlength="80" value="${esc(p.name)}">
-    <label>Type</label><select name="kind">${["deliverable", "extra", "rule"].map(k => `<option ${p.kind === k ? "selected" : ""} value="${k}">${k[0].toUpperCase() + k.slice(1)}</option>`).join("")}</select>
+    <label>Type</label><select name="kind">${["deliverable", "extra", "package", "rule"].map(k => `<option ${p.kind === k ? "selected" : ""} value="${k}">${k[0].toUpperCase() + k.slice(1)}</option>`).join("")}</select>
     <div class="row"><div class="grow"><label>Minimum $</label><input name="min" type="number" min="0" step="1" value="${c(p.min_cents)}"></div>
       <div class="grow"><label>Maximum $</label><input name="max" type="number" min="0" step="1" value="${c(p.max_cents)}"></div></div>
     <label>Standard $ (the price the AI uses)</label><input name="std" type="number" min="0" step="1" value="${c(p.standard_cents)}">
     <label>Unit</label><select name="unit">${[["item", "Per item"], ["month", "Per month"], ["change", "Per change"], ["revision", "Per revision"]].map(([k, t]) => `<option ${p.unit === k ? "selected" : ""} value="${k}">${t}</option>`).join("")}</select>
     <label>Included revisions</label><input name="rev" type="number" min="0" max="10" value="${(p.rules || {}).included_revisions ?? ""}">
     <label>Notes</label><input name="note" maxlength="140" value="${esc((p.rules || {}).note || "")}">
+    <label>Package includes (for packages: e.g. reel=1, story_set=3)</label><input name="includes" maxlength="200" value="${esc(Object.entries((p.rules || {}).includes || {}).map(([k, v]) => k + "=" + v).join(", "))}">
     <div class="err" id="it-err" hidden></div>
     <button class="btn primary block" id="it-go" style="margin-top:16px">Save item</button></form>`);
   $("#it", sh).onsubmit = e => {
@@ -288,6 +289,8 @@ function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }
     const rules = { ...(p.rules || {}) };
     if (f.rev !== "") rules.included_revisions = +f.rev; else delete rules.included_revisions;
     if (f.note) rules.note = f.note; else delete rules.note;
+    if (f.kind === "package") rules.includes = Object.fromEntries(f.includes.split(",").map(x => x.trim().split("=")).filter(x => x.length === 2 && +x[1] > 0).map(([k, v]) => [k.trim(), +v]));
+    else delete rules.includes;
     const body = { id: p.id, name: f.name, kind: f.kind, unit: f.unit, min_cents: cents(f.min), max_cents: cents(f.max), standard_cents: cents(f.std), rules, hidden: !!p.hidden };
     const err = (body.min_cents != null && body.max_cents != null && body.min_cents > body.max_cents) ? "Minimum is above maximum"
       : (body.standard_cents != null && ((body.min_cents != null && body.standard_cents < body.min_cents) || (body.max_cents != null && body.standard_cents > body.max_cents))) ? "Standard must be between minimum and maximum" : "";

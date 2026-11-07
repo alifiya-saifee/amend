@@ -362,8 +362,16 @@ def ensure_try_creator(db: Database) -> str:
 
 
 def ensure_exclusivity_item(db: Database) -> None:
-    """Exclusivity is a priced item (brief builder, Phase 5). Sara: $200 a month."""
+    """Exclusivity is a priced item (brief builder, Phase 5). Sara: $200 a month. Plus (Block 5) a bundle package and a rush fee."""
     c = db.one("select id from creators where handle = 'sara.eats'")
+    if c and not db.one("select id from price_items where creator_id = :c and code = 'pkg_reel_3stories'", {"c": c["id"]}):
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": c["id"], "code": "pkg_reel_3stories", "name": "Package: Reel + 3 Story sets",
+                                  "kind": "package", "min_cents": 52000, "max_cents": 52000, "standard_cents": 52000, "unit": "item",
+                                  "rules_json": json.dumps({"includes": {"reel": 1, "story_set": 3}, "note": "Bundle price"}), "hidden": 0, "active": 1,
+                                  "created_at": now()})
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": c["id"], "code": "rush", "name": "Rush fee (draft in 48 h)", "kind": "extra",
+                                  "min_cents": 10000, "max_cents": 10000, "standard_cents": 10000, "unit": "item",
+                                  "rules_json": json.dumps({"note": "Draft within 48 hours"}), "hidden": 0, "active": 1, "created_at": now()})
     if c and not db.one("select id from price_items where creator_id = :c and code = 'exclusivity'", {"c": c["id"]}):
         db.insert("price_items", {"id": new_id("pi"), "creator_id": c["id"], "code": "exclusivity", "name": "Category exclusivity",
                                   "kind": "extra", "min_cents": 20000, "max_cents": 20000, "standard_cents": 20000, "unit": "month",

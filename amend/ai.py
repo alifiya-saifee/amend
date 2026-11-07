@@ -268,6 +268,8 @@ async def brief_to_terms(brief: str, price_list: list[dict], *, today: str, trie
             log.warning("ai reply rejected: %s", e)
             continue
         lines = price_lines(out, price_list)
+        from amend.business import apply_packages
+        lines = apply_packages(lines, price_list)
         return Draft(lines=lines, not_on_list=[x.model_dump() for x in out.not_on_list],
                      post_date=out.post_date.model_dump() if out.post_date else None,
                      done_means=[x.model_dump() for x in out.done_means],
