@@ -5,21 +5,23 @@ const Chat = (() => {
 
   function mount(el, opts) {
     base = opts.base; isBrand = opts.isBrand; token = opts.token || ""; onApplied = opts.onApplied;
+    // fill: the Inbox gives the chat a fixed-height box; the list scrolls and the composer stays pinned at the bottom
     el.innerHTML = `
-      <div class="chat card">
-        <div class="row between"><h3 style="margin:0">Deal chat</h3><span class="tiny muted" id="chat-state"></span></div>
+      <div class="chat ${opts.fill ? "fill" : "card"}">
+        ${opts.fill ? '<span id="chat-state" hidden></span>' : '<div class="row between"><h3 style="margin:0">Deal chat</h3><span class="tiny muted" id="chat-state"></span></div>'}
         <div id="chat-list" class="chat-list" aria-live="polite"></div>
         <div id="chat-ai" class="busy" hidden>Checking the message for deal changes…</div>
         <form id="chat-form" class="composer">
      <button type="button" class="btn small" id="chat-attach" aria-label="Attach"><i data-lucide='paperclip' aria-hidden='true'></i></button>
      <button type="button" class="btn small" id="chat-mic" aria-label="Record a voice note"><i data-lucide='mic' aria-hidden='true'></i></button>
      <textarea id="chat-in" rows="1" maxlength="4000" placeholder="Write a message…"></textarea>
-          <button class="btn primary small" id="chat-send">Send</button>
+          <button class="btn primary small" id="chat-send" disabled>Send</button>
         </form>
         <input type="file" id="chat-file" hidden>
       </div>`;
     $("#chat-form").onsubmit = e => { e.preventDefault(); send(); };
     $("#chat-in").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+    $("#chat-in").oninput = () => { $("#chat-send").disabled = !$("#chat-in").value.trim(); };  // nothing to send yet
     $("#chat-attach").onclick = attachMenu;
     $("#chat-mic").onclick = voice;
     if (!window.MediaRecorder) $("#chat-mic").hidden = true;
@@ -39,7 +41,7 @@ const Chat = (() => {
     const atBottom = isNearBottom();
     lastSig = sig;
     const list = $("#chat-list");
-    list.innerHTML = t.items.length ? t.items.map(item).join("") :
+    list.innerHTML = t.items.length ? withDays(t.items) :
       `<div class="empty small">No messages yet. Changes typed here become change cards that both of you confirm.</div>`;
     $$("[data-act]", list).forEach(b => b.onclick = () => act(b));
     $$("[data-nudge]", list).forEach(b => b.onclick = () => busy(b, async () => {
@@ -57,7 +59,7 @@ const Chat = (() => {
   function isNearBottom() { const l = $("#chat-list"); return !l || l.scrollHeight - l.scrollTop - l.clientHeight < 80; }
 
   function item(i) {
-    if (i.type === "system") return `<div class="sysline">${esc(i.body)} · ${time(i.at)}</div>`;
+    if (i.type === "system") return `<div class="sysline">${i.icon ? `<i data-lucide='${i.icon}' aria-hidden='true'></i>` : ""}${esc(i.body)} · ${time(i.at)}</div>`;
     if (i.type === "change") return changeCard(i);
     const media = i.media_url ? (i.kind === "image"
       ? `<a href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><img class="chat-img" src="${mediaUrl(i.media_url)}" alt="${esc(i.meta.name || "image")}"></a>`
@@ -67,6 +69,17 @@ const Chat = (() => {
       <button class="btn small primary" data-nudge="${i.id}" data-ans="something">Something changed <i data-lucide='mic' aria-hidden='true'></i></button></div></div>`;
     return `<div class="bubble ${i.mine ? "mine" : ""}"><div class="tiny muted">${esc(i.mine ? "You" : i.from)} · ${time(i.at)}</div>
       ${i.body ? `<div>${esc(i.body)}</div>` : ""}${media}${i.meta && i.meta.transcript ? "<div class='tiny muted'><i data-lucide='mic' aria-hidden='true'></i> voice note · transcribed</div>" : ""}</div>`;
+  }
+  // day headers: Today, Yesterday, or the date
+  function dayLabel(iso) {
+    const d = new Date(iso), t = new Date(); const k = x => x.toDateString();
+    if (k(d) === k(t)) return "Today";
+    const y = new Date(t); y.setDate(t.getDate() - 1); if (k(d) === k(y)) return "Yesterday";
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" });
+  }
+  function withDays(items) {
+    let last = "";
+    return items.map(i => { const lbl = dayLabel(i.at); const head = lbl !== last ? `<div class="dayline"><span>${esc(lbl)}</span></div>` : ""; last = lbl; return head + item(i); }).join("");
   }
   function mediaUrl(u) { return isBrand ? `${u}?t=${encodeURIComponent(token)}` : u; }
   function time(iso) { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -125,11 +138,12 @@ const Chat = (() => {
     await busy($("#chat-send"), async () => {
       try {
         const r = await api(`${base}/messages`, { body: { body: text } });
-        $("#chat-in").value = ""; lastSig = ""; draw(r);
+        $("#chat-in").value = ""; $("#chat-send").disabled = true; lastSig = ""; draw(r);
     if (r.ai_error) toast(r.ai_error + " Your message was sent.", "bad");
     else if (r.change) toast("Change card added · confirm it together");
    } catch (e) { toast(e.message, "bad"); }
     });
+    $("#chat-send").disabled = !$("#chat-in").value.trim();  // busy() re-enables it; keep it off while the box is empty
     $("#chat-ai").hidden = true;
   }
 

@@ -215,3 +215,14 @@ Next: Block 7.
 - Test: tests/test_inbox_threads.py. Suite: 466 passed, 3 skipped.
 - Then (same day): one row per BRAND (all its deals and updates), "Message" / "Update" label on each row, panel with a deal picker and no card-in-card, chat placeholder shortened ("Write a message…") so it no longer gets cut off. On local data: 36 Dune Roast rows → 1.
 - Waiting for a yes: the rest of the Inbox polish (slimmer rows, deal summary in the panel, toolbar heights, smaller title).
+
+## Inbox v2 + hero pill fix (8 Nov)
+- Hero: while the change is pending the total stays $530 ("+$80 if both confirm"); after both confirm: total $610, pill "Held $530 · +$80 hold requested"; next beat: "Held by PayPal $610". 16px under the confirmed chips. Hero layout tests still all pass.
+- Inbox (creator): full height under the top bar; list | conversation | deal panel (320 / flexible / 320) at >= 1280px; deal panel is a toggle at 1024–1279; phones: list → conversation with a back arrow. Each pane scrolls on its own; the composer is pinned at the bottom.
+- Thread: messages + system lines with icons (link opened, brief received, draft ready, draft uploaded, hold placed, change confirmed, collected…), change cards inline and actionable, grouped by day (Today / Yesterday / date).
+- Header: brand + status chip; "Deal: <title>" switcher when a brand has several deals. Deal panel: amount (USD + AED), money pill, status, post date, next step with its action button, link to open the deal.
+- List: initials from words ("OE"), small icon by type instead of a pill, one-line preview with ellipsis, unread dot, time on the right.
+- Deals have a title (new column); demo history seeds titles, chat messages and draft events so threads aren't empty (8 deals, 2–3 per brand).
+- Send is primary and disabled while the box is empty.
+- Tests: tests/browser/inbox_layout.py at 1440, 1280, 1100, 390, light + dark: all pass (docs/screenshots/inbox/test-results.txt). Full walk passes. Suite: 466 passed, 3 skipped.
+- Local amend.db still has ~36 old test deals for Dune Roast; asked Alifiya before touching it.

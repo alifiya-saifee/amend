@@ -200,7 +200,7 @@ COLUMNS = {
                  "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
                  "samples_json": "text not null default '[]'", "keywords": "text", "is_demo": "integer not null default 0",
                  "address": "text", "phone": "text", "terms_json": "text not null default '{}'"},
-    "deals": {"brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
+    "deals": {"title": "text", "brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
               "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
               "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",
               "post_removed_at": "text", "is_try": "integer not null default 0",

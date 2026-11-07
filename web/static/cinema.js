@@ -35,6 +35,9 @@
     const scene = $("#demo"), inner = $(".sc-inner", scene), card = $("#sc-card");
     const line = k => $(`.sc-ln[data-k="${k}"]`, card), bub = k => $(`.bub[data-k="${k}"]`, scene);
     const pill = $(".sc-pill", card), held = $(".sc-held", card), tot = $(".sc-tot", card), unch = $(".sc-unch", card);
+    const plLbl = $(".pl-lbl", card), plReq = $(".pl-req", card), pend = $(".sc-pend", card);
+    const setPill = (lbl, amt, req = "") => { plLbl.textContent = lbl; held.textContent = amt; plReq.textContent = req; };
+    const bump = () => { pill.classList.remove("pill-bump"); void pill.offsetWidth; pill.classList.add("pill-bump"); };
     const oks = $$(".sc-ok", card), chat = $(".sc-chat", scene);
     const lines = $$(".sc-ln", card);
 
@@ -63,7 +66,8 @@
       gsap.set(chat, { opacity: 0, y: 14, scale: 0.96 });
       Object.values(F).forEach(x => gsap.set([x.f, x.sh], { opacity: 0 }));
       $$(".bub", scene).forEach(b => b.classList.remove("used"));
-      count.v = 0; hold.v = 530; tot.textContent = "$0"; held.textContent = "$530"; pill.classList.remove("pill-bump");
+      count.v = 0; hold.v = 530; tot.textContent = "$0"; setPill("Held by PayPal", "$530"); pill.classList.remove("pill-bump");
+      gsap.set(pend, { opacity: 0, scale: 0.8 });
     };
 
     // one flight: lift, curve into the line's icon slot (shadow grows as it nears), squash on impact, spring the line in
@@ -108,18 +112,22 @@
     fly("plus", 4.8, $(".sc-chat", scene), t => {
       tl.fromTo(line("date"), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "back.out(2)", immediateRender: false }, t + 0.12)
         .fromTo($(".li-ic", line("date")), { scale: 0.4 }, { scale: 1, duration: 0.8, ease: "elastic.out(1, 0.5)", immediateRender: false }, t + 0.12)
-        .fromTo(unch, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4, immediateRender: false }, t + 0.3);
-      countTo(610, t + 0.2, 0.6);
+        .fromTo(unch, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4, immediateRender: false }, t + 0.3)
+        .fromTo(pend, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)", immediateRender: false }, t + 0.35);  // pending: total stays $530
     }, 0.12, 0.3);  // starts where it popped out of the message
     oks.forEach((o, i) => {
       tl.fromTo(o, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2.2)", immediateRender: false }, 6.5 + i * 0.35)
         .call(() => { o.classList.remove("glow"); void o.offsetWidth; o.classList.add("glow"); }, null, 6.55 + i * 0.35);
     });
-    tl.call(() => { pill.classList.remove("pill-bump"); void pill.offsetWidth; pill.classList.add("pill-bump"); }, null, 7.3)
-      .to(hold, { v: 610, duration: 0.6, ease: "power2.out", onUpdate: () => { held.textContent = money(hold.v); } }, 7.3)
-      .to(inner, { scale: 0.955, duration: 1.5, ease: "sine.inOut" }, 7.6)    // slow push-out (around the bottom edge: the caption stays 12px under the card)
-      .to({}, { duration: 3 }, 9.1)                                                  // hold the final state for 3 s
-      .to([...lines, pill, unch, ...oks, chat], { opacity: 0, duration: 0.35, ease: "power1.in" }, 12.1);
+    // both confirmed: the deal is now $610, PayPal still holds $530 and the extra $80 hold is requested ...
+    tl.to(pend, { opacity: 0, duration: 0.25 }, 7.2);
+    countTo(610, 7.25, 0.6);
+    tl.call(() => { setPill("Held", "$530", " · +$80 hold requested"); bump(); }, null, 7.3)
+    // ... next beat: the extra hold is placed, so PayPal holds $610
+      .call(() => { setPill("Held by PayPal", "$610"); bump(); }, null, 8.4)
+      .to(inner, { scale: 0.955, duration: 1.5, ease: "sine.inOut" }, 8.7)    // slow push-out (around the bottom edge: the caption stays 12px under the card)
+      .to({}, { duration: 3 }, 10.2)                                                 // hold the final state for 3 s
+      .to([...lines, pill, unch, ...oks, chat, pend], { opacity: 0, duration: 0.35, ease: "power1.in" }, 13.2);
     return tl;
   }
 

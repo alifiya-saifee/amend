@@ -126,7 +126,8 @@ def _threads(out: list[dict], deals: dict, flt: str) -> list[dict]:
             t["change"], t["change_deal"] = x["change"], x["deal"]
         if x["deal"] not in {d["id"] for d in t["deals"]}:
             d = deals[x["deal"]]
-            t["deals"].append({"id": d["id"], "total_cents": d["total_cents"], "status": d["status"], "at": x["at"]})
+            t["deals"].append({"id": d["id"], "title": d.get("title"), "total_cents": d["total_cents"], "status": d["status"], "at": x["at"],
+                               "created_at": d["created_at"]})
     rows = [t for t in by.values() if flt == "all" or flt in t["categories"]]
     for t in rows:
         t["categories"] = sorted(t["categories"])

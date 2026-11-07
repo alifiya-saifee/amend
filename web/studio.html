@@ -26,6 +26,7 @@ async function route() {
   const seg = location.pathname.split("/")[2] || "";
   const [tab, title] = TABS[seg] || TABS[""];
   Shell.setActive(tab, title);
+  document.body.classList.toggle("inbox-full", tab === "inbox");  // the Inbox fills the screen under the top bar
   document.title = `${title} · Amend`;
   $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
   try {

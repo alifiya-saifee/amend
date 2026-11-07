@@ -31,7 +31,8 @@ function money(cents) {
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function $(sel, root = document) { return root.querySelector(sel); }
 function $$(sel, root = document) { return [...root.querySelectorAll(sel)]; }
-function initials(name) { return (name || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
+// initials from words: "Oud & Ember" -> "OE" (skips "&", "x", punctuation)
+function initials(name) { const w = (name || "?").split(/\s+/).filter(x => /[\p{L}\p{N}]/u.test(x)).map(x => x.match(/[\p{L}\p{N}]/u)[0]); return (w.join("") || "?").slice(0, 2).toUpperCase(); }
 function ago(iso) {
   if (!iso) return "";
   const s = (Date.now() - new Date(iso).getTime()) / 1000;

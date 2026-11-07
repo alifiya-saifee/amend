@@ -97,7 +97,7 @@ body.marketing .top .iconbtn { width: 40px; height: 40px; }
 .sc-chat { position: relative; z-index: 3; align-self: flex-end; margin: 14px 0 14px; max-width: 76%; background: #F4F3EE; color: #15171A; border-radius: 18px 18px 4px 18px;
   padding: 10px 14px; font-size: 15px; line-height: 1.35; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
 .sc-chat .who { display: block; font-size: 12px; color: #5B616B; }
-.sc-card { position: relative; z-index: 2; width: 100%; background: #FFFDF8; border-radius: 20px; padding: 12px 16px 14px; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(217,164,65,.25); }
+.sc-card { position: relative; z-index: 2; width: 100%; background: #FFFDF8; border-radius: 20px; padding: 12px 16px 16px; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(217,164,65,.25); }
 .sc-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid #ECE8DE; }
 .sc-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sc-pill { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 99px; background: #FDF1DD; color: #8A6414; font-size: 13px; font-weight: 600;
@@ -193,3 +193,7 @@ body.marketing .top .iconbtn { width: 40px; height: 40px; }
 /* Starting state while GSAP loads (html.js-anim is set in <head> only when the scene will animate). */
 html.js-anim .scene .sc-ln, html.js-anim .scene .sc-pill, html.js-anim .scene .sc-unch, html.js-anim .scene .sc-ok, html.js-anim .scene .sc-chat { opacity: 0; }
 html.js-anim .scene .sc-tot { visibility: hidden; }
+
+/* the change is pending until both confirm: total stays $530 with a note; the pill then says what PayPal holds */
+.sc-pend { margin-right: 10px; font-size: 12px; font-weight: 700; color: #B8520E; background: #FFE9CC; border-radius: 99px; padding: 2px 8px; opacity: 0; }
+.pl-req { color: #B8520E; }

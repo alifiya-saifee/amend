@@ -225,13 +225,13 @@ def seed_history(db: Database) -> int:
     import secrets as _s
 
     def deal(org, status, lines, *, created, deadline=None, changes_=(), holds="authorized", captured=False, payouts=(),
-             holdback=None, review=None, draft=False, shipment=None, post=None, offered_only=False, cancel_pct=None):
+             holdback=None, review=None, draft=False, shipment=None, post=None, offered_only=False, cancel_pct=None, title=None):
         did, bp = new_id("deal"), brands[org]
         total = sum(prices[c]["standard_cents"] * q for c, q in lines) + sum(c[1] for c in changes_)
         t0 = iso(created)
         db.insert("deals", {"id": did, "creator_id": sara["id"], "brand_party_id": bp, "brand_org": org, "status": status,
                             "version": 0 if offered_only else 1 + len(changes_), "total_cents": total, "created_at": t0, "updated_at": t0,
-                            "deadline": deadline.isoformat() if deadline else None, "brief": f"Demo brief for {org}.", "is_demo": 1,
+                            "deadline": deadline.isoformat() if deadline else None, "brief": f"Demo brief for {org}.", "is_demo": 1, "title": title,
                             "silent_approval_days": 3, "holdback_pct": 10, "holdback_days": 30,
                             "done_means_json": json.dumps([{"value": "Posted on Instagram", "quote": None}, {"value": "Disclosure: #ad", "quote": None}])})
         db.insert("deal_links", {"token": _s.token_urlsafe(32), "deal_id": did, "party_id": bp, "role": "brand_main",
@@ -250,8 +250,15 @@ def seed_history(db: Database) -> int:
                                 "fact_id": fid, "qty": qty, "unit_price_cents": prices[code]["standard_cents"],
                                 "amount_cents": prices[code]["standard_cents"] * qty, "rules_json": "{}", "pos": k})
         ev("deal.drafted", {"total_cents": total}, t0, "ai")
+        contact = next(n for n, o, _ in HISTORY_BRANDS if o == org)
+        def say(who, text, at):  # a short, believable chat so the thread isn't empty (made-up people)
+            db.insert("messages", {"id": new_id("m"), "deal_id": did, "party_id": bp if who == "brand" else sara["party_id"], "kind": "text",
+                                   "body": text, "at": at})
+        at = lambda hours: (datetime.fromisoformat(t0) + timedelta(hours=hours)).isoformat()
+        say("brand", f"Hi Sara, {contact} from {org}. Brief is in, could you do it by {deadline.strftime('%a %d %b') if deadline else 'next week'}?", at(0.5))
         if offered_only:
             return did
+        say("sara", f"Hi {contact}! Yes, that works. I've accepted; the PayPal hold link is on the deal.", at(1.5))
         ev("deal.accepted", {"version": 1, "total_cents": total}, iso(created + timedelta(hours=2)), sara["party_id"])
         base_total = total - sum(c[1] for c in changes_)
         def mi(kind, amt, st, note=None, paypal=None, at=None, parent=None, fee=0, cap=0, change=None):
@@ -272,6 +279,9 @@ def seed_history(db: Database) -> int:
                                   "lines_json": json.dumps([{"label": label, "amount_cents": amt, "quote": label}]), "ripple_json": "{}",
                                   "untouched_count": 2, "proposed_by": bp, "source": "chat", "expires_at": at, "created_at": at,
                                   "confirmed_brand_at": at, "confirmed_creator_at": at})
+            say("brand", "Can we add one more Story set?" if "Story" in label else "Could we get one more round of edits?",
+                (datetime.fromisoformat(at) - timedelta(hours=1)).isoformat())
+            say("sara", "Sure, it's on the change card. Confirm when you're ready.", (datetime.fromisoformat(at) - timedelta(minutes=40)).isoformat())
             ev("change.applied", {"change": cid, "version": 2 + k, "delta_cents": amt}, at, sara["party_id"])
             mi("hold", amt, "paid" if captured else "authorized", note="new hold for a confirmed change", paypal=f"DEMO{_s.token_hex(4).upper()}",
                at=at, cap=amt if captured else 0, change=cid)
@@ -282,7 +292,13 @@ def seed_history(db: Database) -> int:
         if shipment:
             db.insert("shipments", {"id": new_id("sh"), "deal_id": did, "courier": "Aramex (demo)", "tracking": "DEMO123456",
                                     "hand_delivery": 0, "added_at": iso(shipment)})
+        if draft:
+            ev("draft.uploaded", {"frames": 6}, iso(today - timedelta(days=1)) if status == "in_progress" else iso(created + timedelta(days=5)), sara["party_id"])
+            say("sara", "Draft is up, have a look when you can.", iso(today - timedelta(days=1)) if status == "in_progress" else iso(created + timedelta(days=5)))
+        if shipment:
+            say("brand", "Product is on its way with Aramex.", iso(shipment))
         if post:
+            say("sara", "It's live!", iso(post)); say("brand", "Looks great, thank you!", (datetime.fromisoformat(iso(post)) + timedelta(hours=2)).isoformat())
             db.update("deals", "id", did, {"posted_at": post.isoformat()})
             ev("post.submitted", {"url": "https://instagram.example/p/demo"}, iso(post), sara["party_id"])
         if captured:
@@ -310,28 +326,28 @@ def seed_history(db: Database) -> int:
     # 1-3 completed and paid (one this month), with extras that would usually go unpaid
     deal("Sahara Sips", "completed", [("reel", 1), ("story_set", 1)], created=m(75), deadline=m(68), changes_=[("+ 1 Story set", 8000)],
          captured=True, post=m(68), payouts=[("release:creator payout", 55100, "paid", m(67)), ("holdback:creator payout on day N", 6100, "paid", m(37))],
-         review=(5, "Fast, clear and the change was priced in a minute. Demo review."), draft=True)
+         review=(5, "Fast, clear and the change was priced in a minute. Demo review."), draft=True, title="Summer mocktails")
     deal("Oud & Ember", "completed", [("reel", 1)], created=m(45), deadline=m(38), changes_=[("Extra revision (3rd)", 10000)],
          captured=True, post=m(38), payouts=[("release:creator payout", 49500, "paid", m(37)), ("holdback:creator payout on day N", 5500, "paid", max(m(7), first_of_month))],
-         review=(4, "Great work; one extra revision, paid as agreed. Demo review."), draft=True)
+         review=(4, "Great work; one extra revision, paid as agreed. Demo review."), draft=True, title="Oud launch Reel")
     deal("Dune Roast Coffee", "completed", [("story_set", 2)], created=m(100), deadline=m(92), captured=True, post=m(92),
          payouts=[("release:creator payout", 14400, "paid", m(91)), ("holdback:creator payout on day N", 1600, "paid", m(61))],
-         review=(5, "Always on time. Demo review."), draft=True)
+         review=(5, "Always on time. Demo review."), draft=True, title="Winter menu Stories")
     # 4 cancelled after the draft: fair split, 60% paid
     deal("Sahara Sips", "cancelled", [("reel", 1)], created=m(30), deadline=m(22), captured=True, cancel_pct=60,
-         payouts=[("cancel:creator payout", 27000, "paid", m(24))], draft=True)
+         payouts=[("cancel:creator payout", 27000, "paid", m(24))], draft=True, title="Spring promo")
     # 5 delivered: release approved, holdback waiting for day N
     deal("Oud & Ember", "delivered", [("reel", 1), ("usage_rights", 2)], created=m(14), deadline=m(6), captured=True, post=m(6),
          payouts=[("release:creator payout", 67500, "paid", m(5)), ("holdback:creator payout on day N", 7500, "approved", m(5))],
-         holdback=today + timedelta(days=24), draft=True)
+         holdback=today + timedelta(days=24), draft=True, title="Gift sets")
     # 6 in production: held, draft waiting for the brand's review
     deal("Dune Roast Coffee", "in_progress", [("reel", 1), ("story_set", 1)], created=m(6), deadline=today + timedelta(days=4),
-         changes_=[("+ 1 Story set", 8000)], draft=True)
+         changes_=[("+ 1 Story set", 8000)], draft=True, title="Cold brew launch")
     # 7 held, product shipped, not received yet
-    did7 = deal("Sahara Sips", "in_progress", [("reel", 1)], created=m(2), deadline=today + timedelta(days=10), shipment=m(1))
+    did7 = deal("Sahara Sips", "in_progress", [("reel", 1)], created=m(2), deadline=today + timedelta(days=10), shipment=m(1), title="Ramadan launch")
     db.update("deals", "id", did7, {"draft_due": (today + timedelta(days=6)).isoformat()})
     # 8 a draft waiting for Sara to accept
-    deal("Oud & Ember", "offered", [("reel", 1), ("story_set", 1)], created=m(0), deadline=today + timedelta(days=14), offered_only=True)
+    deal("Oud & Ember", "offered", [("reel", 1), ("story_set", 1)], created=m(0), deadline=today + timedelta(days=14), offered_only=True, title="National Day")
     return 8
 
 

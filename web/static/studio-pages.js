@@ -44,65 +44,99 @@ async function homeTab() {
 
 /* ---------- Inbox: split view on desktop, change cards actionable inline ---------- */
 let IBF = { filter: "all", q: "", sel: null };
+/* ---------- Inbox: list | conversation | deal panel (full height; each pane scrolls on its own) ---------- */
+const IB_TYPE_ICON = { message: "message-circle", eye: "eye", "file-pen": "file-pen", "pen-line": "file-pen", pencil: "pencil", wallet: "wallet",
+  handshake: "handshake", lightbulb: "lightbulb", "circle-check": "circle-check", hourglass: "hourglass" };
+const ibDealLabel = d => d.title || `${d.total_cents ? usd(d.total_cents) + " deal" : "New deal"} · ${dateStr(d.created_at)}`;
 async function inboxSplit() {
   const r = await api(`/api/studio/inbox?filter=${IBF.filter}&page=0`);
   badge(r.unread);
-  // one row per brand (the API groups every update of every deal with that brand); the row opens the latest deal
   const items = (r.threads || []).filter(x => !IBF.q || (x.brand + " " + x.line).toLowerCase().includes(IBF.q.toLowerCase()));
-  IBF.threads = Object.fromEntries(items.map(x => [x.brand, x]));
-  const sub = x => [x.deals.length > 1 ? x.deals.length + " deals" : "", x.count > 1 ? x.count + " updates" : ""].filter(Boolean).join(" · ");
+  IBF.threads = Object.fromEntries((r.threads || []).map(x => [x.brand, x]));
+  if (IBF.selBrand && !IBF.threads[IBF.selBrand]) { IBF.selBrand = null; IBF.sel = null; }
+  if (!IBF.selBrand && items.length && matchMedia("(min-width: 1024px)").matches) { IBF.selBrand = items[0].brand; IBF.sel = items[0].deal; }
   const c = r.counts || {};
-  $("#view").innerHTML = `
-    <div class="row between wrapx" style="gap:8px"><h1>Inbox</h1>
-      <div class="row" style="gap:8px">${r.unread ? `<button class="btn small" id="allread">${I("check-check")} Mark all read</button>` : ""}</div></div>
-    <div class="row wrapx" style="gap:8px;margin:8px 0 12px">
-      <div class="chips">${[["all", "All"], ["needs_me", "Needs me"], ["messages", "Messages"], ["money", "Money"]]
+  $("#view").innerHTML = `<div class="ibx ${IBF.mobileConv ? "conv-open" : ""}" id="ibx">
+    <aside class="ibx-list" aria-label="Conversations">
+      <div class="ibx-head"><h1>Inbox</h1>${r.unread ? `<button class="btn small ghost" id="allread">${I("check-check")} Mark all read</button>` : ""}</div>
+      <div class="ibx-tools"><div class="chips">${[["all", "All"], ["needs_me", "Needs me"], ["messages", "Messages"], ["money", "Money"]]
         .map(([k, t]) => `<button data-f="${k}" class="${IBF.filter === k ? "on" : ""}">${t}${k === "needs_me" && c.needs_me ? `<span class="dot">${c.needs_me}</span>` : ""}</button>`).join("")}</div>
-      <input id="ib-q" placeholder="Search the inbox" value="${esc(IBF.q)}" style="max-width:260px"></div>
-    <div class="split">
-      <div class="card" style="padding:6px">${items.length ? items.map(x => `
-        <div class="inbox-row ${x.unread ? "unread" : ""} ${IBF.selBrand === x.brand ? "sel" : ""}" data-ids="${x.unread_ids.join(",")}" data-deal="${x.deal}" data-brand="${esc(x.brand)}" tabindex="0" role="button">
+        <input id="ib-q" placeholder="Search" aria-label="Search the inbox" value="${esc(IBF.q)}"></div>
+      <div class="ibx-rows">${items.length ? items.map(x => `
+        <button class="ibx-row ${x.unread ? "unread" : ""} ${IBF.selBrand === x.brand ? "sel" : ""}" data-brand="${esc(x.brand)}" data-deal="${x.deal}" data-ids="${x.unread_ids.join(",")}">
           <span class="avatar sm">${initials(x.brand)}</span>
-          <div class="grow" style="min-width:0"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
-            <div class="small ib-line"><span class="kind ${x.kind}">${I(x.kind === "message" ? "message-circle" : x.icon)} ${x.kind === "message" ? "Message" : "Update"}</span> ${esc(x.line)}</div>
-            ${sub(x) ? `<div class="tiny muted">${esc(sub(x))}</div>` : ""}
-            ${x.change ? `<div class="row" style="gap:6px;margin-top:6px"><button class="btn small primary" data-cc="${x.change}" data-cd="${x.change_deal}" data-a="confirm">${I("check")} Confirm</button>
-              <button class="btn small" data-cc="${x.change}" data-cd="${x.change_deal}" data-a="reject">Reject</button></div>` : ""}</div>
-          ${x.unread ? `<span class="udot" aria-label="${x.unread} unread"></span>` : ""}</div>`).join("")
-        : emptyState("inbox", "Nothing new", "Messages, change cards and PayPal updates show up here.")}</div>
-      <div class="pane hide-mobile" id="ib-pane">${IBF.sel ? "" : `<div class="card">${emptyState("messages-square", "Pick a brand", "The chat for its latest deal opens here.")}</div>`}</div>
-    </div>`;
+          <span class="ibx-main"><span class="ibx-top"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></span>
+            <span class="ibx-prev">${I(x.kind === "message" ? "message-circle" : (IB_TYPE_ICON[x.icon] || "bell"))}<span class="txt">${esc(x.line)}</span>
+              ${x.unread ? `<span class="udot" aria-label="${x.unread} unread"></span>` : ""}</span></span></button>`).join("")
+        : emptyState("inbox", IBF.q || IBF.filter !== "all" ? "Nothing matches" : "Nothing new", "Messages, change cards and PayPal updates show up here.")}</div>
+    </aside>
+    <section class="ibx-conv" id="ibx-conv" aria-label="Conversation"></section>
+    <aside class="ibx-deal" id="ibx-deal" aria-label="Deal details"></aside>
+  </div>`;
   $$(".chips button").forEach(b => b.onclick = () => { IBF.filter = b.dataset.f; inboxSplit(); });
-  let tq; $("#ib-q").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { IBF.q = e.target.value; inboxSplit().then(() => $("#ib-q").focus()); }, 250); };
+  let tq; $("#ib-q").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { IBF.q = e.target.value; inboxSplit().then(() => { const q = $("#ib-q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }); }, 250); };
   if ($("#allread")) $("#allread").onclick = e => busy(e.currentTarget, async () => {
     await api("/api/studio/inbox/read", { body: { event_ids: (r.threads || []).flatMap(t => t.unread_ids) } }); inboxSplit(); });
-  $$("[data-cc]").forEach(b => b.onclick = ev => { ev.stopPropagation(); busy(b, async () => {
-    let reason = null;
-    try { await api(`/api/deals/${b.dataset.cd}/changes/${b.dataset.cc}/${b.dataset.a}`, { body: { reason } }); toast(b.dataset.a === "confirm" ? "Confirmed" : "Rejected"); inboxSplit(); }
-    catch (e) { if (/override/.test(e.message)) { location.href = `/studio/deals/${b.dataset.cd}`; } else toast(e.message, "bad"); }
-  }); });
-  $$(".inbox-row[data-deal]").forEach(row => row.onclick = async () => {
+  $$(".ibx-row").forEach(row => row.onclick = async () => {
     const ids = row.dataset.ids ? row.dataset.ids.split(",").map(Number) : [];
-    if (ids.length) { try { await api("/api/studio/inbox/read", { body: { event_ids: ids } }); } catch {} }  // opening the deal reads all its updates
-    if (matchMedia("(min-width: 1025px)").matches) { IBF.sel = row.dataset.deal; IBF.selBrand = row.dataset.brand; await inboxSplit(); openPane(IBF.sel); }
-    else location.href = `/studio/deals/${row.dataset.deal}`;
+    if (ids.length) { try { await api("/api/studio/inbox/read", { body: { event_ids: ids } }); } catch {} }  // opening it reads its updates
+    IBF.selBrand = row.dataset.brand; IBF.sel = row.dataset.deal; IBF.mobileConv = true;
+    await inboxSplit();
   });
-  if (IBF.sel) openPane(IBF.sel);
+  if (IBF.sel) openPane(IBF.sel); else $("#ibx-conv").innerHTML = `<div class="ibx-empty">${emptyState("messages-square", "Pick a conversation", "Choose a brand on the left to see its chat.")}</div>`;
 }
-const PANE_STATUS = { draft: "Waiting for brief", offered: "Draft to accept", accepted: "Accepted", in_progress: "In progress", delivered: "Delivered",
-  completed: "Done", paused: "Paused", cancelled: "Cancelled" };
+
+const IB_ACT = (d, V) => {  // the next step on this deal, worked out from its status and money (never from the AI)
+  const href = (h = "") => `/studio/deals/${d.id}${h}`;
+  const pend = (V.extra_holds || []).some(h => ["planned", "approved", "sent", "failed"].includes(h.status));
+  const draftSent = (V.events || []).some(e => e.type === "draft.uploaded");
+  switch (d.status) {
+    case "draft": return ["Waiting for the brand's brief", "They write it from your deal link; you'll see the priced draft here.", "Open the deal", href()];
+    case "offered": return ["Check and accept the draft", `Priced from your list: ${usd(V.total_cents)}.`, "Review the draft", href()];
+    case "accepted": return V.money_held ? ["Start the work", "The money is held by PayPal.", "Open the deal", href()] : ["Waiting for the brand to pay", "Work starts once PayPal holds the money.", "Open the deal", href()];
+    case "paused": return ["Paused", "Two people at the brand gave different instructions. Money waits until they pick one.", "See both", href()];
+    case "in_progress": return pend ? ["Waiting for the extra hold", "A confirmed change needs more money held.", "Open the deal", href("#money")]
+      : draftSent ? ["Waiting for the brand's review", "They approve the draft, then you post.", "Open the deal", href("#delivery")] : ["Send your draft", "The delivery check runs against the latest confirmed deal.", "Upload the draft", href("#delivery")];
+    case "delivered": return ["Approve the release", "The delivery matches the deal. Approve so you get paid.", "Review the release", href("#delivery")];
+    case "completed": return ["Done · paid", "Every payment is in the ledger with the words behind it.", "See the ledger", "/studio/ledger"];
+    case "cancelled": return ["Cancelled", "The split was paid as agreed.", "Open the deal", href()];
+  }
+  return ["Open the deal", "", "Open the deal", href()];
+};
 async function openPane(dealId) {
-  // one panel (no card inside a card): brand + deal picker + open-deal button on top, then the chat
-  const pane = $("#ib-pane"), t = (IBF.threads || {})[IBF.selBrand] || { deals: [] };
-  const label = d => `${d.total_cents ? usd(d.total_cents) : "No price yet"} · ${PANE_STATUS[d.status] || d.status}`;
-  pane.innerHTML = `<div class="pane-head"><div style="min-width:0"><h3 style="margin:0" id="pane-ttl">${esc(IBF.selBrand || "Conversation")}</h3>
-      ${t.deals.length > 1 ? `<select id="pane-deal" aria-label="Which deal" style="width:auto;margin-top:6px">${t.deals.map(d => `<option value="${d.id}" ${d.id === dealId ? "selected" : ""}>${esc(label(d))}</option>`).join("")}</select>`
-        : t.deals[0] ? `<div class="small muted">${esc(label(t.deals[0]))}</div>` : ""}</div>
-      <a class="btn small" href="/studio/deals/${dealId}">${I("external-link")} Open deal</a></div>
-    <div id="pane-chat"><div class="skeleton"></div></div>`;
+  const conv = $("#ibx-conv"), panel = $("#ibx-deal"), t = (IBF.threads || {})[IBF.selBrand] || { deals: [] };
+  const cur = t.deals.find(d => d.id === dealId) || t.deals[0] || { id: dealId };
+  conv.innerHTML = `<header class="ibx-convhead">
+      <button class="iconbtn ibx-back" id="ib-back" aria-label="Back to the list">${I("arrow-left")}</button>
+      <span class="avatar sm">${initials(IBF.selBrand || "")}</span>
+      <div class="grow" style="min-width:0"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="ibx-brand">${esc(IBF.selBrand || "")}</b>
+        <span class="pill status" id="ib-status">${esc(DEAL_LABEL[cur.status] || "")}</span></div>
+        ${t.deals.length > 1 ? `<label class="ibx-switch">Deal: <select id="pane-deal">${t.deals.map(d => `<option value="${d.id}" ${d.id === dealId ? "selected" : ""}>${esc(ibDealLabel(d))}</option>`).join("")}</select></label>`
+          : `<div class="tiny muted">${esc(ibDealLabel(cur))}</div>`}</div>
+      <button class="btn small ibx-paneltoggle" id="ib-panel" aria-label="Deal details">${I("panel-right")}<span class="lbl-text"> Deal details</span></button>
+    </header>
+    <div class="ibx-chat" id="pane-chat"><div class="skeleton"></div></div>`;
+  $("#ib-back").onclick = () => { IBF.mobileConv = false; $("#ibx").classList.remove("conv-open"); };
+  $("#ib-panel").onclick = () => $("#ibx").classList.toggle("panel-open");
   if ($("#pane-deal")) $("#pane-deal").onchange = e => { IBF.sel = e.target.value; openPane(IBF.sel); };
-  if (!IBF.selBrand) { try { const v = await api(`/api/deals/${dealId}`); $("#pane-ttl").textContent = v.deal.brand_org; } catch {} }
-  if (typeof Chat !== "undefined") Chat.mount($("#pane-chat"), { base: `/api/deals/${dealId}`, isBrand: false, token: "" });
+  panel.innerHTML = `<div class="skeleton"></div>`;
+  if (typeof Chat !== "undefined") Chat.mount($("#pane-chat"), { base: `/api/deals/${dealId}`, isBrand: false, token: "", fill: true, onApplied: () => openPane(dealId) });
+  let V; try { V = await api(`/api/deals/${dealId}`); } catch (e) { panel.innerHTML = `<p class="small muted">${esc(e.message)}</p>`; return; }
+  const d = V.deal, [title, why, act, href] = IB_ACT(d, V);
+  $("#ib-status").textContent = DEAL_LABEL[d.status] || d.status;
+  panel.innerHTML = `<button class="iconbtn ibx-panelclose" id="ib-close" aria-label="Close deal details">${I("x")}</button>
+    <div class="row" style="gap:10px"><span class="avatar">${initials(d.brand_org)}</span><div style="min-width:0"><b>${esc(d.brand_org)}</b>
+      <div class="tiny muted">${esc(d.title || ibDealLabel({ ...cur, ...d }))}</div></div></div>
+    <dl class="ibx-facts">
+      <div><dt>Deal amount</dt><dd><b>${usd(V.total_cents)}</b> <span class="aed">${aed(V.total_cents)}</span></dd></div>
+      <div><dt>Money</dt><dd>${V.hold ? moneyPill(V.hold.status) : '<span class="pill">Nothing held yet</span>'}${V.held_cents ? ` <span class="small">${usd(V.held_cents)} held</span>` : ""}</dd></div>
+      <div><dt>Status</dt><dd>${dealPill(d.status)}</dd></div>
+      ${d.deadline ? `<div><dt>Post date</dt><dd>${esc(d.deadline)}</dd></div>` : ""}
+    </dl>
+    <div class="ibx-next"><div class="tiny muted">Next step</div><b>${esc(title)}</b><p class="small muted">${esc(why)}</p>
+      <a class="btn primary block" href="${href}">${esc(act)}</a></div>
+    <a class="small" href="/studio/deals/${d.id}">${I("external-link")} Open the deal</a>`;
+  $("#ib-close").onclick = () => $("#ibx").classList.remove("panel-open");
 }
 
 /* ---------- Deals: board (kanban) and list (sortable) ---------- */

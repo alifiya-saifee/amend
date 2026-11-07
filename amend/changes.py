@@ -221,17 +221,31 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
                       "from": p.get("name") or "Amend", "from_id": m["party_id"], "mine": m["party_id"] == viewer})
     for c in db.all("select * from changes where deal_id = :d and coalesce(kind, '') <> 'cancel' order by created_at", {"d": deal_id}):
         items.append({"type": "change", "at": c["created_at"], **card(db, c)})
-    sys_text = {"authorized": "{amt} held by PayPal", "paid": "{amt} collected", "voided": "Hold released",
-                "refunded": "{amt} refunded", "expired": "A hold expired · hold again"}
+    sys_text = {"authorized": ("{amt} held by PayPal", "lock"), "paid": ("{amt} collected", "wallet"), "voided": ("Hold released", "unlock"),
+                "refunded": ("{amt} refunded", "rotate-ccw"), "expired": ("A hold expired · hold again", "hourglass")}
+    sysl = lambda at, body, icon: items.append({"type": "system", "at": at, "body": body, "icon": icon})
+    opened = False
     for e in db.events_for(deal_id):
-        if e["type"] == "money.status" and e["payload"].get("to") in sys_text:
+        t = e["type"]
+        if t == "money.status" and e["payload"].get("to") in sys_text:
             it = db.one("select amount_cents from money_items where id = :i", {"i": e["payload"]["item"]})
-            items.append({"type": "system", "at": e["at"], "body": sys_text[e["payload"]["to"]].format(
-                amt=money.fmt_usd(it["amount_cents"]) if it else "")})
-        elif e["type"] == "deal.accepted":
-            items.append({"type": "system", "at": e["at"], "body": f"Deal accepted · version {e['payload'].get('version', 1)}"})
-        elif e["type"] == "change.applied":
-            items.append({"type": "system", "at": e["at"], "body": f"Change applied · version {e['payload'].get('version')}"})
+            text, icon = sys_text[e["payload"]["to"]]
+            sysl(e["at"], text.format(amt=money.fmt_usd(it["amount_cents"]) if it else ""), icon)
+        elif t == "link.opened" and not opened:  # once: the first time the brand opened the link
+            opened = True
+            who = (parties.get(e["actor"]) or {}).get("name")
+            sysl(e["at"], f"{who} opened the deal link" if who else "Deal link opened", "eye")
+        elif t == "brief.submitted":
+            sysl(e["at"], "Brief received", "file-text")
+        elif t == "deal.drafted":
+            amt = e["payload"].get("total_cents")
+            sysl(e["at"], "Draft ready" + (f" · {money.fmt_usd(amt)}" if amt else ""), "file-pen")
+        elif t == "deal.accepted":
+            sysl(e["at"], f"Deal accepted · version {e['payload'].get('version', 1)}", "circle-check")
+        elif t == "draft.uploaded":
+            sysl(e["at"], "Draft uploaded", "upload")
+        elif t == "change.applied":
+            sysl(e["at"], f"Change confirmed by both · version {e['payload'].get('version')}", "git-branch")
     items.sort(key=lambda x: x["at"])
     unread = sum(1 for x in items if x["type"] != "system" and (not last or x["at"] > last["last_at"])
                  and not x.get("mine") and x.get("from_id") != viewer)
