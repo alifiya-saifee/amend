@@ -85,8 +85,24 @@
   - D4: an Inbox as the first studio tab;
   - D5: the desktop layout above 1024 px.
 
-### Waiting on
-- **Live hold test:** order 8AE0…310G is created ($530, status `sent`). Alifiya approves it as Nadia at the local deal link. The deal should then show "Held ✅", and PayPal should show $530 authorised.
+### Live hold test: passed ✅
+- Alifiya approved the order as Nadia, and the deal room showed "Held ✅".
+- **Amend's side:** the deal is `in_progress`, version 1; the hold is `authorized` for $530, authorisation 1463…4120, expiring 6 Dec, best collected by 10 Nov.
+- **PayPal's side (checked directly):** status CREATED (that's an authorisation), $530.00, `custom_id` = the deal ID.
+
+### Git history cleaned
+- `amend.db-shm` and `amend.db-wal` are removed from every commit (`git filter-branch`), the leftover copies are cleared out, and the history was force-pushed to the private repo.
+- A backup is at `~/Downloads/Assignment/amend-backup-2026-11-07.bundle`.
+- GitHub may keep the old commits reachable by their ID for a while. The repo is private, and the files held no secrets.
+
+### Design changes D1–D5: built
+- **D1:** light theme by default, dark when the device prefers it, gold kept as the accent. Contrast measured and passes WCAG AA everywhere (ratios in the checklist §3.16).
+- **D2:** a new intro page at `/`, with what Amend is in 3 lines, how it works in 3 steps, and [Sign in as creator] / [Try it yourself].
+- **D3:** on the brand's first visit, the welcome sheet ("Sara Malik invited you to a deal", 3 steps), then the identity check. Neither shows on later visits.
+- **D4:** the Inbox is the first studio tab. `GET /api/studio/inbox` builds it from events (newest first, unread dots, filters, a badge on the tab). Read marks are kept in `inbox_reads`, so events are never changed. 6 new tests.
+- **D5:** above 1024 px, the deal room has two columns (activity on the left, the deal, money and history panel on the right), and the studio has a side menu.
+- **Bug found and fixed while testing:** `db.one()` and `db.all()` read their results after releasing the lock on the shared connection, so two requests at the same moment could mix up rows. Results are now read under the lock. It showed up as random failures in the browser checks; after the fix, every round passed.
+- **Tests:** 322 passed, 1 skipped. Browser check: light and dark × 390/768/1280 px, no JS errors, no sideways scroll.
 
 ### Open questions
 - **The repo is private for now.** It goes public when you say, after your reviewer has seen it.

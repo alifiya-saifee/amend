@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, deals, engine, money
+from amend import ai, deals, engine, inbox, money
 from amend.config import get_settings
 from amend.db import Database, get_db
 from amend.models import IllegalTransition
@@ -166,6 +166,8 @@ def login_page(request: Request):
 
 
 @app.get("/studio")
+@app.get("/studio/inbox")
+@app.get("/studio/deals")
 @app.get("/studio/prices")
 @app.get("/studio/profile")
 @app.get("/studio/ledger")
@@ -331,6 +333,25 @@ def save_permit(body: PermitIn, c: dict = Depends(require_creator)):
 def permit_check(creator_id: str):
     c = deals.creator(get_db(), creator_id)
     return deals.permit_check(c["permit_no"], c["permit_expiry"])
+
+
+@app.get("/api/studio/inbox")
+def my_inbox(filter: str = "all", page: int = 0, c: dict = Depends(require_creator)):
+    if filter not in ("all", "needs_me", "messages", "money"):
+        raise HTTPException(400, "unknown filter")
+    return inbox.entries(get_db(), c["id"], c["party_id"], flt=filter, page=max(page, 0))
+
+
+class ReadIn(BaseModel):
+    event_ids: list[int] = Field(max_length=200)
+
+
+@app.post("/api/studio/inbox/read")
+def inbox_read(body: ReadIn, c: dict = Depends(require_creator)):
+    mine = {e["event_id"] for e in inbox.entries(get_db(), c["id"], c["party_id"], page=0)["items"]} if body.event_ids else set()
+    allowed = [i for i in body.event_ids if i in mine or get_db().one(
+        "select id from events where id = :i and deal_id in (select id from deals where creator_id = :c)", {"i": i, "c": c["id"]})]
+    return {"marked": inbox.mark_read(get_db(), c["party_id"], allowed)}
 
 
 NEEDS_ME = ("offered",)

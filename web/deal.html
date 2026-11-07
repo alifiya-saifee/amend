@@ -1,16 +1,19 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deal · Amend</title><meta name="theme-color" content="#0a0d13">
+<title>Deal · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
-</head><body>
+</head><body class="dealroom">
 <header class="top">
-  <a class="back" id="back" href="/studio" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
+  <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
   <span class="title" id="ttl">Deal</span><span class="chip-me" id="me" hidden></span>
 </header>
 <div class="strip" id="strip" hidden></div>
-<main class="wrap" id="view"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></main>
+<div class="deal-grid wrap">
+  <main id="view"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></main>
+  <aside id="panel" class="panel-only" aria-label="Deal and money"></aside>
+</div>
 <script>
 const parts = location.pathname.split("/");
 const IS_BRAND = parts[1] === "d";
@@ -82,8 +85,9 @@ function dealSheet() {
 function render() {
   header();
   const d = V.deal;
-  if (IS_BRAND && !V.me.confirmed_link) return whoSheet();
+  if (IS_BRAND && !V.me.confirmed_link) return welcomeSheet();
   if (IS_BRAND) brand(d); else creator(d);
+  panel();
   bindQuotes();
   if (Q.get("held")) { toast("Held ✅"); history.replaceState({}, "", location.pathname); }
   if (Q.get("pay_cancelled") || Q.get("pay_error")) {
@@ -92,7 +96,43 @@ function render() {
   }
 }
 
+/* ---------- desktop money panel (D5) ---------- */
+const EVENT_TEXT = { "deal.created": "Deal link made", "link.created": "Link made", "link.opened": "Brand opened the link",
+  "brief.submitted": "Brief sent", "brief.edited": "Brief edited", "deal.drafted": "Draft priced from the price list",
+  "deal.accepted": "Accepted · version 1", "approval.recorded": "Hold approved by the brand", "money.approved": "Hold ready for PayPal",
+  "paypal.called": "PayPal updated", "paypal.returned": "Back from PayPal", "money.status": "Money status changed",
+  "term.price_edited": "Price edited", "deal.declined": "Declined", "deal.status": "Deal status changed", "money.planned": "Hold planned" };
+function panel() {
+  const h = V.hold;
+  const ev = (V.events || []).filter(e => EVENT_TEXT[e.type] && e.type !== "fact.added").slice(-12).reverse();
+  $("#panel").innerHTML = `
+    <div class="card"><div class="row between"><h3>The deal</h3>${dealPill(V.deal.status)}</div>
+      ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is drafted.</p>`}</div>
+    <div class="card" style="margin-top:14px"><div class="row between"><h3>Money</h3>${h ? moneyPill(h.status) : ""}</div>
+      ${h ? `<p class="small">${usd(h.amount_cents)} <span class="aed">· ${aed(h.amount_cents)}</span></p>
+        ${h.expires_at ? `<p class="small muted">Hold expires ${dateStr(h.expires_at)}${h.honor_until ? `<br>Best collected by ${dateStr(h.honor_until)}` : ""}</p>` : ""}
+        ${h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : h.paypal_id ? `<p class="tiny muted">PayPal order ${esc(h.paypal_id)}</p>` : ""}`
+        : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>
+    <div class="card" style="margin-top:14px"><h3>History</h3>
+      <ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
+  bindQuotes($("#panel"));
+}
+
 /* ---------- brand side (3.8) ---------- */
+function welcomeSheet() {  // D3: who invited you and how it works, before the identity check
+  $("#view").innerHTML = `<div class="empty"><div class="ic">👋</div>Welcome to your deal with ${esc(V.creator.name)}.</div>`;
+  const first = V.creator.name.split(" ")[0];
+  sheet(`<div class="row" style="margin-bottom:10px"><div class="avatar">${initials(V.creator.name)}</div>
+      <div><h2 style="margin:0">${esc(V.creator.name)} invited you to a deal</h2><div class="muted small">@${esc(V.creator.handle)}</div></div></div>
+    <ol class="steps compact">
+      <li><span class="num">1</span><div><b>Tell ${esc(first)} what you need</b><p class="muted">The deal is priced from ${esc(first)}'s own price list.</p></div></li>
+      <li><span class="num">2</span><div><b>Hold the money with PayPal</b><p class="muted">It's reserved, not taken. No Amend account needed.</p></div></li>
+      <li><span class="num">3</span><div><b>Confirm changes together</b><p class="muted">Money moves only when you both confirm and the delivery matches.</p></div></li>
+    </ol>
+    <button class="btn primary block" id="welcome-go" style="margin-top:14px">Continue</button>`);
+  $("#welcome-go").onclick = () => whoSheet();
+}
+
 function whoSheet() {
   $("#view").innerHTML = `<div class="empty"><div class="ic">👋</div>Confirm who you are to open this deal.</div>`;
   sheet(`<h2>This link is for <b>${esc(V.me.name)}</b> at ${esc(V.me.org)}.</h2><p>Is that you?</p>
@@ -146,7 +186,7 @@ function brand(d) {
         <p class="small muted">A PayPal hold lasts up to 29 days (sandbox check, 7 Nov).</p>
         <button class="btn primary block" id="pay">${waiting ? "Continue at PayPal" : `Pay with PayPal: hold ${usd(V.total_cents)}`}</button>
       </div>
-      <details class="card" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>`;
+      <details class="card hide-desktop" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>`;
     $("#pay").onclick = e => busy(e.currentTarget, async () => {
       try { const r = await api(url("/pay"), { method: "POST" }); if (r.approve_url) location.href = r.approve_url; else toast("PayPal didn't give a link. Try again.", "bad"); }
       catch (er) { toast(er.message, "bad", () => $("#pay").click()); }
@@ -157,7 +197,7 @@ function brand(d) {
     $("#view").innerHTML = `
       <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held by PayPal · ${esc(first)} can start work</div>
       <p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}. Nothing is collected until the delivery matches the deal.</p>
-      <div class="card" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
       <div class="empty"><div class="ic">💬</div>The deal chat opens here on Sunday: changes, confirmations and the ripple preview.</div>`;
     return;
   }
@@ -270,14 +310,14 @@ function creator(d) {
     $("#view").innerHTML = `
       <div class="banner wait">⏳ <b>Work starts when money is held</b></div>
       <p class="small muted" style="margin-top:8px">${h && h.status === "sent" ? `${esc(brandName)} is at PayPal now.` : h && h.status === "expired" ? "The hold expired. The brand needs to hold again." : `Waiting for ${esc(brandName)} to hold ${usd(V.total_cents)} with PayPal.`}</p>
-      <div class="card" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>`;
+      <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>`;
     return;
   }
   if (d.status === "in_progress") {
     $("#view").innerHTML = `
       <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held · start work</div>
       <p class="small muted" style="margin-top:8px">PayPal authorisation ${esc(V.hold.authorization || "")} · expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}</p>
-      <div class="card" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
       <div class="empty"><div class="ic">💬</div>Chat, change cards and drafts arrive here on Sunday and Tuesday.</div>`;
     return;
   }

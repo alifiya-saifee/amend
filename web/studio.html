@@ -1,40 +1,45 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Studio · Amend</title><meta name="theme-color" content="#0a0d13">
+<title>Studio · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
-</head><body>
+</head><body class="studio">
 <header class="top">
-  <a class="logo" href="/studio">Amend</a><span class="title" id="ttl">Deals</span>
+  <a class="logo" href="/studio">Amend</a><span class="title" id="ttl">Inbox</span>
   <button class="chip-me" id="me" onclick="toggleMenu('mm')">…</button>
   <div class="menu" id="mm"><button onclick="go('/studio/profile')">Profile</button><button onclick="signOut()">Sign out</button></div>
 </header>
 <main class="wrap" id="view"></main>
 <nav class="tabs">
-  <a href="/studio" data-tab="deals"><span class="ic">💬</span>Deals</a>
+  <a href="/studio" data-tab="inbox"><span class="ic">📥</span>Inbox<span class="badge" id="ubadge" hidden></span></a>
+  <a href="/studio/deals" data-tab="deals"><span class="ic">💬</span>Deals</a>
   <a href="/studio/prices" data-tab="prices"><span class="ic">🏷️</span>Prices</a>
   <a href="/studio/ledger" data-tab="ledger" class="off"><span class="ic">📒</span>Ledger · Tue</a>
   <a href="/studio/profile" data-tab="profile"><span class="ic">👤</span>Profile</a>
+  <a href="#" class="side-out" onclick="signOut(); return false;"><span class="ic">↩</span>Sign out</a>
 </nav>
 <script>
 let ME = null, dirty = false;
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function go(path) { if (dirty && !confirm("Discard changes?")) return; dirty = false; history.pushState({}, "", path); route(); }
-$$(".tabs a").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
+$$(".tabs a[data-tab]").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
 window.onpopstate = route;
 window.onbeforeunload = () => dirty ? "unsaved" : undefined;
 
 async function route() {
   const p = location.pathname;
-  const tab = p.startsWith("/studio/prices") ? "prices" : p.startsWith("/studio/profile") ? "profile" : p.startsWith("/studio/ledger") ? "ledger" : "deals";
-  $$(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
-  $("#ttl").textContent = { deals: "Deals", prices: "Prices", profile: "Profile", ledger: "Ledger" }[tab];
+  const tab = p.startsWith("/studio/prices") ? "prices" : p.startsWith("/studio/profile") ? "profile" : p.startsWith("/studio/ledger") ? "ledger"
+    : p.startsWith("/studio/deals") ? "deals" : "inbox";
+  $$(".tabs a[data-tab]").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
+  $("#ttl").textContent = { inbox: "Inbox", deals: "Deals", prices: "Prices", profile: "Profile", ledger: "Ledger" }[tab];
   $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
   try {
     if (!ME) { ME = await api("/api/me"); $("#me").textContent = ME.display_name.split(" ")[0] + " ▾"; }
-    if (tab === "deals") await deals();
+    if (tab !== "inbox") refreshBadge();
+    if (tab === "inbox") await inboxTab();
+    else if (tab === "deals") await deals();
     else if (tab === "prices") await prices();
     else if (tab === "profile") profile();
     else $("#view").innerHTML = `<div class="empty"><div class="ic">📒</div>The ledger arrives on Tuesday.</div>`;
@@ -42,6 +47,47 @@ async function route() {
     if (e.status === 401) { location.href = "/login"; return; }
     $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
   }
+}
+
+/* ---------- Inbox tab (D4) ---------- */
+let IF = { filter: "all", page: 0 };
+function badge(n) { const b = $("#ubadge"); b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }
+async function refreshBadge() { try { badge((await api("/api/studio/inbox?page=0")).unread); } catch {} }
+async function inboxTab(append = false) {
+  const r = await api(`/api/studio/inbox?filter=${IF.filter}&page=${IF.page}`);
+  badge(r.unread);
+  const rows = r.items.map(x => `
+    <a class="inbox-row ${x.unread ? "unread" : ""}" href="/studio/deals/${x.deal}" data-ev="${x.event_id}">
+      <span class="ic">${x.icon}</span>
+      <div class="grow"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
+        <div class="small">${esc(x.line)}</div></div>
+      ${x.unread ? '<span class="udot" aria-label="unread"></span>' : ""}
+    </a>`).join("");
+  if (append) { $("#ib-list").insertAdjacentHTML("beforeend", rows); }
+  else {
+    const c = r.counts || {};
+    $("#view").innerHTML = `
+      <div class="row between"><h1>Inbox</h1>${r.unread ? `<button class="btn small" id="allread">Mark all read</button>` : ""}</div>
+      <p class="muted small">Messages, changes waiting for you, delivery gaps and PayPal updates, newest first.</p>
+      <div class="chips" style="margin:12px 0">${[["all", "All"], ["needs_me", "Needs me"], ["messages", "Messages"], ["money", "Money"]]
+        .map(([k, t]) => `<button data-f="${k}" class="${IF.filter === k ? "on" : ""}">${t}${k === "needs_me" && c.needs_me ? `<span class="dot">${c.needs_me}</span>` : ""}</button>`).join("")}</div>
+      <div id="ib-list" class="card" style="padding:6px">${rows}</div>
+      ${!r.items.length ? `<div class="empty"><div class="ic">📥</div>Nothing new. Messages, changes and PayPal updates show up here.</div>` : ""}
+      <div id="ib-more"></div>`;
+    if (!r.items.length) $("#ib-list").hidden = true;
+    $$(".chips button").forEach(b => b.onclick = () => { IF = { filter: b.dataset.f, page: 0 }; inboxTab(); });
+    if ($("#allread")) $("#allread").onclick = e => busy(e.currentTarget, async () => {
+      const ids = $$("#ib-list .inbox-row.unread").map(a => +a.dataset.ev);
+      await api("/api/studio/inbox/read", { body: { event_ids: ids } }); inboxTab();
+    });
+  }
+  $$("#ib-list .inbox-row").forEach(a => a.onclick = async e => {
+    e.preventDefault();
+    try { await api("/api/studio/inbox/read", { body: { event_ids: [+a.dataset.ev] } }); } catch {}
+    location.href = a.getAttribute("href");
+  });
+  $("#ib-more").innerHTML = r.more ? `<button class="btn block" id="ib-lm">Load more</button>` : "";
+  if (r.more) $("#ib-lm").onclick = () => { IF.page++; inboxTab(true); };
 }
 
 /* ---------- Deals tab (3.4) ---------- */

@@ -1,29 +1,41 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Amend</title><meta name="theme-color" content="#0a0d13">
+<title>Amend</title>
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Amend holds brand-deal money with PayPal and changes it only when both sides confirm.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
 </head><body>
-<header class="top"><a class="logo" href="/">Amend</a><span class="title"></span></header>
-<main class="wrap">
+<header class="top"><a class="logo" href="/">Amend</a><span class="title"></span><a class="btn small" href="/login">Sign in</a></header>
+<main class="wrap home">
   <section class="hero">
-    <h1>Amend</h1>
     <div class="tag-line">Money that changes when the truth changes.</div>
-    <p>Brand deals change after the money starts moving. Amend holds the brand's payment with PayPal, prices every change from the creator's own list, and moves the money only when both sides confirm.</p>
+    <h1>Brand deals change. Now the money does too.</h1>
+    <p class="lead">Amend is a deal link for creators and brands. The brand pays with PayPal and the money is <b>held</b>, not taken.</p>
+    <p class="lead">When the deal changes in the chat, Amend prices the change from the creator's own list and shows exactly what moves.</p>
+    <p class="lead">Nothing is paid out until both sides confirm and the delivery matches the deal.</p>
+    <div class="row wrapx hero-cta">
+      <a class="btn primary" href="/login">Sign in as creator</a>
+      <button class="btn" disabled title="Opens Tuesday">Try it yourself · opens Tuesday</button>
+    </div>
   </section>
-  <div class="stack">
-    <a class="btn primary block" href="/login">I'm a creator: sign in</a>
-    <a class="btn block off" href="#" onclick="toast('The judge page opens on Tuesday', 'ok'); return false;">Try it yourself</a>
-    <a class="btn block" href="/c/sara.eats">See a creator page</a>
-  </div>
-  <div class="card" style="margin-top:28px">
+
+  <h2 class="section-h">How it works</h2>
+  <ol class="steps">
+    <li><span class="num">1</span><div><b>Send the brand your deal link</b><p class="muted">No account for them. They write a brief; the AI drafts the deal from your price list, with the exact words behind every line.</p></div></li>
+    <li><span class="num">2</span><div><b>They pay, PayPal holds it</b><p class="muted">The money is reserved, not taken. You start work once it's held.</p></div></li>
+    <li><span class="num">3</span><div><b>Changes are confirmed by both, money moves only when it matches</b><p class="muted">An extra Story, a new date, a cancellation: each becomes a card you both confirm. Paid means refund, never cancel.</p></div></li>
+  </ol>
+
+  <div class="card" style="margin-top:20px">
     <div class="icons3">
       <div><span class="ic">🔒</span><span>Money held by PayPal before work starts</span></div>
-      <div><span class="ic">🤝</span><span>Every change confirmed by both sides</span></div>
+      <div><span class="ic">❝</span><span>Every term shows the words it came from</span></div>
       <div><span class="ic">✅</span><span>Released only when the delivery matches the deal</span></div>
     </div>
   </div>
-  <p class="muted small" style="margin-top:28px">MIT licence · Made-up people and brands · PayPal sandbox only.</p>
+  <p style="margin-top:16px"><a href="/c/sara.eats">See a creator page →</a></p>
+  <p class="muted small" style="margin-top:24px">MIT licence · Made-up people and brands · PayPal sandbox only.</p>
 </main>
 </body></html>

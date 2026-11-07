@@ -137,6 +137,8 @@ create table if not exists jobs (
 create table if not exists webhook_events (
   paypal_event_id text primary key, type text not null, received_at text not null, verified integer not null,
   processed_at text, payload_json text not null);
+create table if not exists inbox_reads (
+  party_id text not null, event_id integer not null, at text not null, primary key (party_id, event_id));
 create index if not exists ix_money_deal on money_items(deal_id);
 create index if not exists ix_facts_deal on facts(deal_id);
 create index if not exists ix_terms_deal on terms(deal_id, version);
@@ -196,11 +198,13 @@ class Database:
             return self.conn.execute(self._sql(sql), params or {})
 
     def one(self, sql: str, params: dict | None = None) -> dict | None:
-        r = self.execute(sql, params).fetchone()
-        return dict(r) if r is not None else None
+        with self.lock:  # fetch under the same lock: one shared connection serves many request threads
+            r = self.conn.execute(self._sql(sql), params or {}).fetchone()
+            return dict(r) if r is not None else None
 
     def all(self, sql: str, params: dict | None = None) -> list[dict]:
-        return [dict(r) for r in self.execute(sql, params).fetchall()]
+        with self.lock:
+            return [dict(r) for r in self.conn.execute(self._sql(sql), params or {}).fetchall()]
 
     @contextmanager
     def tx(self) -> Iterator["Database"]:
