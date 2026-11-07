@@ -37,6 +37,7 @@ def main() -> None:
                 for spec in PAGES:
                     who, path = (spec.split(":", 1) if ":" in spec and not spec.startswith("/") else (None, spec))
                     if who and who != signed:
+                        ctx.clear_cookies()  # switching person: sign the previous one out first
                         pg.goto(f"{BASE}/login?tab={who}"); pg.fill("#email", EMAIL[who]); pg.fill("#pw", PW); pg.click("#go")
                         pg.wait_for_url("**/studio" if who == "creator" else "**/brand"); signed = who
                     if not who and scheme == "dark":

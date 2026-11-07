@@ -207,3 +207,10 @@ Replaced the particle river with a GSAP 3.12.5 scene (three.js removed entirely,
 - Note: on phones the stage is scaled to about 0.64, so card text is about 9–10px on screen.
 - Suite: 465 passed, 3 skipped.
 Next: Block 7.
+
+## Inbox: one row per deal (8 Nov)
+- Was: one row per event, so one deal showed 3–7 times ("opened your link", "sent a brief", "draft ready"…).
+- Now: /api/studio/inbox returns `threads` (one per deal, newest activity first by time, latest line, update count, unread ids, actionable change card); the creator Inbox and the brand Inbox show one row per deal. Opening a row marks all its updates read. A brand with several deals shows each deal's amount ("$530 deal · 3 updates").
+- Also fixed: the local server on port 8000 was still running code from before Block 4 (Home showed "Not Found"); restarted. tests/browser/shots.py now signs out between people.
+- Test: tests/test_inbox_threads.py. Suite: 466 passed, 3 skipped.
+- Waiting for a yes: the wider Inbox redesign (points 2–7 proposed in chat).

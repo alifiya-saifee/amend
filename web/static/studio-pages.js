@@ -47,7 +47,10 @@ let IBF = { filter: "all", q: "", sel: null };
 async function inboxSplit() {
   const r = await api(`/api/studio/inbox?filter=${IBF.filter}&page=0`);
   badge(r.unread);
-  const items = r.items.filter(x => !IBF.q || (x.brand + " " + x.line).toLowerCase().includes(IBF.q.toLowerCase()));
+  // one row per deal (the API groups the updates); a brand with several deals shows each deal's amount to tell them apart
+  const items = (r.threads || []).filter(x => !IBF.q || (x.brand + " " + x.line).toLowerCase().includes(IBF.q.toLowerCase()));
+  const perBrand = {}; items.forEach(x => perBrand[x.brand] = (perBrand[x.brand] || 0) + 1);
+  const sub = x => [perBrand[x.brand] > 1 && x.total_cents ? usd(x.total_cents) + " deal" : "", x.count > 1 ? x.count + " updates" : ""].filter(Boolean).join(" · ");
   const c = r.counts || {};
   $("#view").innerHTML = `
     <div class="row between wrapx" style="gap:8px"><h1>Inbox</h1>
@@ -58,27 +61,29 @@ async function inboxSplit() {
       <input id="ib-q" placeholder="Search the inbox" value="${esc(IBF.q)}" style="max-width:260px"></div>
     <div class="split">
       <div class="card" style="padding:6px">${items.length ? items.map(x => `
-        <div class="inbox-row ${x.unread ? "unread" : ""} ${IBF.sel === x.deal ? "sel" : ""}" data-ev="${x.event_id}" data-deal="${x.deal}" tabindex="0" role="button">
+        <div class="inbox-row ${x.unread ? "unread" : ""} ${IBF.sel === x.deal ? "sel" : ""}" data-ids="${x.unread_ids.join(",")}" data-deal="${x.deal}" tabindex="0" role="button">
           <span class="ic">${I(x.icon)}</span>
           <div class="grow"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
             <div class="small">${esc(x.line)}</div>
+            ${sub(x) ? `<div class="tiny muted">${esc(sub(x))}</div>` : ""}
             ${x.change ? `<div class="row" style="gap:6px;margin-top:6px"><button class="btn small primary" data-cc="${x.change}" data-cd="${x.deal}" data-a="confirm">${I("check")} Confirm</button>
               <button class="btn small" data-cc="${x.change}" data-cd="${x.deal}" data-a="reject">Reject</button></div>` : ""}</div>
-          ${x.unread ? '<span class="udot" aria-label="unread"></span>' : ""}</div>`).join("")
+          ${x.unread ? `<span class="udot" aria-label="${x.unread} unread"></span>` : ""}</div>`).join("")
         : emptyState("inbox", "Nothing new", "Messages, change cards and PayPal updates show up here.")}</div>
       <div class="pane hide-mobile" id="ib-pane">${IBF.sel ? "" : `<div class="card">${emptyState("messages-square", "Pick a conversation", "Its chat opens here.")}</div>`}</div>
     </div>`;
   $$(".chips button").forEach(b => b.onclick = () => { IBF.filter = b.dataset.f; inboxSplit(); });
   let tq; $("#ib-q").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { IBF.q = e.target.value; inboxSplit().then(() => $("#ib-q").focus()); }, 250); };
   if ($("#allread")) $("#allread").onclick = e => busy(e.currentTarget, async () => {
-    await api("/api/studio/inbox/read", { body: { event_ids: r.items.filter(i => i.unread).map(i => i.event_id) } }); inboxSplit(); });
+    await api("/api/studio/inbox/read", { body: { event_ids: (r.threads || []).flatMap(t => t.unread_ids) } }); inboxSplit(); });
   $$("[data-cc]").forEach(b => b.onclick = ev => { ev.stopPropagation(); busy(b, async () => {
     let reason = null;
     try { await api(`/api/deals/${b.dataset.cd}/changes/${b.dataset.cc}/${b.dataset.a}`, { body: { reason } }); toast(b.dataset.a === "confirm" ? "Confirmed" : "Rejected"); inboxSplit(); }
     catch (e) { if (/override/.test(e.message)) { location.href = `/studio/deals/${b.dataset.cd}`; } else toast(e.message, "bad"); }
   }); });
   $$(".inbox-row[data-deal]").forEach(row => row.onclick = async () => {
-    try { await api("/api/studio/inbox/read", { body: { event_ids: [+row.dataset.ev] } }); } catch {}
+    const ids = row.dataset.ids ? row.dataset.ids.split(",").map(Number) : [];
+    if (ids.length) { try { await api("/api/studio/inbox/read", { body: { event_ids: ids } }); } catch {} }  // opening the deal reads all its updates
     if (matchMedia("(min-width: 1025px)").matches) { IBF.sel = row.dataset.deal; await inboxSplit(); openPane(row.dataset.deal); }
     else location.href = `/studio/deals/${row.dataset.deal}`;
   });

@@ -39,17 +39,23 @@ function badge(n) { Shell.setBadge(n); }
 
 async function inbox() {
   const r = await api("/api/brand/inbox"); badge(r.unread);
+  // one row per deal: the newest update, how many updates, and all its unread ones (items are newest first)
+  const T = []; const by = {};
+  r.items.forEach(x => { let t = by[x.deal]; if (!t) { t = by[x.deal] = { ...x, count: 0, unread_ids: [] }; T.push(t); }
+    t.count++; if (x.unread) t.unread_ids.push(x.event_id); });
   $("#view").innerHTML = `<h1>Inbox</h1><p class="muted small">Updates from creators on your deals, newest first.</p>
-    ${r.items.length ? `<div class="card" style="padding:6px">${r.items.map(x => `
-      <a class="inbox-row ${x.unread ? "unread" : ""}" href="#" data-ev="${x.event_id}" data-deal="${x.deal}">
+    ${T.length ? `<div class="card" style="padding:6px">${T.map(x => `
+      <a class="inbox-row ${x.unread_ids.length ? "unread" : ""}" href="#" data-ids="${x.unread_ids.join(",")}" data-deal="${x.deal}">
         <span class="ic">${x.line.includes("held") || x.line.includes("Payment") || x.line.includes("Refund") ? "<i data-lucide='wallet' aria-hidden='true'></i>" : "<i data-lucide='message-circle' aria-hidden='true'></i>"}</span>
-        <div class="grow"><div class="row between"><b>${esc(x.creator)}</b><span class="tiny muted">${ago(x.at)}</span></div><div class="small">${esc(x.line)}</div></div>
-        ${x.unread ? '<span class="udot"></span>' : ""}</a>`).join("")}</div>`
+        <div class="grow"><div class="row between"><b>${esc(x.creator)}</b><span class="tiny muted">${ago(x.at)}</span></div><div class="small">${esc(x.line)}</div>
+          ${x.count > 1 ? `<div class="tiny muted">${x.count} updates</div>` : ""}</div>
+        ${x.unread_ids.length ? '<span class="udot"></span>' : ""}</a>`).join("")}</div>`
       : `<div class="empty"><div class="ic"><i data-lucide='inbox' aria-hidden='true'></i></div>Nothing yet. Find a creator and request a deal.<br><br><a class="btn primary" href="/creators">Find creators</a></div>`}`;
   const D = (await api("/api/brand/deals")).deals;
   $$(".inbox-row").forEach(a => a.onclick = async e => {
     e.preventDefault();
-    try { await api("/api/brand/inbox/read", { body: { event_ids: [+a.dataset.ev] } }); } catch {}
+    const ids = a.dataset.ids ? a.dataset.ids.split(",").map(Number) : [];
+    if (ids.length) { try { await api("/api/brand/inbox/read", { body: { event_ids: ids } }); } catch {} }
     const d = D.find(x => x.id === a.dataset.deal); if (d && d.go) location.href = d.go;
   });
 }

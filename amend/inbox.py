@@ -98,10 +98,35 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
     unread = sum(x["unread"] for x in out)
     counts = {"all": len(out), "needs_me": sum(x["category"] == "needs_me" for x in out),
               "messages": sum(x["category"] == "messages" for x in out), "money": sum(x["category"] == "money" for x in out)}
+    threads = _threads(out, deals, flt)
     if flt != "all":
         out = [x for x in out if x["category"] == flt]
     return {"items": out[page * PAGE:(page + 1) * PAGE], "more": len(out) > (page + 1) * PAGE, "unread": unread,
-            "counts": counts}
+            "counts": counts, "threads": threads}
+
+
+def _threads(out: list[dict], deals: dict, flt: str) -> list[dict]:
+    """One row per deal (newest activity first): the latest line, how many updates, which are unread, and any change
+    card that can be confirmed right from the Inbox. A deal shows under a filter if any of its updates match it."""
+    by: dict[str, dict] = {}
+    for x in out:  # out is newest first
+        t = by.get(x["deal"])
+        if not t:
+            d = deals[x["deal"]]
+            t = by[x["deal"]] = {"deal": x["deal"], "brand": x["brand"], "icon": x["icon"], "line": x["line"], "at": x["at"],
+                                 "event_id": x["event_id"], "count": 0, "unread": 0, "unread_ids": [], "event_ids": [], "change": None,
+                                 "categories": set(), "total_cents": d["total_cents"], "status": d["status"]}
+        t["count"] += 1
+        t["event_ids"].append(x["event_id"])
+        if x["unread"]:
+            t["unread"] += 1; t["unread_ids"].append(x["event_id"])
+        t["categories"].add(x["category"])
+        if x["change"] and not t["change"]:
+            t["change"] = x["change"]
+    rows = [t for t in by.values() if flt == "all" or flt in t["categories"]]
+    for t in rows:
+        t["categories"] = sorted(t["categories"])
+    return sorted(rows, key=lambda t: t["at"], reverse=True)  # newest activity first (by time, not by insert order)
 
 
 def mark_read(db: Database, party_id: str, event_ids: list[int]) -> int:
