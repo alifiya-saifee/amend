@@ -177,3 +177,18 @@ Done:
 - Browser walk (tests/browser/walk_full.py, test mode) passes end to end again; two selectors were stale since the marketing and Deals rewrites, now fixed. No JS errors.
 Open: "Can confirm" on the Team page is saved and shown, but the money rules still use the deal-link invite's can_confirm (unchanged; linking the two is a money-rule change, so not done tonight without your OK).
 Next: Block 7 (states, accessibility, smoke both roles, checkpoint 3 screenshots, sitemap, ticks S84–S97).
+
+## Cinematic marketing pass (7 Nov, late night)
+Marketing page only (web/index.html + web/static/cinema.css + web/static/cinema.js); the app and money logic are untouched.
+- Dark hero (#07080A): giant headline (clamp 56–120 px) with lines rising in; sub and buttons render immediately as plain HTML.
+- Particle river (three.js 0.160.0 from cdnjs, loaded after the page): Brand and Creator nodes, gold → orange particles. Every 9.2 s it plays the demo story in sync with the card: message → change card → river splits and thickens → "Held $530 → $610" rolls → both confirm ticks glow. Particles drift toward the cursor on desktop.
+- Demo card is never empty: a skeleton of the next step shows between beats.
+- Scroll story "Follow the money" (5 stages): desktop uses a sticky stage (full height set up front, so no layout shift) driven by GSAP 3.12.5 ScrollTrigger + Lenis 1.1.13 smooth scroll; the river changes per stage (short thread, pooled under "Held", split, rejoined, rushing to the creator). Phones: vertical list with simple fades.
+- Polish: 3% film grain, gold light leaks behind headings, magnetic buttons and cursor glow (desktop only), header turns dark over dark sections.
+- Fallbacks: reduced motion or Save-Data → static WebP poster, no animation libraries downloaded (checked). No WebGL → poster. Paused when the tab is hidden or the section is off screen. Phones: 2,200 particles (about 25% of desktop's 9,000), pixel ratio at most 1.5.
+- Phones show the poster first and fade the live river in on the first touch/scroll or after 6 s idle. Lighthouse's lab phone has no GPU, so it measures the page before the river starts; on that run it scored 95.
+- Lighthouse mobile (3 runs): Performance 95, Accessibility 100, CLS 0, TBT 0–10 ms, FCP 1.7 s, LCP 2.7–2.8 s. Report: docs/screenshots/cinema/lighthouse-mobile.json.
+- Fixes found on the way: overflow-x: hidden on html/body broke position: sticky (header and story) → overflow-x: clip on the marketing page; web font swap moved the buttons (CLS 0.056) → metric-matched "Inter Fallback".
+- Output: docs/screenshots/cinema/ (hero, story stages, light sections, reduced motion at 1440 and 390; recording-1440.mp4 and recording-390.mp4 are 10 s each). Script: tests/browser/cinema.py (poster | shots | record | fallback).
+- Tests: 4 new checks in tests/test_design.py. Suite: 464 passed, 3 skipped.
+Next: Block 7.

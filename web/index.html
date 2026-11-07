@@ -2,12 +2,14 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Amend · Brand deals change. Now the money does too.</title>
-<meta name="theme-color" content="#FAFAF7">
+<meta name="theme-color" content="#07080A">
 <meta name="description" content="Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm.">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/cinema.css">
+<script src="/static/app.js" defer></script><script src="/static/cinema.js" defer></script>
 </head><body class="marketing">
-<header class="top">
+<div class="grain" aria-hidden="true"></div>
+<header class="top on-dark">
   <a class="logo" href="/"><span class="mark"><i data-lucide="repeat-2" aria-hidden="true"></i></span>Amend</a>
   <nav class="mk-nav" aria-label="Main">
     <a href="/#how">Product</a><a href="/#creators">For creators</a><a href="/#brands">For brands</a><a href="/pricing">Pricing</a><a href="/faq">FAQ</a>
@@ -18,36 +20,81 @@
 </header>
 
 <main>
-  <section class="mk hero-grid">
-    <div>
-      <div class="eyebrow">For creators and brands · Payments by PayPal (sandbox demo)</div>
-      <h1 class="hero-h">Brand deals change. Now the money does too.</h1>
-      <p class="lead">Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm, and nothing is paid out until the delivery matches the deal.</p>
-      <div class="cta-row">
-        <a class="btn primary lg" href="/signup?kind=creator">I'm a creator: start free</a>
-        <a class="btn lg" href="/creators">I'm a brand: find creators</a>
+  <section class="cine-hero dark-zone" id="hero">
+    <div class="cine-canvas" id="hero-canvas" aria-hidden="true"></div>
+    <div class="cine-vignette" aria-hidden="true"></div>
+    <div class="cursor-glow" aria-hidden="true"></div>
+    <div class="mk hero-grid">
+      <div>
+        <div class="eyebrow">For creators and brands · Payments by PayPal (sandbox demo)</div>
+        <h1 class="cine-h" aria-label="Brand deals change. Now the money does too."><span class="ln" aria-hidden="true"><span style="--i:0">Brand deals change.</span></span><span class="ln" aria-hidden="true"><span style="--i:1">Now the money <span class="gold" style="white-space:nowrap">does too.</span></span></span></h1>
+        <p class="lead">Send one link. The brand's payment is held by PayPal. Every change in the chat becomes a priced card you both confirm, and nothing is paid out until the delivery matches the deal.</p>
+        <div class="cta-row">
+          <a class="btn primary lg magnetic" href="/signup?kind=creator">I'm a creator: start free</a>
+          <a class="btn lg magnetic" href="/creators">I'm a brand: find creators</a>
+        </div>
+        <p style="margin-top:16px"><a href="/try">Try the live demo <i data-lucide="arrow-right" aria-hidden="true"></i></a></p>
       </div>
-      <p style="margin-top:16px"><a href="/try">Try the live demo <i data-lucide="arrow-right" aria-hidden="true"></i></a></p>
-    </div>
-    <div class="demo" id="demo" aria-label="Animated example: a chat message becomes a change card, both sides confirm, and the held money updates">
-      <div class="dtop"><span><b>Dune Roast Coffee × Sara Malik</b></span>
-        <span class="held">Held <span class="hv-old">$530</span><span class="hv-new">$610</span></span></div>
-      <div class="msg s1"><span class="tiny" style="color:#5B616B">Nadia · brand</span><br>Can we add one more Story and post Monday?</div>
-      <div class="dcard s2">
-        <div style="display:flex;gap:8px;align-items:center;font-weight:700"><i data-lucide="sparkles" aria-hidden="true"></i> Change detected</div>
-        <div class="dline"><span>+ 1 Story set <span style="color:#5B616B">(Sara's price list)</span></span><b>+$80</b></div>
-        <div class="dline"><span>Posting date Fri → Mon</span><b>free</b></div>
-        <div class="dline" style="color:#5B616B"><span>3 items unchanged</span><span></span></div>
-        <div class="ticks s3"><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Nadia confirmed</span><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Sara confirmed</span></div>
+      <div class="demo" id="demo" aria-label="Animated example: a chat message becomes a change card, both sides confirm, and the held money updates">
+        <div class="dtop"><span><b>Dune Roast Coffee × Sara Malik</b></span>
+          <span class="held">Held <span class="hv-old">$530</span><span class="hv-new">$610</span></span></div>
+        <div class="msg s1"><span class="tiny" style="color:#5B616B">Nadia · brand</span><br>Can we add one more Story and post Monday?</div>
+        <div class="slot">
+          <div class="skel" aria-hidden="true"><div style="display:flex;gap:8px;align-items:center"><i data-lucide="scan-text" aria-hidden="true"></i> Reading the chat for changes…</div>
+            <div class="bar w80"></div><div class="bar w60"></div><div class="bar w40"></div></div>
+          <div class="dcard s2">
+            <div style="display:flex;gap:8px;align-items:center;font-weight:700"><i data-lucide="sparkles" aria-hidden="true"></i> Change detected</div>
+            <div class="dline"><span>+ 1 Story set <span style="color:#5B616B">(Sara's price list)</span></span><b>+$80</b></div>
+            <div class="dline"><span>Posting date Fri → Mon</span><b>free</b></div>
+            <div class="dline" style="color:#5B616B"><span>3 items unchanged</span><span></span></div>
+            <div class="tslot">
+              <div class="tskel" aria-hidden="true"><span class="pill-s"></span><span class="pill-s"></span><span>Waiting for both…</span></div>
+              <div class="ticks s3"><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Nadia confirmed</span><span class="tick"><i data-lucide="check-check" aria-hidden="true"></i> Sara confirmed</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="tiny" style="color:#5B616B;margin:12px 0 0">Made-up example · PayPal sandbox</p>
       </div>
-      <p class="tiny" style="color:#5B616B;margin:12px 0 0">Made-up example · PayPal sandbox</p>
+      <div class="river-band" id="hero-band" aria-hidden="true">
+        <div class="r-node brand"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Brand</span></div>
+        <div class="r-chip">Held by PayPal <b id="chip-amt">$530</b></div>
+        <div class="r-node creator"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Creator</span></div>
+      </div>
     </div>
+  </section>
+
+  <section class="story dark-zone" id="story" aria-labelledby="story-h">
+    <div class="cursor-glow" aria-hidden="true"></div>
+    <div class="story-stage">
+      <div class="story-canvas" id="story-canvas" aria-hidden="true"></div>
+      <div class="mk story-head"><div class="eyebrow">One deal, start to finish</div>
+        <h2 class="mk-h2 leak" id="story-h" style="color:#fff">Follow the money.</h2></div>
+      <div class="mk"><ol class="story-list">
+        <li data-stage="0"><div class="n"><i data-lucide="link" aria-hidden="true"></i> 1 · Link sent</div><h3>One link, your prices.</h3>
+          <p>Sara sends Dune Roast her deal link. The brief is priced from her own list, with the words it came from.</p></li>
+        <li data-stage="1"><div class="n"><i data-lucide="lock" aria-hidden="true"></i> 2 · Held by PayPal</div><h3>$530 held. Nothing taken.</h3>
+          <p>Nadia pays with PayPal. The money is reserved, not collected, and Sara can start work.</p></li>
+        <li data-stage="2"><div class="n"><i data-lucide="git-branch" aria-hidden="true"></i> 3 · Change confirmed</div><h3>One more Story? +$80.</h3>
+          <p>The chat becomes a priced change card. Both confirm, and PayPal now holds $610.</p></li>
+        <li data-stage="3"><div class="n"><i data-lucide="scan-eye" aria-hidden="true"></i> 4 · Delivery matches</div><h3>Checked against the deal.</h3>
+          <p>Amend compares the post with the latest confirmed version. No match, no release.</p></li>
+        <li data-stage="4"><div class="n"><i data-lucide="send" aria-hidden="true"></i> 5 · Paid out</div><h3>Collected and paid out.</h3>
+          <p>The money reaches Sara, and every dollar in the ledger shows the words behind it.</p></li>
+      </ol></div>
+      <div class="story-band" id="story-band" aria-hidden="true">
+        <div class="r-node brand"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Brand</span></div>
+        <div class="r-chip" id="story-chip">Deal link sent</div>
+        <div class="r-node creator"><span class="ok"><i data-lucide="check" aria-hidden="true"></i></span><span class="dot"></span><span class="lbl">Creator</span></div>
+      </div>
+      <div class="story-rail" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <p class="mk tiny" style="color:#9AA0A8;position:relative;z-index:2;margin-top:12px">Made-up example · PayPal sandbox</p>
   </section>
 
   <section class="section alt" id="problem">
     <div class="mk">
       <div class="eyebrow">The problem</div>
-      <h2 class="mk-h2">Deals change after the money is agreed. Payments don't.</h2>
+      <h2 class="mk-h2 leak">Deals change after the money is agreed. Payments don't.</h2>
       <div class="grid3" style="margin-top:32px">
         <div class="statcard"><div class="big">48%</div><p>of creators were paid late in a year.</p>
           <a class="small" href="https://www.lumanu.com/blog/insights-from-500-influencers-on-their-payment-experience" target="_blank" rel="noopener">Source: Lumanu, survey of 500+ creators</a></div>
@@ -62,7 +109,7 @@
   <section class="section" id="how">
     <div class="mk">
       <div class="eyebrow">How it works</div>
-      <h2 class="mk-h2">Four steps. Money only moves when you both agree.</h2>
+      <h2 class="mk-h2 leak">Four steps. Money only moves when you both agree.</h2>
       <div class="how" style="margin-top:32px">
         <div><div class="shot"><img src="/static/img/how-link.png" alt="A creator's public page with prices" loading="lazy"></div>
           <h3>1 · Send your link</h3><p class="muted">Your prices, your terms, one link for your bio or a DM. The brand needs no account.</p></div>
@@ -102,7 +149,7 @@
   <section class="section" id="trust">
     <div class="mk">
       <div class="eyebrow">Trust and safety</div>
-      <h2 class="mk-h2">How we keep money safe</h2>
+      <h2 class="mk-h2 leak">How we keep money safe</h2>
       <div class="grid2" style="margin-top:32px;align-items:center">
         <ul class="checklist">
           <li><i data-lucide="lock" aria-hidden="true"></i> <span><b>Money held by PayPal</b> (sandbox demo). Amend never touches card details.</span></li>
@@ -124,7 +171,7 @@
   <section class="section alt" id="pricing">
     <div class="mk" style="max-width:760px">
       <div class="eyebrow">Pricing</div>
-      <h2 class="mk-h2">Free during the beta</h2>
+      <h2 class="mk-h2 leak">Free during the beta</h2>
       <div class="card" style="margin-top:24px">
         <div class="row between wrapx"><div><h3 style="margin:0">Beta</h3><p class="muted small" style="margin:0">Everything in Amend, for creators and brands</p></div><span class="statcard" style="padding:8px 16px;border:0"><span class="big" style="font-size:32px">$0</span></span></div>
         <p class="small" style="margin-top:16px"><span class="pill held">Planned</span> After the beta: a small platform fee per completed deal, paid from the deal. The exact fee will be announced before it starts. PayPal's own fees apply as usual.</p>
@@ -135,7 +182,7 @@
   <section class="section" id="faq">
     <div class="mk faq" style="max-width:820px">
       <div class="eyebrow">FAQ</div>
-      <h2 class="mk-h2">Questions</h2>
+      <h2 class="mk-h2 leak">Questions</h2>
       <details><summary>Is my money safe? <i data-lucide="plus" aria-hidden="true"></i></summary><p>The brand's payment is held by PayPal (an authorisation), not by Amend. Money is collected only when both sides approve the release, and only after the delivery check passes. This is a sandbox demo: no real money moves.</p></details>
       <details><summary>What if the brand cancels? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Amend proposes a fair split from the evidence (draft uploaded, approved, posted) and the creator's own cancellation terms, with the maths shown and a second-opinion check. Both approve; PayPal collects the creator's share and releases the rest.</p></details>
       <details><summary>What if the creator doesn't deliver? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Nothing is released until the delivery matches the latest confirmed deal. Missing items become cards: remove them from the deal (and collect less) or wait for delivery.</p></details>
@@ -147,7 +194,7 @@
   </section>
 
   <section class="mk" style="padding-bottom:64px">
-    <div class="band"><h2 class="mk-h2">Send your first deal link in 2 minutes</h2>
+    <div class="band"><h2 class="mk-h2 leak">Send your first deal link in 2 minutes</h2>
       <p style="color:#C9CCD1">Set your prices, share your link, and let PayPal hold the money.</p>
       <a class="btn primary lg" href="/signup?kind=creator">Start free</a></div>
   </section>
@@ -161,7 +208,7 @@
 <script>
 (() => {
   const demo = document.getElementById("demo");
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) demo.classList.add("play");
+  window.CINE_REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;  // cinema.js plays the demo beats only without reduced motion
   const sec = { "/pricing": "pricing", "/faq": "faq" }[location.pathname];
   if (sec) setTimeout(() => document.getElementById(sec).scrollIntoView(), 50);
   document.getElementById("mk-menu").onclick = () => sheet('<div class="stack"><a class="btn block" href="/#how">Product</a><a class="btn block" href="/#creators">For creators</a>' +
