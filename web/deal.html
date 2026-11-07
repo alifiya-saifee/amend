@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal · Amend</title><meta name="theme-color" content="#0a0d13">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body>
+<header class="top">
+  <a class="back" id="back" href="/studio" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
+  <span class="title" id="ttl">Deal</span><span class="chip-me" id="me" hidden></span>
+</header>
+<div class="strip" id="strip" hidden></div>
+<main class="wrap" id="view"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></main>
+<script>
+const parts = location.pathname.split("/");
+const IS_BRAND = parts[1] === "d";
+const KEY = IS_BRAND ? parts[2] : parts[3];
+const Q = new URLSearchParams(location.search);
+let V = null, lastBrief = "";
+
+const url = (p = "") => IS_BRAND ? `/api/d/${KEY}${p}` : `/api/deals/${KEY}${p}`;
+
+async function load() {
+  try { V = await api(url()); }
+  catch (e) {
+    if (!IS_BRAND && e.status === 401) { location.href = "/login"; return; }
+    const kind = e.data && e.data.kind;
+    $("#view").innerHTML = `<div class="empty"><div class="ic">${kind === "expired" || kind === "revoked" ? "⌛" : "🔎"}</div>
+      <h2>${kind === "expired" ? "This deal link expired" : kind === "revoked" ? "This link was switched off" : "Link not found"}</h2>
+      <p>${kind ? "Ask the creator for a new one." : esc(e.message)}</p></div>`;
+    return;
+  }
+  render();
+}
+
+function header() {
+  const d = V.deal;
+  $("#ttl").textContent = IS_BRAND ? `Deal with ${V.creator.name}` : `${d.brand_org}`;
+  if (IS_BRAND) { $("#me").hidden = false; $("#me").textContent = `${V.me.name} · ${V.me.org}`; }
+  else { $("#back").hidden = false; $("#logo").hidden = true; }
+  const strip = $("#strip");
+  if (d.status !== "draft") {
+    strip.hidden = false;
+    strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Draft"} · <b>${usd(V.total_cents)}</b></span>
+      <span>${V.hold ? moneyPill(V.hold.status) : dealPill(d.status)} <span class="muted">▾</span></span>`;
+    strip.onclick = dealSheet;
+  }
+}
+
+function linesHtml(editable = false) {
+  return `<div class="list">${V.terms.map(t => `
+    <div class="line">
+      <div class="grow"><b>${esc(t.name)}</b>${t.qty > 1 ? ` × ${t.qty}` : ""}
+        ${editable && t.min_cents != null && t.max_cents != null && t.min_cents !== t.max_cents ? `
+          <div class="row" style="margin-top:6px"><span class="small muted">$</span>
+            <input class="price-in" data-term="${t.id}" type="number" min="${t.min_cents / 100}" max="${t.max_cents / 100}" step="1" value="${t.unit_cents / 100}" style="max-width:110px;padding:8px">
+            <span class="small muted">standard ${usd(t.standard_cents)} · ${usd(t.min_cents)}–${usd(t.max_cents).slice(1)}</span></div>
+          <div class="err" data-err="${t.id}" hidden></div>` : ""}
+      </div>
+      <div class="amt">${usd(t.amount_cents)}<div class="aed">${t.aed}</div></div>
+      ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}">❝</button>` : ""}
+    </div>`).join("")}
+    <div class="total"><span>Total</span><span>${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span></span></div></div>`;
+}
+function bindQuotes(root = document) {
+  $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));
+}
+function extrasHtml() {
+  const d = V.deal; let h = "";
+  if (d.deadline) h += `<p class="small">📅 Post: <b>${esc(d.deadline)}</b></p>`;
+  if (d.done_means && d.done_means.length) h += `<p class="small muted" style="margin-bottom:4px">What done means</p><ul class="small" style="margin-top:0">${d.done_means.map(x => `<li>${esc(x.value)}</li>`).join("")}</ul>`;
+  if (d.not_on_list && d.not_on_list.length) h += `<div class="banner wait small" style="margin-top:8px"><b>Not on ${esc(V.creator.name.split(" ")[0])}'s price list</b> (not priced):
+    ${d.not_on_list.map(x => `<div>• ${esc(x.what)} <span class="muted">“${esc(x.quote)}”</span></div>`).join("")}</div>`;
+  return h;
+}
+function dealSheet() {
+  sheet(`<h2>The deal</h2>${linesHtml()}${extrasHtml()}
+    ${V.hold && V.hold.expires_at ? `<p class="small muted">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}</p>` : ""}
+    <button class="btn block" onclick="closeSheet()">Close</button>`, { onOpen: sh => bindQuotes(sh) });
+}
+
+function render() {
+  header();
+  const d = V.deal;
+  if (IS_BRAND && !V.me.confirmed_link) return whoSheet();
+  if (IS_BRAND) brand(d); else creator(d);
+  bindQuotes();
+  if (Q.get("held")) { toast("Held ✅"); history.replaceState({}, "", location.pathname); }
+  if (Q.get("pay_cancelled") || Q.get("pay_error")) {
+    toast(Q.get("pay_error") === "paypal" ? "PayPal didn't answer. Nothing was charged." : "Payment not finished", "bad", () => $("#pay")?.click());
+    history.replaceState({}, "", location.pathname);
+  }
+}
+
+/* ---------- brand side (3.8) ---------- */
+function whoSheet() {
+  $("#view").innerHTML = `<div class="empty"><div class="ic">👋</div>Confirm who you are to open this deal.</div>`;
+  sheet(`<h2>This link is for <b>${esc(V.me.name)}</b> at ${esc(V.me.org)}.</h2><p>Is that you?</p>
+    <div class="stack"><button class="btn primary block" id="yes">Yes, that's me</button><button class="btn block" id="no">No</button></div>
+    <p class="hint">Every deal link belongs to one person. That's how Amend knows who said what.</p>`);
+  $("#yes").onclick = e => busy(e.currentTarget, async () => { await api(url("/whoami"), { body: { is_me: true } }); closeSheet(); load(); });
+  $("#no").onclick = e => busy(e.currentTarget, async () => {
+    await api(url("/whoami"), { body: { is_me: false } });
+    $("#sheet").innerHTML = `<div class="grab"></div><h2>This link is ${esc(V.me.name)}'s</h2>
+      <p>Not ${esc(V.me.name)}? Ask ${esc(V.creator.name.split(" ")[0])} for your own link, or ask ${esc(V.me.name)} to invite you.</p>`;
+  });
+}
+
+function brand(d) {
+  const first = V.creator.name.split(" ")[0];
+  if (d.status === "draft") {
+    $("#view").innerHTML = `
+      <div class="card"><div class="row"><div class="avatar">${initials(V.creator.name)}</div>
+        <div class="grow"><b>${esc(V.creator.name)}</b> <span class="muted">@${esc(V.creator.handle)}</span>
+        <div class="small muted">${(V.creator.followers || 0).toLocaleString()} followers · ${esc(V.creator.niche || "")}</div></div></div>
+        <details style="margin-top:10px"><summary class="muted small">${esc(first)}'s price list</summary><div class="list">
+          ${V.price_list.map(p => `<div class="line"><div class="grow">${esc(p.name)}${p.rules && p.rules.note ? `<div class="tiny muted">${esc(p.rules.note)}</div>` : ""}</div>
+            <div class="amt small">${p.standard_cents == null ? "Terms" : usd(p.standard_cents)}</div></div>`).join("")}</div></details></div>
+      <h2 style="margin-top:18px">What do you need?</h2>
+      <textarea id="brief" maxlength="2000" placeholder="e.g. 1 Reel showing our cold brew at home, plus 1 Story set. Post Friday. Mention 'new cold brew'. #ad.">${esc(lastBrief)}</textarea>
+      <div class="hint" id="cnt">0 / 2000</div><div id="ai-state"></div>
+      <button class="btn primary block" id="draft" style="margin-top:12px">Draft my deal</button>`;
+    const cnt = () => $("#cnt").textContent = `${$("#brief").value.length} / 2000`; cnt();
+    $("#brief").oninput = cnt;
+    $("#draft").onclick = e => sendBrief(e.currentTarget, "POST");
+    return;
+  }
+  if (d.status === "offered") {
+    $("#view").innerHTML = `
+      <div class="card gold"><h2>Your draft deal</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="banner wait" style="margin-top:12px">⏳ Waiting for ${esc(first)} to accept</div>
+      <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>
+      <p class="hint">Prices come from ${esc(first)}'s own price list. The AI only picks the items; it never sets prices.</p>`;
+    $("#edit").onclick = () => editBrief();
+    return;
+  }
+  if (d.status === "accepted") {
+    const h = V.hold;
+    const expired = h && h.status === "expired";
+    const waiting = h && h.status === "sent" && h.approve_url;
+    $("#view").innerHTML = `
+      <div class="banner ok">${esc(first)} accepted ✅ · Version ${d.version}</div>
+      <div class="card gold" style="margin-top:12px">
+        <h2>${expired ? "Hold expired, hold again" : `Hold ${usd(V.total_cents)} with PayPal`}</h2>
+        <p class="small">PayPal reserves the money. It is <b>not</b> taken now. It's collected only when the delivery matches this deal. If the deal is cancelled, the unused part is released.</p>
+        <p class="small muted">A PayPal hold lasts up to 29 days (sandbox check, 7 Nov).</p>
+        <button class="btn primary block" id="pay">${waiting ? "Continue at PayPal" : `Pay with PayPal: hold ${usd(V.total_cents)}`}</button>
+      </div>
+      <details class="card" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>`;
+    $("#pay").onclick = e => busy(e.currentTarget, async () => {
+      try { const r = await api(url("/pay"), { method: "POST" }); if (r.approve_url) location.href = r.approve_url; else toast("PayPal didn't give a link. Try again.", "bad"); }
+      catch (er) { toast(er.message, "bad", () => $("#pay").click()); }
+    });
+    return;
+  }
+  if (d.status === "in_progress") {
+    $("#view").innerHTML = `
+      <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held by PayPal · ${esc(first)} can start work</div>
+      <p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}. Nothing is collected until the delivery matches the deal.</p>
+      <div class="card" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="empty"><div class="ic">💬</div>The deal chat opens here on Sunday: changes, confirmations and the ripple preview.</div>`;
+    return;
+  }
+  if (d.status === "cancelled") {
+    $("#view").innerHTML = `<div class="banner bad">This deal was ${d.decline_reason ? "declined" : "cancelled"}.</div>
+      ${d.decline_reason ? `<div class="card" style="margin-top:12px"><p class="muted small">${esc(first)}'s reason</p><blockquote>${esc(d.decline_reason)}</blockquote></div>` : ""}`;
+    return;
+  }
+  $("#view").innerHTML = `<div class="card">${dealPill(d.status)}${linesHtml()}</div>`;
+}
+
+function editBrief() {
+  lastBrief = V.deal.brief || "";
+  const sh = sheet(`<h2>Edit brief</h2><p class="small muted">A new draft is made. The old one is kept in the history.</p>
+    <textarea id="brief2" maxlength="2000">${esc(lastBrief)}</textarea><div id="ai-state2"></div>
+    <button class="btn primary block" id="redraft" style="margin-top:12px">Make a new draft</button>`);
+  $("#redraft").onclick = e => sendBrief(e.currentTarget, "PUT", "#brief2", "#ai-state2");
+}
+
+async function sendBrief(btn, method, sel = "#brief", stateSel = "#ai-state") {
+  const brief = $(sel).value.trim();
+  if (brief.length < 5) { toast("Write a few words about what you need", "bad"); return; }
+  lastBrief = brief;
+  await busy(btn, async () => {
+    $(stateSel).innerHTML = `<div class="card" style="margin-top:12px"><div class="small muted">Reading your brief… pricing from ${esc(V.creator.name.split(" ")[0])}'s list</div><div class="skeleton"></div><div class="skeleton"></div></div>`;
+    try {
+      const r = await api(url("/brief"), { method, body: { brief } });
+      closeSheet(); V = r;
+      if (r.ai && r.ai.fell_back) toast("Drafted with the backup model");
+      render();
+    } catch (e) {
+      if (e.data && e.data.draft_failed) {
+        $(stateSel).innerHTML = `<div class="banner bad" style="margin-top:12px">Couldn't draft it right now.</div>
+          <div class="row" style="margin-top:8px"><button class="btn grow" id="again">Try again</button><button class="btn grow" id="manual">Write the items myself</button></div>`;
+        $("#again").onclick = () => sendBrief(btn, method, sel, stateSel);
+        $("#manual").onclick = () => manualPicker(brief);
+      } else { $(stateSel).innerHTML = ""; toast(e.message, "bad"); }
+    }
+  });
+}
+
+function manualPicker(brief) {
+  const items = V.price_list.filter(p => p.kind !== "rule");
+  const sh = sheet(`<h2>Pick the items</h2><p class="small muted">Set a quantity, and copy the words from your brief that ask for it.</p>
+    <blockquote class="small">${esc(brief)}</blockquote>
+    ${items.map(p => `<div class="card" style="margin-top:8px"><div class="row between"><b>${esc(p.name)}</b><span>${usd(p.standard_cents)}</span></div>
+      <div class="row" style="margin-top:6px"><input type="number" min="0" max="10" value="0" data-qty="${esc(p.code)}" style="max-width:80px">
+      <input placeholder="exact words from your brief" data-quote="${esc(p.code)}" class="grow"></div></div>`).join("")}
+    <div class="err" id="mp-err" hidden></div><button class="btn primary block" id="mp-go" style="margin-top:12px">Make the draft</button>`);
+  $("#mp-go").onclick = e => busy(e.currentTarget, async () => {
+    const lines = items.map(p => ({ item_code: p.code, qty: +$(`[data-qty="${p.code}"]`, sh).value, quote: $(`[data-quote="${p.code}"]`, sh).value.trim() }))
+      .filter(l => l.qty > 0);
+    if (!lines.length) { $("#mp-err").textContent = "Pick at least one item"; $("#mp-err").hidden = false; return; }
+    try { V = await api(url("/manual"), { body: { brief, lines } }); closeSheet(); render(); }
+    catch (er) { $("#mp-err").textContent = er.message; $("#mp-err").hidden = false; }
+  });
+}
+
+/* ---------- creator side (3.9) ---------- */
+function creator(d) {
+  const brandName = V.brand.name;
+  if (d.status === "draft") {
+    const l = (V.links || []).filter(x => !x.revoked).slice(-1)[0];
+    $("#view").innerHTML = `<div class="banner wait">⏳ Waiting for ${esc(d.brand_org)}'s brief</div>
+      <div class="card" style="margin-top:12px"><h3>${esc(brandName)}'s link</h3>
+        ${l ? `<input readonly value="${esc(l.url)}" onclick="this.select()"><p class="tiny muted">Expires ${dateStr(l.expires_at)} · ${l.opened_at ? "opened " + ago(l.opened_at) : "not opened yet"}</p>
+        <div class="row"><button class="btn grow" id="cp">Copy link again</button><button class="btn danger grow" id="ex">Expire link</button></div>` : `<p class="muted">The link was switched off.</p>`}</div>`;
+    if (l) {
+      $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(l.url); } catch {} toast("Copied"); };
+      $("#ex").onclick = e => { if (confirm("Switch this link off? It stops working straight away.")) busy(e.currentTarget, async () => { await api(`/api/deal_links/${l.token}/expire`, { method: "POST" }); toast("Link switched off"); load(); }); };
+    }
+    return;
+  }
+  if (d.status === "offered") {
+    $("#view").innerHTML = `
+      <div class="banner gold">✍️ ${esc(brandName)} sent a brief. Check the draft and accept.</div>
+      <div class="card" style="margin-top:12px"><p class="small muted">The brief</p><blockquote class="small">${esc(d.brief || "")}</blockquote></div>
+      <div class="card gold" style="margin-top:12px"><h2>Draft deal</h2>${linesHtml(true)}${extrasHtml()}</div>
+      <div class="stack" style="margin-top:14px">
+        <button class="btn primary block" id="acc">Accept deal: version 1</button>
+        <button class="btn block" id="ask">Ask for changes</button>
+        <button class="btn danger block" id="dec">Decline</button></div>`;
+    $$(".price-in").forEach(inp => inp.onchange = async () => {
+      const err = $(`[data-err="${inp.dataset.term}"]`); err.hidden = true;
+      const cents = Math.round(+inp.value * 100);
+      if (cents < +inp.min * 100 || cents > +inp.max * 100) { err.textContent = `Must be between $${inp.min} and $${inp.max}`; err.hidden = false; $("#acc").disabled = true; return; }
+      try { V = await api(url(`/terms/${inp.dataset.term}`), { method: "PUT", body: { unit_cents: cents } }); render(); toast("Price updated"); }
+      catch (e) { err.textContent = e.message; err.hidden = false; $("#acc").disabled = true; }
+    });
+    $("#acc").onclick = () => {
+      sheet(`<h2>Accept version 1?</h2><p>You'll start work once <b>${usd(V.total_cents)}</b> is held by PayPal.</p>
+        <button class="btn primary block" id="acc2">Accept</button><button class="btn block" style="margin-top:8px" onclick="closeSheet()">Not yet</button>`);
+      $("#acc2").onclick = e => busy(e.currentTarget, async () => {
+        try { V = await api(url("/accept"), { method: "POST" }); closeSheet(); render(); toast("Accepted · version 1"); } catch (er) { toast(er.message, "bad"); }
+      });
+    };
+    $("#ask").onclick = () => toast("The deal chat for counter-offers opens on Sunday. For now, edit the prices above or decline with a reason.");
+    $("#dec").onclick = () => {
+      sheet(`<h2>Decline this deal</h2><label>Reason (the brand sees this)</label><textarea id="why" maxlength="500"></textarea>
+        <div class="err" id="why-err" hidden></div><button class="btn danger block" id="dec2" style="margin-top:12px">Decline</button>`);
+      $("#dec2").onclick = e => busy(e.currentTarget, async () => {
+        try { V = await api(url("/decline"), { body: { reason: $("#why").value } }); closeSheet(); render(); }
+        catch (er) { $("#why-err").textContent = er.message; $("#why-err").hidden = false; }
+      });
+    };
+    return;
+  }
+  if (d.status === "accepted") {
+    const h = V.hold;
+    $("#view").innerHTML = `
+      <div class="banner wait">⏳ <b>Work starts when money is held</b></div>
+      <p class="small muted" style="margin-top:8px">${h && h.status === "sent" ? `${esc(brandName)} is at PayPal now.` : h && h.status === "expired" ? "The hold expired. The brand needs to hold again." : `Waiting for ${esc(brandName)} to hold ${usd(V.total_cents)} with PayPal.`}</p>
+      <div class="card" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>`;
+    return;
+  }
+  if (d.status === "in_progress") {
+    $("#view").innerHTML = `
+      <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held · start work</div>
+      <p class="small muted" style="margin-top:8px">PayPal authorisation ${esc(V.hold.authorization || "")} · expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}</p>
+      <div class="card" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="empty"><div class="ic">💬</div>Chat, change cards and drafts arrive here on Sunday and Tuesday.</div>`;
+    return;
+  }
+  if (d.status === "cancelled") {
+    $("#view").innerHTML = `<div class="banner bad">Declined.</div>${d.decline_reason ? `<blockquote>${esc(d.decline_reason)}</blockquote>` : ""}`;
+    return;
+  }
+  $("#view").innerHTML = `<div class="card">${dealPill(d.status)}${linesHtml()}</div>`;
+}
+
+load();
+</script>
+</body></html>

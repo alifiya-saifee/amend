@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio · Amend</title><meta name="theme-color" content="#0a0d13">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body>
+<header class="top">
+  <a class="logo" href="/studio">Amend</a><span class="title" id="ttl">Deals</span>
+  <button class="chip-me" id="me" onclick="toggleMenu('mm')">…</button>
+  <div class="menu" id="mm"><button onclick="go('/studio/profile')">Profile</button><button onclick="signOut()">Sign out</button></div>
+</header>
+<main class="wrap" id="view"></main>
+<nav class="tabs">
+  <a href="/studio" data-tab="deals"><span class="ic">💬</span>Deals</a>
+  <a href="/studio/prices" data-tab="prices"><span class="ic">🏷️</span>Prices</a>
+  <a href="/studio/ledger" data-tab="ledger" class="off"><span class="ic">📒</span>Ledger · Tue</a>
+  <a href="/studio/profile" data-tab="profile"><span class="ic">👤</span>Profile</a>
+</nav>
+<script>
+let ME = null, dirty = false;
+const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+function go(path) { if (dirty && !confirm("Discard changes?")) return; dirty = false; history.pushState({}, "", path); route(); }
+$$(".tabs a").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
+window.onpopstate = route;
+window.onbeforeunload = () => dirty ? "unsaved" : undefined;
+
+async function route() {
+  const p = location.pathname;
+  const tab = p.startsWith("/studio/prices") ? "prices" : p.startsWith("/studio/profile") ? "profile" : p.startsWith("/studio/ledger") ? "ledger" : "deals";
+  $$(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
+  $("#ttl").textContent = { deals: "Deals", prices: "Prices", profile: "Profile", ledger: "Ledger" }[tab];
+  $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
+  try {
+    if (!ME) { ME = await api("/api/me"); $("#me").textContent = ME.display_name.split(" ")[0] + " ▾"; }
+    if (tab === "deals") await deals();
+    else if (tab === "prices") await prices();
+    else if (tab === "profile") profile();
+    else $("#view").innerHTML = `<div class="empty"><div class="ic">📒</div>The ledger arrives on Tuesday.</div>`;
+  } catch (e) {
+    if (e.status === 401) { location.href = "/login"; return; }
+    $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
+  }
+}
+
+/* ---------- Deals tab (3.4) ---------- */
+let F = { filter: "all", q: "", page: 0 };
+async function deals(append = false) {
+  const r = await api(`/api/studio/deals?filter=${F.filter}&q=${encodeURIComponent(F.q)}&page=${F.page}`);
+  const c = r.counts;
+  const html = r.deals.map(d => `
+    <a class="card dealcard" href="/studio/deals/${d.id}">
+      <div class="row">
+        <div class="avatar">${initials(d.brand)}</div>
+        <div class="grow"><div class="row between"><b>${esc(d.brand)}</b><span>${d.total_cents ? usd(d.total_cents) : ""}</span></div>
+        <div class="row wrapx" style="margin-top:4px">${dealPill(d.status)} ${moneyPill(d.money)} ${d.needs_me ? '<span class="pill waiting">Needs you</span>' : ""}</div>
+        <div class="tiny muted" style="margin-top:6px">${d.last ? esc(lastLine(d.last)) + " · " + ago(d.last.at) : ""}</div></div>
+      </div>
+    </a>`).join("");
+  if (append) { $("#deal-list").insertAdjacentHTML("beforeend", html); }
+  else {
+    $("#view").innerHTML = `
+      <h1>Hi ${esc(ME.display_name.split(" ")[0])} 👋</h1>
+      <p class="muted">${c.all} deal${c.all === 1 ? "" : "s"} · ${usd(r.held_cents)} held · ${c.needs_me} waiting for you</p>
+      <div class="chips" style="margin:12px 0">
+        ${[["all", "All"], ["needs_me", "Needs me"], ["waiting", "Waiting for brand"], ["held", "Held"], ["done", "Done"], ["cancelled", "Cancelled"]]
+          .map(([k, t]) => `<button data-f="${k}" class="${F.filter === k ? "on" : ""}">${t}${k === "needs_me" && c.needs_me ? `<span class="dot">${c.needs_me}</span>` : ""}</button>`).join("")}
+      </div>
+      <input id="q" placeholder="Search by brand or deal number" value="${esc(F.q)}">
+      <div id="deal-list" class="stack" style="margin-top:12px">${html}</div>
+      ${!r.deals.length ? (c.all ? `<div class="empty">No deals match.</div>` :
+        `<div class="empty"><div class="ic">🔗</div>No deals yet. Send a brand your deal link.<br><br><button class="btn primary" onclick="newDeal()">+ New deal link</button></div>`) : ""}
+      <div id="more"></div>
+      <button class="btn primary fab" onclick="newDeal()">+ New deal link</button>`;
+    $$(".chips button").forEach(b => b.onclick = () => { F.filter = b.dataset.f; F.page = 0; deals(); });
+    let t; $("#q").oninput = e => { clearTimeout(t); t = setTimeout(() => { F.q = e.target.value; F.page = 0; deals().then(() => { $("#q").focus(); }); }, 300); };
+  }
+  $("#more").innerHTML = r.more ? `<button class="btn block" id="lm">Load more</button>` : "";
+  if (r.more) $("#lm").onclick = () => { F.page++; deals(true); };
+}
+function lastLine(e) {
+  return ({ "deal.created": "Link made", "link.created": "Link made", "link.opened": "Brand opened the link", "brief.submitted": "Brand sent a brief",
+    "brief.edited": "Brand edited the brief", "deal.drafted": "Draft ready", "deal.accepted": "You accepted", "money.status": "Money updated",
+    "deal.status": "Status changed", "paypal.called": "PayPal updated", "paypal.returned": "Brand came back from PayPal",
+    "term.price_edited": "Price edited", "deal.declined": "Declined", "money.planned": "Hold planned", "approval.recorded": "Brand approved the hold",
+    "money.approved": "Hold approved" })[e.type] || e.type;
+}
+
+function newDeal() {
+  const sh = sheet(`<h2>New deal link</h2>
+    <form id="nd">
+      <label>Brand name *</label><input name="brand_org" required maxlength="80" placeholder="Dune Roast Coffee">
+      <label>Contact name *</label><input name="contact_name" required maxlength="60" placeholder="Nadia">
+      <label>Contact email (optional)</label><input name="contact_email" type="email" maxlength="120" placeholder="for notifications later">
+      <label>Link valid for</label>
+      <select name="days"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select>
+      <div class="err" id="nd-err" hidden></div>
+      <button class="btn primary block" style="margin-top:16px" id="nd-go">Create link</button>
+    </form>`);
+  $("#nd", sh).onsubmit = e => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target)); fd.days = +fd.days;
+    busy($("#nd-go"), async () => {
+      try {
+        const r = await api("/api/deals", { body: fd });
+        linkReady(r.link, fd.contact_name);
+        F = { filter: "all", q: "", page: 0 }; deals();
+      } catch (err) { $("#nd-err").textContent = err.message; $("#nd-err").hidden = false; }
+    });
+  };
+}
+function linkReady(link, who) {
+  sheet(`<h2>Link ready for ${esc(who)}</h2>
+    <p class="muted small">This link is only for ${esc(who)}. Amend uses it to know who said what.</p>
+    <input readonly value="${esc(link)}" id="lk" onclick="this.select()">
+    <div class="stack" style="margin-top:12px">
+      <button class="btn primary block" id="cp">Copy link</button>
+      ${navigator.share ? `<button class="btn block" id="sh">Share…</button>` : ""}
+      <button class="btn block" onclick="closeSheet()">Done</button>
+    </div>`);
+  $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Copied"); } catch { $("#lk").select(); document.execCommand("copy"); toast("Copied"); } };
+  if (navigator.share) $("#sh").onclick = () => navigator.share({ title: "Our deal on Amend", text: "Let's do it here, the money's protected for both of us.", url: link }).catch(() => {});
+}
+
+/* ---------- Prices tab (3.5) ---------- */
+let ITEMS = [];
+async function prices() {
+  ITEMS = (await api("/api/studio/prices")).items;
+  const L = ME.limits || {};
+  const rows = ITEMS.map(p => `
+    <div class="line" style="${p.active ? "" : "opacity:.45"}">
+      <div class="grow"><b>${esc(p.name)}</b> ${p.hidden ? '<span class="pill">Hidden</span>' : ""} ${p.active ? "" : '<span class="pill">Retired</span>'}
+        <div class="small muted">${priceText(p)} · ${esc(p.kind)}${p.rules && p.rules.note ? " · " + esc(p.rules.note) : ""}</div></div>
+      <button class="btn small" data-menu="${p.id}">⋯</button>
+    </div>`).join("");
+  $("#view").innerHTML = `
+    <section class="card"><div class="row between"><h2>Price list</h2><button class="btn small primary" onclick="editItem()">+ Add item</button></div>
+      <div class="list">${rows || `<div class="empty">No prices yet. Add your first item.</div>`}</div></section>
+    <section class="card" style="margin-top:14px"><h2>My limits</h2>
+      <p class="small muted">The AI and every change card check these and flag conflicts.</p>
+      <label>Minimum Reel price ($)</label><input id="minreel" type="number" min="0" step="1" value="${(L.min_reel_cents || 0) / 100}">
+      <label>Posting days</label><div class="daypick" id="days">${DAYS.map(d => `<button type="button" data-d="${d}" class="${(L.posting_days || []).includes(d) ? "on" : ""}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</div>
+      <div class="hint">Days switched off can't be posting days (e.g. Sat and Sun off = no weekend posting).</div>
+      <label>Banned claims</label><div id="claims"></div><input id="claim" placeholder="Type a claim and press Enter">
+      <label>Minimum notice for date changes (hours)</label><input id="notice" type="number" min="0" value="${L.min_notice_hours || 48}">
+      <button class="btn primary block" id="sv-lim" style="margin-top:14px">Save limits</button></section>
+    <section class="card" style="margin-top:14px"><h2>UAE Advertiser Permit</h2>
+      <label>Permit number</label><input id="pno" value="${esc(ME.permit_no || "")}" placeholder="AP-20260142">
+      <label>Expiry date</label><input id="pexp" type="date" value="${esc(ME.permit_expiry || "")}">
+      <div id="pbadge" style="margin-top:10px">${permitBadge(ME.permit)}</div>
+      <p class="hint">Format and expiry check only. Not verified with the UAE Media Council.</p>
+      <button class="btn primary block" id="sv-permit">Save and check format</button></section>`;
+  $$("[data-menu]").forEach(b => b.onclick = () => itemMenu(ITEMS.find(x => x.id === b.dataset.menu)));
+  let claims = [...(L.banned_claims || [])];
+  const drawClaims = () => $("#claims").innerHTML = claims.map((c, i) => `<span class="tag">${esc(c)}<button data-i="${i}" aria-label="Remove">×</button></span>`).join("");
+  drawClaims();
+  $("#claims").onclick = e => { if (e.target.dataset.i) { claims.splice(+e.target.dataset.i, 1); dirty = true; drawClaims(); } };
+  $("#claim").onkeydown = e => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); claims.push(e.target.value.trim()); e.target.value = ""; dirty = true; drawClaims(); } };
+  $$("#days button").forEach(b => b.onclick = () => { b.classList.toggle("on"); dirty = true; });
+  ["#minreel", "#notice", "#pno", "#pexp"].forEach(s => $(s).oninput = () => dirty = true);
+  $("#sv-lim").onclick = e => busy(e.currentTarget, async () => {
+    try {
+      ME.limits = await api("/api/studio/limits", { method: "PUT", body: { min_reel_cents: Math.round(+$("#minreel").value * 100),
+        posting_days: $$("#days button.on").map(b => b.dataset.d), banned_claims: claims, min_notice_hours: +$("#notice").value } });
+      dirty = false; toast("Limits saved");
+    } catch (err) { toast(err.message, "bad"); }
+  });
+  $("#sv-permit").onclick = e => busy(e.currentTarget, async () => {
+    try {
+      const r = await api("/api/studio/permit", { method: "PUT", body: { permit_no: $("#pno").value, permit_expiry: $("#pexp").value || null } });
+      ME.permit = r; ME.permit_no = $("#pno").value; ME.permit_expiry = $("#pexp").value; $("#pbadge").innerHTML = permitBadge(r); dirty = false; toast("Permit saved");
+    } catch (err) { toast(err.message, "bad"); }
+  });
+}
+function priceText(p) {
+  if (p.standard_cents == null) return "Rule";
+  const u = { month: " / month", change: " per change", revision: " each" }[p.unit] || "";
+  if (p.min_cents != null && p.max_cents != null && p.min_cents !== p.max_cents)
+    return `${usd(p.min_cents)}–${usd(p.max_cents).slice(1)} · standard ${usd(p.standard_cents)}${u}`;
+  return usd(p.standard_cents) + u;
+}
+function permitBadge(p) {
+  const ic = { ok: "✅", soon: "⚠️", expired: "❌", bad_format: "❌", missing: "➖", no_expiry: "⚠️" }[p.state] || "";
+  return `<span class="pill ${p.state === "ok" ? "collected" : p.state === "soon" || p.state === "no_expiry" ? "waiting" : "failed"}">${ic} ${esc(p.label)}</span>`;
+}
+function itemMenu(p) {
+  sheet(`<h3>${esc(p.name)}</h3><div class="stack">
+    <button class="btn block" id="m-edit">Edit</button>
+    <button class="btn block" id="m-hide">${p.hidden ? "Show again" : "Hide from brands"}</button>
+    <button class="btn danger block" id="m-retire">${p.active ? "Retire" : "Bring back"}</button>
+    <p class="hint">Retire, not delete: old deals still point to this item, so it's kept.</p></div>`);
+  $("#m-edit").onclick = () => editItem(p);
+  $("#m-hide").onclick = e => busy(e.currentTarget, async () => { await api("/api/studio/prices", { body: { ...p, hidden: !p.hidden } }); closeSheet(); toast("Saved"); prices(); });
+  $("#m-retire").onclick = e => busy(e.currentTarget, async () => { await api(`/api/studio/prices/${p.id}/retire`, { body: { active: !p.active } }); closeSheet(); toast(p.active ? "Retired" : "Back on the list"); prices(); });
+}
+function editItem(p = { name: "", kind: "deliverable", unit: "item", rules: {} }) {
+  const c = v => v == null ? "" : v / 100;
+  const sh = sheet(`<h2>${p.id ? "Edit item" : "Add item"}</h2><form id="it">
+    <label>Name *</label><input name="name" required maxlength="80" value="${esc(p.name)}">
+    <label>Type</label><select name="kind">${["deliverable", "extra", "rule"].map(k => `<option ${p.kind === k ? "selected" : ""} value="${k}">${k[0].toUpperCase() + k.slice(1)}</option>`).join("")}</select>
+    <div class="row"><div class="grow"><label>Minimum $</label><input name="min" type="number" min="0" step="1" value="${c(p.min_cents)}"></div>
+      <div class="grow"><label>Maximum $</label><input name="max" type="number" min="0" step="1" value="${c(p.max_cents)}"></div></div>
+    <label>Standard $ (the price the AI uses)</label><input name="std" type="number" min="0" step="1" value="${c(p.standard_cents)}">
+    <label>Unit</label><select name="unit">${[["item", "Per item"], ["month", "Per month"], ["change", "Per change"], ["revision", "Per revision"]].map(([k, t]) => `<option ${p.unit === k ? "selected" : ""} value="${k}">${t}</option>`).join("")}</select>
+    <label>Included revisions</label><input name="rev" type="number" min="0" max="10" value="${(p.rules || {}).included_revisions ?? ""}">
+    <label>Notes</label><input name="note" maxlength="140" value="${esc((p.rules || {}).note || "")}">
+    <div class="err" id="it-err" hidden></div>
+    <button class="btn primary block" id="it-go" style="margin-top:16px">Save item</button></form>`);
+  $("#it", sh).onsubmit = e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    const cents = v => v === "" ? null : Math.round(+v * 100);
+    const rules = { ...(p.rules || {}) };
+    if (f.rev !== "") rules.included_revisions = +f.rev; else delete rules.included_revisions;
+    if (f.note) rules.note = f.note; else delete rules.note;
+    const body = { id: p.id, name: f.name, kind: f.kind, unit: f.unit, min_cents: cents(f.min), max_cents: cents(f.max), standard_cents: cents(f.std), rules, hidden: !!p.hidden };
+    const err = (body.min_cents != null && body.max_cents != null && body.min_cents > body.max_cents) ? "Minimum is above maximum"
+      : (body.standard_cents != null && ((body.min_cents != null && body.standard_cents < body.min_cents) || (body.max_cents != null && body.standard_cents > body.max_cents))) ? "Standard must be between minimum and maximum" : "";
+    if (err) { $("#it-err").textContent = err; $("#it-err").hidden = false; return; }
+    busy($("#it-go"), async () => {
+      try { await api("/api/studio/prices", { body }); closeSheet(); toast("Item saved"); prices(); }
+      catch (er) { $("#it-err").textContent = er.message; $("#it-err").hidden = false; }
+    });
+  };
+}
+
+/* ---------- Profile tab (3.6, minimum) ---------- */
+function profile() {
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><div class="avatar lg">${initials(ME.display_name)}</div>
+      <div><h2>${esc(ME.display_name)}</h2><div class="muted">@${esc(ME.handle)} · ${(ME.followers || 0).toLocaleString()} followers</div></div></div>
+      <p>${esc(ME.bio || "")}</p>
+      <div class="small muted">${esc(ME.audience || "")}<br>${esc(ME.niche || "")}</div>
+      ${ME.paypal_email_masked ? `<p class="small">PayPal: ${esc(ME.paypal_email_masked)}</p>` : ""}</div>
+    <div class="stack" style="margin-top:14px">
+      <a class="btn block" href="/c/${esc(ME.handle)}">Preview my public page</a>
+      <button class="btn block" id="cpb">Copy my booking link</button>
+      <button class="btn danger block" onclick="signOut()">Sign out</button></div>`;
+  $("#cpb").onclick = async () => { const u = location.origin + "/c/" + ME.handle; try { await navigator.clipboard.writeText(u); } catch {} toast("Booking link copied"); };
+}
+route();
+</script>
+</body></html>

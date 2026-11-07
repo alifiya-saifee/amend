@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creator · Amend</title><meta name="theme-color" content="#0a0d13">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body>
+<header class="top"><a class="logo" href="/">Amend</a><span class="title" id="ttl"></span></header>
+<main class="wrap" id="view"><div class="skeleton"></div><div class="skeleton"></div></main>
+<script>
+const handle = decodeURIComponent(location.pathname.split("/")[2] || "");
+function unitText(p) { return { month: " / month", change: " per change", revision: " each" }[p.unit] || ""; }
+function priceCard(p) {
+  const range = p.min_cents != null && p.max_cents != null && p.min_cents !== p.max_cents;
+  return `<div class="line"><div class="grow"><b>${esc(p.name)}</b>
+      ${p.rules && p.rules.note ? `<div class="small muted">${esc(p.rules.note)}</div>` : ""}</div>
+    <div class="amt">${p.standard_cents == null ? '<span class="muted small">Terms</span>' :
+      (range ? `${usd(p.min_cents)}–${usd(p.max_cents).slice(1)}` : usd(p.standard_cents)) + unitText(p) +
+      `<div class="aed">${p.aed}</div>`}</div></div>`;
+}
+async function load() {
+  let c;
+  try { c = await api(`/api/c/${encodeURIComponent(handle)}`); }
+  catch (e) { $("#view").innerHTML = `<div class="empty"><div class="ic">🔎</div>${esc(e.message)}</div>`; return; }
+  document.title = `${c.display_name} · Amend`;
+  $("#ttl").textContent = "@" + c.handle;
+  const main = c.items.filter(p => p.kind === "deliverable"), extras = c.items.filter(p => p.kind !== "deliverable");
+  const permit = c.permit.state === "ok" ? `<span class="pill collected">✅ Permit ${esc(c.permit.label)}</span>`
+    : `<span class="pill waiting">Permit: ${esc(c.permit.label)}</span>`;
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><div class="avatar lg">${initials(c.display_name)}</div>
+      <div class="grow"><h1>${esc(c.display_name)}</h1><div class="muted">@${esc(c.handle)} · ${(c.followers || 0).toLocaleString()} followers</div></div></div>
+      <p>${esc(c.bio || "")}</p><div class="small muted">${esc(c.audience || "")} · ${esc(c.niche || "")}</div>
+      <div style="margin-top:10px">${permit}<div class="hint">Format and expiry check only. Not verified with the UAE Media Council.</div></div></div>
+    <section class="card" style="margin-top:14px"><h2>Prices</h2><div class="list">${main.map(priceCard).join("") || '<div class="empty">No prices yet.</div>'}</div>
+      ${extras.length ? `<details style="margin-top:8px"><summary class="muted">Extras & terms</summary><div class="list">${extras.map(priceCard).join("")}</div></details>` : ""}</section>
+    <div class="card" style="margin-top:14px"><div class="icons3">
+      <div><span class="ic">🔒</span><span>Money held by PayPal</span></div>
+      <div><span class="ic">🤝</span><span>Every change confirmed by both</span></div>
+      <div><span class="ic">✅</span><span>Released only when the delivery matches the deal</span></div></div></div>
+    <button class="btn primary block" style="margin-top:16px" id="req">Request a deal</button>`;
+  $("#req").onclick = () => {
+    const sh = sheet(`<h2>Request a deal with ${esc(c.display_name.split(" ")[0])}</h2>
+      <p class="small muted">You'll get your own deal link. No account needed.</p>
+      <form id="rq"><label>Brand name *</label><input name="brand_org" required maxlength="80">
+        <label>Your name *</label><input name="contact_name" required maxlength="60">
+        <label>Your email</label><input name="contact_email" type="email" maxlength="120">
+        <div class="err" id="rq-err" hidden></div>
+        <button class="btn primary block" id="rq-go" style="margin-top:16px">Start the deal</button></form>`);
+    $("#rq", sh).onsubmit = e => {
+      e.preventDefault();
+      busy($("#rq-go"), async () => {
+        try { const r = await api(`/api/c/${encodeURIComponent(handle)}/request`, { body: Object.fromEntries(new FormData(e.target)) }); location.href = r.go; }
+        catch (er) { $("#rq-err").textContent = er.message; $("#rq-err").hidden = false; }
+      });
+    };
+  };
+}
+load();
+</script>
+</body></html>

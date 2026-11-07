@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Amend</title><meta name="theme-color" content="#0a0d13">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body>
+<header class="top"><a class="back" href="/">←</a><span class="title">Sign in to your studio</span></header>
+<main class="wrap stack">
+  <h1>Sign in to your studio</h1>
+  <div id="creators" class="stack"><div class="skeleton"></div><div class="skeleton"></div></div>
+  <form id="f">
+    <label for="pw">Demo password</label>
+    <div class="row">
+      <input id="pw" type="password" autocomplete="current-password" required class="grow">
+      <button type="button" class="btn small" id="eye" aria-label="Show password">👁</button>
+    </div>
+    <div id="err" class="err" hidden></div>
+    <button class="btn primary block" id="go" style="margin-top:16px">Sign in</button>
+  </form>
+  <p class="muted small">Real creators would sign in with PayPal. This demo uses one shared password.</p>
+</main>
+<script>
+let picked = null;
+async function load() {
+  const { creators } = await api("/api/login/creators");
+  if (!creators.length) { $("#creators").innerHTML = `<div class="empty">No creators yet. Run the seed script.</div>`; return; }
+  $("#creators").innerHTML = creators.map(c => `
+    <div class="pick" data-id="${c.id}" tabindex="0" role="radio" aria-checked="false">
+      <div class="avatar">${initials(c.display_name)}</div>
+      <div class="grow"><b>${esc(c.display_name)}</b> <span class="muted">@${esc(c.handle)}</span>
+      <div class="small muted">${esc(c.niche || "")} · ${(c.followers || 0).toLocaleString()} followers</div></div>
+    </div>`).join("");
+  $$(".pick").forEach(p => p.onclick = p.onkeydown = e => {
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    $$(".pick").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-checked", "false"); });
+    p.classList.add("on"); p.setAttribute("aria-checked", "true"); picked = p.dataset.id;
+  });
+  $(".pick").click();
+}
+$("#eye").onclick = () => { const i = $("#pw"); i.type = i.type === "password" ? "text" : "password"; };
+$("#f").onsubmit = e => {
+  e.preventDefault();
+  busy($("#go"), async () => {
+    $("#err").hidden = true;
+    try {
+      const r = await api("/login", { body: { creator: picked, password: $("#pw").value } });
+      location.href = r.go;
+    } catch (err) { $("#err").textContent = err.message; $("#err").hidden = false; }
+  });
+};
+load().catch(e => toast(e.message, "bad", load));
+</script>
+</body></html>

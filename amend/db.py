@@ -106,7 +106,8 @@ create table if not exists facts (
 create table if not exists terms (
   id text primary key, deal_id text not null references deals(id), version integer not null,
   price_item_id text not null references price_items(id), fact_id text references facts(id), qty integer not null,
-  unit_price_cents integer not null, amount_cents integer not null, rules_json text not null default '{}');
+  unit_price_cents integer not null, amount_cents integer not null, rules_json text not null default '{}',
+  pos integer not null default 0);
 create table if not exists approvals (
   id text primary key, subject_kind text not null, subject_id text not null, amount_cents integer,
   by_party text not null references parties(id), at text not null, decision text not null);

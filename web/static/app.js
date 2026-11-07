@@ -1,0 +1,99 @@
+// Shared helpers: api(), toast, sheets, money formatting, busy buttons. No build step.
+const AED = 3.6725;
+
+async function api(path, opts = {}) {
+  const init = { method: opts.method || (opts.body ? "POST" : "GET"), headers: {}, credentials: "same-origin" };
+  if (opts.body !== undefined) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(opts.body); }
+  let r;
+  try { r = await fetch(path, init); }
+  catch (e) { throw Object.assign(new Error("Can't reach Amend. Check your connection and try again."), { status: 0 }); }
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* empty body */ }
+  if (!r.ok) {
+    const msg = data.error || data.detail || `Something went wrong (${r.status})`;
+    throw Object.assign(new Error(typeof msg === "string" ? msg : "Something went wrong"), { status: r.status, data });
+  }
+  return data;
+}
+
+function usd(cents) {
+  if (cents == null) return "–";
+  const d = Math.floor(cents / 100), c = cents % 100;
+  return "$" + d.toLocaleString("en-US") + (c ? "." + String(c).padStart(2, "0") : "");
+}
+function aed(cents, compact = true) {
+  const v = Math.round(cents * AED) / 100;
+  return "AED " + (compact ? Math.round(v).toLocaleString("en-US") : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+}
+function money(cents) {
+  return `<span>${usd(cents)}</span> <span class="aed" title="Fixed rate 3.6725. PayPal charges in USD.">· ${aed(cents)}</span>`;
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function $(sel, root = document) { return root.querySelector(sel); }
+function $$(sel, root = document) { return [...root.querySelectorAll(sel)]; }
+function initials(name) { return (name || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
+function ago(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago"; return Math.floor(s / 86400) + " d ago";
+}
+function dateStr(iso) { return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""; }
+
+const MONEY_PILL = {
+  planned: ["Planned", "planned"], approved: ["Waiting for PayPal", "waiting"], sent: ["Waiting for PayPal", "waiting"],
+  authorized: ["Held", "held"], paid: ["Collected", "collected"], voided: ["Released", "released"],
+  refunded: ["Refunded", "refunded"], failed: ["Failed", "failed"], expired: ["Hold expired", "expired"], cancelled: ["Cancelled", "planned"],
+};
+function moneyPill(status) { if (!status) return ""; const [t, c] = MONEY_PILL[status] || [status, ""]; return `<span class="pill ${c}">${t}</span>`; }
+const DEAL_LABEL = { draft: "Waiting for brief", offered: "Draft to accept", accepted: "Accepted", in_progress: "In progress",
+  delivered: "Delivered", completed: "Done", paused: "Paused", cancelled: "Cancelled" };
+function dealPill(s) { return `<span class="pill status">${DEAL_LABEL[s] || s}</span>`; }
+
+let toastTimer;
+function toast(msg, kind = "ok", retry) {
+  let t = $("#toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+  t.className = `toast show ${kind}`;
+  t.innerHTML = `<span class="grow">${esc(msg)}</span>` + (retry ? `<button class="btn small" id="toast-retry">Try again</button>` : "");
+  if (retry) $("#toast-retry").onclick = () => { t.className = "toast"; retry(); };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = "toast", retry ? 8000 : 3000);
+}
+
+// Disable a button with a spinner while its request runs: a double tap can't send twice.
+async function busy(btn, fn) {
+  if (btn.disabled) return;
+  const html = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>${html}`;
+  try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = html; }
+}
+
+function sheet(html, { onOpen } = {}) {
+  let bg = $("#sheet-bg"), sh = $("#sheet");
+  if (!bg) {
+    bg = document.createElement("div"); bg.id = "sheet-bg"; bg.className = "sheet-bg"; document.body.appendChild(bg);
+    sh = document.createElement("div"); sh.id = "sheet"; sh.className = "sheet"; document.body.appendChild(sh);
+    bg.onclick = closeSheet;
+  }
+  sh.innerHTML = `<div class="grab"></div>` + html;
+  bg.classList.add("open"); requestAnimationFrame(() => sh.classList.add("open"));
+  if (onOpen) onOpen(sh);
+  return sh;
+}
+function closeSheet() { $("#sheet")?.classList.remove("open"); $("#sheet-bg")?.classList.remove("open"); }
+
+function quoteSheet(quote, who, where, when) {
+  sheet(`<h3>Where this was agreed</h3><blockquote>“${esc(quote)}”</blockquote>
+    <p class="muted small">${esc(who || "")}${where ? " · " + esc(where) : ""}${when ? " · " + esc(when) : ""}</p>
+    <button class="btn block" onclick="closeSheet()">Close</button>`);
+}
+
+function sandboxStrip() {
+  if (!$(".sandbox")) { const s = document.createElement("div"); s.className = "sandbox"; s.textContent = "PayPal sandbox. No real money."; document.body.appendChild(s); }
+}
+document.addEventListener("DOMContentLoaded", sandboxStrip);
+
+function toggleMenu(id) { $("#" + id).classList.toggle("open"); }
+document.addEventListener("click", e => { if (!e.target.closest(".chip-me, .menu")) $$(".menu.open").forEach(m => m.classList.remove("open")); });
+
+async function signOut() { await api("/logout", { method: "POST" }); location.href = "/"; }
