@@ -1,0 +1,206 @@
+"""Async PayPal REST client, sandbox only.
+
+Rules enforced here (CLAUDE.md hard rules 2, 3, 4):
+- the base URL is the sandbox, hard-coded;
+- every write needs a PayPal-Request-Id (ValueError if missing) and an approval whose decision is "approved"
+  (NoApproval otherwise); nothing is sent before both checks pass;
+- custom_id = deal_id on every order;
+- logs and errors carry method, path, status, request ID and PayPal's error name/message/debug_id only:
+  never headers, tokens, client ID or secret.
+"""
+from __future__ import annotations
+
+import logging
+import time
+from dataclasses import dataclass
+
+import httpx
+
+from amend.config import PAYPAL_BASE, Settings
+
+log = logging.getLogger("amend.paypal")
+
+
+class NoApproval(PermissionError):
+    pass
+
+
+@dataclass
+class PayPalError(Exception):
+    status: int
+    name: str
+    message: str
+    debug_id: str | None = None
+    issues: tuple[str, ...] = ()
+
+    def __str__(self) -> str:
+        bits = [f"PayPal HTTP {self.status}", self.name, self.message, *self.issues]
+        if self.debug_id:
+            bits.append(f"debug_id={self.debug_id}")
+        return " · ".join(b for b in bits if b)
+
+
+def dollars(cents: int) -> str:
+    """Integer cents → PayPal's "530.00" string. The only place amounts become decimals."""
+    if not isinstance(cents, int) or cents < 0:
+        raise ValueError("amount must be a non-negative integer number of cents")
+    return f"{cents // 100}.{cents % 100:02d}"
+
+
+def to_cents(value: str) -> int:
+    whole, _, frac = value.partition(".")
+    return int(whole) * 100 + int((frac + "00")[:2])
+
+
+def _err(r: httpx.Response) -> PayPalError:
+    try:
+        j = r.json()
+    except Exception:
+        return PayPalError(r.status_code, "HTTP_ERROR", r.reason_phrase or "")
+    issues = tuple(f"{d.get('issue')}: {d.get('description', '')}" for d in (j.get("details") or [])[:5])
+    return PayPalError(r.status_code, j.get("name") or j.get("error") or "ERROR",
+                       j.get("message") or j.get("error_description") or "", j.get("debug_id"), issues)
+
+
+class PayPalClient:
+    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None):
+        self._id = settings.paypal_client_id
+        self._secret = settings.paypal_client_secret
+        self._transport = transport
+        self._token: str | None = None
+        self._token_exp = 0.0
+        self.base = PAYPAL_BASE
+
+    def __repr__(self) -> str:
+        return "PayPalClient(sandbox)"
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(base_url=self.base, transport=self._transport, timeout=30)
+
+    async def _get_token(self) -> str:
+        if self._token and self._token_exp > time.time() + 60:
+            return self._token
+        async with self._client() as c:
+            r = await c.post("/v1/oauth2/token", data={"grant_type": "client_credentials"},
+                             auth=(self._id.get_secret_value(), self._secret.get_secret_value()))
+        if r.status_code != 200:
+            log.warning("paypal token failed status=%s", r.status_code)
+            raise _err(r)
+        j = r.json()
+        self._token, self._token_exp = j["access_token"], time.time() + int(j.get("expires_in", 0))
+        return self._token
+
+    async def _get(self, path: str) -> dict:
+        token = await self._get_token()
+        async with self._client() as c:
+            r = await c.get(path, headers={"Authorization": f"Bearer {token}"})
+        log.info("paypal GET %s status=%s", path, r.status_code)
+        if r.status_code >= 400:
+            raise _err(r)
+        return r.json() if r.content else {}
+
+    async def _write(self, method: str, path: str, body: dict | None, *, request_id: str | None,
+                     approval: dict | None) -> dict:
+        if not request_id:
+            raise ValueError("every PayPal write needs a PayPal-Request-Id")
+        if not approval or approval.get("decision") != "approved":
+            raise NoApproval("no approved approval record for this PayPal write")
+        token = await self._get_token()
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                   "PayPal-Request-Id": request_id, "Prefer": "return=representation"}
+        try:
+            async with self._client() as c:
+                r = await c.request(method, path, json=body, headers=headers)
+        except httpx.TimeoutException:
+            log.warning("paypal %s %s timeout request_id=%s", method, path, request_id)
+            raise PayPalError(0, "TIMEOUT", "PayPal didn't answer. Nothing was charged.") from None
+        except httpx.HTTPError as e:
+            log.warning("paypal %s %s network error %s request_id=%s", method, path, type(e).__name__, request_id)
+            raise PayPalError(0, "NETWORK", type(e).__name__) from None
+        log.info("paypal %s %s status=%s request_id=%s", method, path, r.status_code, request_id)
+        if r.status_code >= 400:
+            raise _err(r)
+        return r.json() if r.content else {}
+
+    # ---- orders ----
+    async def create_order(self, *, amount_cents: int, deal_id: str, intent: str = "AUTHORIZE",
+                           return_url: str, cancel_url: str, description: str, request_id: str | None,
+                           approval: dict | None) -> dict:
+        body = {"intent": intent, "purchase_units": [{
+                    "amount": {"currency_code": "USD", "value": dollars(amount_cents)},
+                    "custom_id": deal_id, "description": description[:127]}],
+                "payment_source": {"paypal": {"experience_context": {
+                    "brand_name": "Amend (sandbox)", "user_action": "CONTINUE", "shipping_preference": "NO_SHIPPING",
+                    "return_url": return_url, "cancel_url": cancel_url}}}}
+        return await self._write("POST", "/v2/checkout/orders", body, request_id=request_id, approval=approval)
+
+    async def get_order(self, order_id: str) -> dict:
+        return await self._get(f"/v2/checkout/orders/{order_id}")
+
+    async def authorize_order(self, order_id: str, *, request_id: str | None, approval: dict | None) -> dict:
+        return await self._write("POST", f"/v2/checkout/orders/{order_id}/authorize", {},
+                                 request_id=request_id, approval=approval)
+
+    # ---- authorisations ----
+    async def get_authorization(self, auth_id: str) -> dict:
+        return await self._get(f"/v2/payments/authorizations/{auth_id}")
+
+    async def capture(self, auth_id: str, *, amount_cents: int, final: bool, request_id: str | None,
+                      approval: dict | None) -> dict:
+        body = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)}, "final_capture": final}
+        return await self._write("POST", f"/v2/payments/authorizations/{auth_id}/capture", body,
+                                 request_id=request_id, approval=approval)
+
+    async def void(self, auth_id: str, *, request_id: str | None, approval: dict | None) -> dict:
+        return await self._write("POST", f"/v2/payments/authorizations/{auth_id}/void", None,
+                                 request_id=request_id, approval=approval)
+
+    async def reauthorize(self, auth_id: str, *, amount_cents: int, request_id: str | None,
+                          approval: dict | None) -> dict:
+        """Sandbox probe (7 Nov): allowed once, from day 4 to day 29 after the original authorisation."""
+        body = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)}}
+        return await self._write("POST", f"/v2/payments/authorizations/{auth_id}/reauthorize", body,
+                                 request_id=request_id, approval=approval)
+
+    # ---- captures ----
+    async def get_capture(self, capture_id: str) -> dict:
+        return await self._get(f"/v2/payments/captures/{capture_id}")
+
+    async def refund(self, capture_id: str, *, amount_cents: int, request_id: str | None,
+                     approval: dict | None) -> dict:
+        body = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)}}
+        return await self._write("POST", f"/v2/payments/captures/{capture_id}/refund", body,
+                                 request_id=request_id, approval=approval)
+
+    # ---- invoices ----
+    async def create_invoice(self, *, recipient_email: str, item_name: str, amount_cents: int, number: str,
+                             request_id: str | None, approval: dict | None) -> dict:
+        body = {"detail": {"currency_code": "USD", "invoice_number": number},
+                "primary_recipients": [{"billing_info": {"email_address": recipient_email}}],
+                "items": [{"name": item_name, "quantity": "1",
+                           "unit_amount": {"currency_code": "USD", "value": dollars(amount_cents)}}]}
+        return await self._write("POST", "/v2/invoicing/invoices", body, request_id=request_id, approval=approval)
+
+    async def send_invoice(self, invoice_id: str, *, request_id: str | None, approval: dict | None) -> dict:
+        return await self._write("POST", f"/v2/invoicing/invoices/{invoice_id}/send",
+                                 {"send_to_recipient": True}, request_id=request_id, approval=approval)
+
+    async def cancel_invoice(self, invoice_id: str, *, request_id: str | None, approval: dict | None) -> dict:
+        return await self._write("POST", f"/v2/invoicing/invoices/{invoice_id}/cancel",
+                                 {"send_to_recipient": False}, request_id=request_id, approval=approval)
+
+    # ---- payouts ----
+    async def payout(self, *, email: str, amount_cents: int, batch_id: str, note: str, request_id: str | None,
+                     approval: dict | None) -> dict:
+        body = {"sender_batch_header": {"sender_batch_id": batch_id[:127], "email_subject": "You've been paid (Amend sandbox)"},
+                "items": [{"recipient_type": "EMAIL", "receiver": email, "note": note[:200],
+                           "amount": {"currency": "USD", "value": dollars(amount_cents)},
+                           "sender_item_id": batch_id[:63]}]}
+        return await self._write("POST", "/v1/payments/payouts", body, request_id=request_id, approval=approval)
+
+    async def get_payout(self, batch_id: str) -> dict:
+        return await self._get(f"/v1/payments/payouts/{batch_id}")
+
+
+def approve_link(order: dict) -> str | None:
+    return next((l["href"] for l in order.get("links", []) if l.get("rel") in ("approve", "payer-action")), None)
