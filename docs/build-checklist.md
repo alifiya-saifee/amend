@@ -769,3 +769,159 @@ Each scenario is one automated test, with PayPal and the AI mocked, plus one bro
 - [ ] Wed: S43–S44 (cancellation split), plus S49 (conflict pause)
 
 If Playwright isn't installed: run `pip install playwright` and `playwright install chromium` in the venv, and tell Alifiya.
+
+---
+
+## 9. Full build (asked 7 Nov evening): accounts, deploy, webhooks, chat, discovery, briefs, delivery, cancellation
+
+Product rule: discovery and the brief builder are standard features: clean and solid, not over-built. The headline stays **money that changes when the deal changes**.
+Order: a working first pass of every phase (main path + tests), then deepen. 🙋 = needs Alifiya.
+
+### 9.0 Phase 0: sign-in and accounts for both sides
+- [ ] **Header on every page:** "Sign in", or the person's name with a menu. The home page also has **Join as a creator** and **Join as a brand**.
+- [ ] **`/login`:** two tabs, Creator and Brand. **`/signup`** for both: name, email, password, and the company name for brands. Passwords are hashed with scrypt and never stored plain. Seeded accounts still accept the shared demo password. Rate limit and Origin check as before.
+- [ ] **Brand dashboard `/brand`:**
+  - Inbox
+  - My deals
+  - Shortlist (saved to the account)
+  - Saved searches
+  - Company profile
+  - Team members
+- [ ] Deal links still work without an account. If a signed-in brand opens a link meant for them, it's attached to their account.
+- [ ] Optional: "Log in with PayPal" (sandbox), only if it takes under 2 hours. Otherwise it goes on the "next" list.
+
+### 9.1 Phase 1: deploy
+- [ ] 🙋 WhatsApp templates: the exact text, category and variables, written in `docs/deploy.md`.
+- [ ] Dockerfile, `render.yaml`, health check `/healthz`.
+- [ ] 🙋 Alifiya creates the Render service and adds the secrets; the list of names is in `docs/deploy.md`.
+- [ ] Postgres tests against Supabase (`TEST_DATABASE_URL`): the append-only trigger, named parameters, and a **concurrency test** (many requests at once) that passes on SQLite and Postgres.
+- [ ] Seed the live database; S30 (restart → data still there).
+- [ ] 🙋 Outside scheduler (cron-job.org every 10 minutes, with the secret header); the steps are in `docs/deploy.md`.
+
+### 9.2 Phase 2: PayPal webhooks
+- [ ] 🙋 Register the webhook URL in the sandbox app and store `PAYPAL_WEBHOOK_ID`.
+- [ ] Verify every notification with PayPal's verify-webhook-signature API; save it in `webhook_events`; drop duplicates by event ID; never move a status backwards. S26–S29, S58.
+
+### 9.3 Phase 3: deal chat and change cards
+- [ ] **Chat:** text, photos and files; system lines; unread state; Inbox entries for both sides.
+- [ ] **`detect_change`:** the AI returns only `{item_code, qty, field changes, quote}`. The code prices the change and builds the ripple (affected items, new amounts, untouched count, conflicts).
+- [ ] **Change card:** [Confirm] [Discuss] [Reject]; both sides confirm; 48-hour expiry with a reminder at about 24 hours (via tick); conflicts in red; the creator can override her own limit, with a reason.
+- [ ] **When both confirm:** version +1, and the money follows the ripple:
+  - an increase → a new hold;
+  - a decrease while held → collect less later;
+  - a decrease after collection → a refund proposal (the creator approves);
+  - a paid item is never cancelled.
+- [ ] **`classify_feedback`:** revision or new work; revisions are counted against the included number; extras are priced from the list.
+- [ ] Non-deciders (invited reviewers) create suggestions only.
+- [ ] **Imports:** a screenshot (Gemini vision; the quote must come from the image text) and a WhatsApp "Export chat" `.txt`.
+- [ ] **Invite teammate:** name, role, and "can confirm changes?". S15–S25.
+
+### 9.4 Phase 4: creator discovery
+- [ ] **`creator_metrics` table**, one row per platform, history kept:
+  - followers, avg_views, avg_likes, avg_comments, posts_per_week;
+  - engagement_rate and view_rate, **worked out by code**;
+  - audience by country, gender and age;
+  - source (`self_reported`, `insights_screenshot`, `verified` or `demo`);
+  - an `as_of` date, with a flag when it's more than 60 days old.
+- [ ] **Creator fields:**
+  - niche tags, city, country, languages, content styles;
+  - turnaround, next available date, permit;
+  - past brands (labelled self-reported);
+  - up to 6 sample placeholders.
+- [ ] **Amend track record, worked out from real deals:** completed, on-time %, rating and reviews, median reply time.
+- [ ] **`/creators`:**
+  - search;
+  - filters: niche, platform, tier, avg views, minimum engagement, Reel price, audience country %, gender, age, language, available by, permit valid, hide self-reported, minimum Amend deals;
+  - sort: best match, price, views, engagement, rating, newest;
+  - cards; 20 per page; filters in the URL; an empty state with Clear filters;
+  - filters in a bottom sheet at 390 px and in a side column on desktop.
+- [ ] **Shortlist ♡:** saved to the account when signed in, otherwise in this browser (labelled as such). **Compare up to 3.**
+- [ ] **`/c/{handle}` upgraded:**
+  - metrics panel with the as-of date and a source badge;
+  - audience bars and samples;
+  - price list, terms and availability;
+  - reviews;
+  - [Request a deal].
+- [ ] `/studio/profile`: edit the profile and metrics, plus **Fill from screenshot** (AI vision → the creator checks the numbers → saved as `insights_screenshot`).
+- [ ] **Privacy:** creators' phone numbers and emails are never shown to brands.
+- [ ] **Seed 24 made-up creators,** all labelled "Demo data", initials only.
+
+### 9.5 Phase 5: brief builder
+- [ ] **Brief fields:**
+  1. Objective and KPI
+  2. Audience
+  3. Key messages (up to 3)
+  4. Must include
+  5. Deliverables (platform, format, length, quantity, posting date and time window, cross-posting, days live)
+  6. Do's and don'ts, and banned claims
+  7. Disclosure
+  8. Product and shipping
+  9. Timeline (draft due, review turnaround, revision rounds)
+  10. Usage rights
+  11. Exclusivity
+  12. Assets
+  13. Budget
+- [ ] **Free text or the form:** the AI structures free text into the fields, each with a quote; the code prices everything; missing required fields are flagged with a default the brand can accept.
+- [ ] **Silent approval:** a draft with no review after N days (default 3) counts as approved, if both agreed at acceptance.
+- [ ] **The creator sees the brief field by field,** with Accept or Counter on each; conflicts are flagged; usage rights and exclusivity are priced (exclusivity added as a price item).
+- [ ] **"What done means"** is generated from the brief.
+- [ ] **Shipping:**
+  - the brand adds the courier and tracking number (or "hand delivery");
+  - the creator's address stays private until the hold;
+  - the creator taps "Product received", and the draft deadline starts from that date;
+  - "not received after N days" sends a nudge.
+
+### 9.6 Phase 6: delivery, posting, money out
+- [ ] **Draft upload:** 6–8 frames taken in the browser; `check_frames` against the brief, with frame times as evidence.
+- [ ] **Delivery check** against the latest confirmed version: gap cards; **no release until they're resolved.**
+- [ ] **Posting:** a link plus the posted file; date, disclosure and match checked.
+- [ ] **Collect and release:**
+  - both approve, then collect (re-authorise first if past the honour period, or show "hold needs renewing");
+  - payout to the creator minus the holdback;
+  - payout to the editor, if set.
+- [ ] **Holdback:** released on day N via tick; a 48-hour grace period if the post was removed; otherwise returned to the brand.
+- [ ] Ledger at `/studio/ledger` (AG Grid), the money story, and the brand's rating and review.
+- [ ] WhatsApp notifications once the template is approved; until then in-app only, and logged.
+- [ ] `/try` judge page: reset, rate limits, capped at $100. S31–S42.
+
+### 9.7 Phase 7: cancellation, calls, conflicts
+- [ ] Cancellation split from evidence and terms, with the maths shown; NVIDIA second opinion; both approve, then collect part and release the rest.
+- [ ] Voice notes (Groq Whisper); Zoom audio upload with a consent tick and speaker labels; call nudge; reviewer conflict pause; Delete my recordings. S43–S50.
+
+### 9.8 New scenarios
+| # | Scenario | Expected | T | B |
+|---|---|---|---|---|
+| S61 | Brand filters: niche food, UAE audience ≥ 50%, avg views 20K–100K, Reel ≤ $500 | Only matching creators; count shown; URL holds the filters | [ ] | [ ] |
+| S62 | Sort by engagement rate | Order correct; engagement worked out by code | [ ] | [ ] |
+| S63 | Search "coffee" | Creators with a matching niche or keywords | [ ] | [ ] |
+| S64 | No results | Empty state + Clear filters | [ ] | [ ] |
+| S65 | Shortlist 3 and compare | Side-by-side table: metrics, prices, availability | [ ] | [ ] |
+| S66 | "Hide self-reported data" | Only screenshot-read, demo or verified creators shown | [ ] | [ ] |
+| S67 | Creator uploads an insights screenshot | AI fills the numbers; the creator confirms; source = `insights_screenshot`, never `verified` | [ ] | [ ] |
+| S68 | Metrics older than 60 days | "Data may be outdated" label | [ ] | [ ] |
+| S69 | Free-text brief missing usage rights and posting window | Fields flagged with defaults; nothing invented | [ ] | [ ] |
+| S70 | Brief asks for paid-ads usage for 3 months | Priced from the list (3 × $150) as a line | [ ] | [ ] |
+| S71 | Brief asks for weekend posting | Conflict with Sara's limit flagged before acceptance | [ ] | [ ] |
+| S72 | Creator counters the usage rights field | Brand sees the counter; acceptance only when every field is agreed | [ ] | [ ] |
+| S73 | Product deal: tracking added → creator taps "received" | Draft deadline starts from the received date | [ ] | [ ] |
+| S74 | Product not received after N days | Nudge to both | [ ] | [ ] |
+| S75 | Brand doesn't review a draft in 3 days (silent approval agreed) | Draft counts as approved; event logged; both notified | [ ] | [ ] |
+| S76 | Completed deal → brand leaves a 5-star review | Rating and track record update | [ ] | [ ] |
+| S77 | A brand tries to see a creator's phone or email | Not available anywhere in the page or the API | [ ] | [ ] |
+| S78 | Browse at 390 px | Filters open in a bottom sheet; no sideways scrolling | [ ] | [ ] |
+| S79 | Sign up as a brand | Lands on the brand dashboard | [ ] | [ ] |
+| S80 | Sign in as a creator | Lands in the studio | [ ] | [ ] |
+| S81 | Wrong password 5 times | 1-minute wait | [ ] | [ ] |
+| S82 | A signed-in brand opens their deal link | The deal appears in My deals | [ ] | [ ] |
+| S83 | Any page | The header shows Sign in, or the person's name | [ ] | [ ] |
+
+### 9.9 Browser tests to add
+- [ ] Discovery: S61 + S65
+- [ ] Brief builder: S69–S71
+- [ ] **Full happy path:**
+  1. discover a creator and request a deal;
+  2. brief, accept, hold;
+  3. change card → +$80 hold;
+  4. draft → delivery check;
+  5. collect and release;
+  6. review.

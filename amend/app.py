@@ -22,9 +22,10 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, deals, engine, inbox, money
+from amend import ai, auth, deals, engine, inbox, money
 from amend.config import get_settings
-from amend.db import Database, get_db
+from amend.db import Database, get_db, new_id
+from amend.db import now as db_now
 from amend.models import IllegalTransition
 from amend.paypal import PayPalClient, PayPalError
 
@@ -41,9 +42,9 @@ from contextlib import asynccontextmanager
 async def lifespan(_app):
     get_settings()  # refuses to start unless PAYPAL_ENV=sandbox
     d = get_db()
-    if not d.one("select id from creators limit 1"):  # a fresh database (e.g. a new Render deploy) gets the demo creators
-        from scripts.seed import seed
-        seed(d)
+    from scripts.seed import ensure_demo_accounts, seed
+    seed(d)  # adds any demo creators that are missing; existing ones are left alone
+    ensure_demo_accounts(d)
     yield
 
 
@@ -121,16 +122,49 @@ def rate_limit(key: str, n: int, per_s: float) -> None:
 
 # ---------- creator session ----------
 
-def current_creator(request: Request) -> dict | None:
+def _session(request: Request) -> dict:
     raw = request.cookies.get(COOKIE)
     if not raw:
-        return None
+        return {}
     try:
-        data = serializer().loads(raw, max_age=SESSION_DAYS * 86400)
+        return serializer().loads(raw, max_age=SESSION_DAYS * 86400) or {}
     except BadSignature:
+        return {}
+
+
+def current_account(request: Request) -> dict | None:
+    s = _session(request)
+    if s.get("a"):
+        return get_db().one("select * from accounts where id = :id", {"id": s["a"]})
+    if s.get("c"):  # older creator cookies
+        return get_db().one("select * from accounts where creator_id = :c", {"c": s["c"]}) or \
+            {"id": None, "kind": "creator", "creator_id": s["c"], "name": "", "company": None, "email": ""}
+    return None
+
+
+def current_creator(request: Request) -> dict | None:
+    a = current_account(request)
+    if not a or a["kind"] != "creator":
         return None
-    c = get_db().one("select * from creators where id = :id", {"id": data.get("c")})
-    return c
+    return get_db().one("select * from creators where id = :id", {"id": a["creator_id"]})
+
+
+def current_brand(request: Request) -> dict | None:
+    a = current_account(request)
+    return a if a and a["kind"] == "brand" else None
+
+
+def require_brand(request: Request) -> dict:
+    a = current_brand(request)
+    if not a:
+        raise HTTPException(401, "Please sign in as a brand.")
+    return a
+
+
+def _set_session(r: JSONResponse, account_id: str) -> JSONResponse:
+    r.set_cookie(COOKIE, serializer().dumps({"a": account_id}), max_age=SESSION_DAYS * 86400, httponly=True,
+                 samesite="lax", secure=get_settings().base_url.startswith("https"))
+    return r
 
 
 def require_creator(request: Request) -> dict:
@@ -160,9 +194,29 @@ def home():
 
 @app.get("/login")
 def login_page(request: Request):
-    if current_creator(request):
-        return RedirectResponse("/studio", 303)
+    a = current_account(request)
+    if a:
+        return RedirectResponse("/studio" if a["kind"] == "creator" else "/brand", 303)
     return page("login.html")
+
+
+@app.get("/signup")
+def signup_page():
+    return page("login.html")
+
+
+@app.get("/brand")
+@app.get("/brand/{tab}")
+def brand_page(request: Request, tab: str = ""):
+    if not current_brand(request):
+        return RedirectResponse("/login?tab=brand", 303)
+    return page("brand.html")
+
+
+@app.get("/creators")
+@app.get("/creators/compare")
+def creators_page():
+    return page("creators.html")
 
 
 @app.get("/studio")
@@ -208,35 +262,84 @@ def healthz():
 # ---------- auth ----------
 
 class LoginIn(BaseModel):
-    creator: str
     password: str
+    email: str | None = None
+    kind: str | None = Field(None, pattern="^(creator|brand)$")
+    creator: str | None = None  # older form: a seeded creator's id
 
 
 @app.get("/api/login/creators")
 def login_creators():
-    rows = get_db().all("select id, handle, display_name, niche, followers from creators order by created_at")
+    rows = get_db().all("select c.id, c.handle, c.display_name, c.niche, c.followers, a.email from creators c "
+                        "join accounts a on a.creator_id = c.id where a.password_hash is null order by c.created_at limit 6")
     return {"creators": rows}
 
 
-@app.post("/login")
-def login(body: LoginIn, request: Request):
+@app.get("/api/login/brands")
+def login_brands():
+    return {"brands": get_db().all("select name, company, email from accounts where kind = 'brand' and password_hash is null "
+                                   "order by created_at limit 3")}
+
+
+def _check_rate(request: Request) -> tuple[str, list[float]]:
     ip = request.client.host if request.client else "?"
     t = time.time()
     fails = [x for x in _login_fails.get(ip, []) if t - x < 60]
     if len(fails) >= 5:
         raise HTTPException(429, "Too many wrong tries. Wait a minute and try again.")
-    expected = get_settings().amend_demo_password.get_secret_value()
-    c = get_db().one("select * from creators where id = :id", {"id": body.creator})
-    if not expected or not c or not hmac.compare_digest(body.password.encode(), expected.encode()):
-        _login_fails[ip] = fails + [t]
-        get_db().log_event("login.failed", actor="unknown", payload={"creator": body.creator})
-        raise HTTPException(401, "That password isn't right.")
+    return ip, fails
+
+
+@app.post("/login")
+def login(body: LoginIn, request: Request):
+    ip, fails = _check_rate(request)
+    d = get_db()
+    email = body.email
+    if not email and body.creator:
+        acc = d.one("select email from accounts where creator_id = :c", {"c": body.creator})
+        email = acc["email"] if acc else ""
+    try:
+        acc = auth.verify(d, email or "", body.password, body.kind)
+    except auth.AuthError as e:
+        _login_fails[ip] = fails + [time.time()]
+        d.log_event("login.failed", actor="unknown", payload={"kind": body.kind})
+        raise HTTPException(401, str(e))
     _login_fails.pop(ip, None)
-    get_db().log_event("login.ok", actor=c["party_id"], payload={"creator": c["id"]})
-    r = JSONResponse({"ok": True, "go": "/studio"})
-    r.set_cookie(COOKIE, serializer().dumps({"c": c["id"]}), max_age=SESSION_DAYS * 86400, httponly=True,
-                 samesite="lax", secure=get_settings().base_url.startswith("https"))
-    return r
+    d.log_event("login.ok", actor=acc["party_id"] or acc["id"], payload={"account": acc["id"], "kind": acc["kind"]})
+    nxt = request.query_params.get("next") or ""
+    go = nxt if nxt.startswith("/") and not nxt.startswith("//") else ("/studio" if acc["kind"] == "creator" else "/brand")
+    return _set_session(JSONResponse({"ok": True, "go": go}), acc["id"])
+
+
+class SignupIn(BaseModel):
+    kind: str = Field(pattern="^(creator|brand)$")
+    name: str = Field(max_length=80)
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    company: str | None = Field(None, max_length=120)
+
+
+@app.post("/signup")
+def signup(body: SignupIn, request: Request):
+    rate_limit(f"signup:{request.client.host if request.client else '?'}", 10, 3600)
+    try:
+        acc = auth.signup(get_db(), **body.model_dump())
+    except auth.AuthError as e:
+        raise HTTPException(400, str(e))
+    return _set_session(JSONResponse({"ok": True, "go": "/studio" if acc["kind"] == "creator" else "/brand"}), acc["id"])
+
+
+@app.get("/api/whoami")
+def whoami(request: Request):
+    a = current_account(request)
+    if not a:
+        return {"signed_in": False}
+    home = "/studio" if a["kind"] == "creator" else "/brand"
+    name = a.get("name") or ""
+    if a["kind"] == "creator" and not name:
+        c = current_creator(request)
+        name = c["display_name"] if c else ""
+    return {"signed_in": True, "kind": a["kind"], "name": name, "company": a.get("company"), "home": home}
 
 
 @app.post("/logout")
@@ -493,8 +596,171 @@ def _brand_view(token: str) -> dict:
 
 
 @app.get("/api/d/{token}")
-def brand_deal(token: str):
+def brand_deal(token: str, request: Request):
+    acc = current_brand(request)
+    if acc:  # S82: a signed-in brand opening their own link gets the deal in My deals
+        ctx = deals.open_link(get_db(), token)
+        auth.attach_link(get_db(), acc, ctx["party"])
     return _brand_view(token)
+
+
+# ---------- brand dashboard (Phase 0) ----------
+
+def _brand_deal_ids(acc: dict) -> list[str]:
+    return [r["id"] for r in get_db().all(
+        "select d.id from deals d join parties p on p.id = d.brand_party_id where p.account_id = :a "
+        "union select l.deal_id as id from deal_links l join parties p on p.id = l.party_id where p.account_id = :a",
+        {"a": acc["id"]})]
+
+
+@app.get("/api/brand/me")
+def brand_me(acc: dict = Depends(require_brand)):
+    full = get_db().one("select * from accounts where id = :id", {"id": acc["id"]})
+    return auth.public(full) | {"website": full["website"], "about": full["about"]}
+
+
+class CompanyIn(BaseModel):
+    company: str = Field(min_length=1, max_length=120)
+    website: str | None = Field(None, max_length=200)
+    about: str | None = Field(None, max_length=600)
+
+
+@app.put("/api/brand/company")
+def brand_company(body: CompanyIn, acc: dict = Depends(require_brand)):
+    get_db().update("accounts", "id", acc["id"], body.model_dump())
+    get_db().log_event("company.saved", actor=acc["party_id"] or acc["id"], payload={"account": acc["id"]})
+    return brand_me(acc)
+
+
+@app.get("/api/brand/deals")
+def brand_deals(acc: dict = Depends(require_brand)):
+    d = get_db()
+    out = []
+    for did in _brand_deal_ids(acc):
+        r = deals.get_deal(d, did)
+        c = d.one("select display_name, handle from creators where id = :c", {"c": r["creator_id"]})
+        link = d.one("select l.token from deal_links l join parties p on p.id = l.party_id "
+                     "where l.deal_id = :d and p.account_id = :a and l.revoked_at is null order by l.created_at desc limit 1",
+                     {"d": did, "a": acc["id"]})
+        hold = deals.open_hold(d, did)
+        out.append({"id": did, "creator": c["display_name"], "handle": c["handle"], "status": r["status"],
+                    "total_cents": r["total_cents"], "money": hold["status"] if hold else None,
+                    "go": f"/d/{link['token']}" if link else None, "updated_at": r["updated_at"]})
+    out.sort(key=lambda x: x["updated_at"], reverse=True)
+    return {"deals": out}
+
+
+@app.get("/api/brand/inbox")
+def brand_inbox(acc: dict = Depends(require_brand)):
+    d = get_db()
+    ids = _brand_deal_ids(acc)
+    if not ids:
+        return {"items": [], "unread": 0}
+    mine = {r["id"] for r in d.all("select id from parties where account_id = :a", {"a": acc["id"]})}
+    read = {r["event_id"] for r in d.all("select event_id from inbox_reads where party_id = :p", {"p": acc["id"]})}
+    text = {"deal.drafted": "Draft ready: priced from the creator's list", "deal.accepted": "The creator accepted the deal",
+            "deal.declined": "The creator declined", "money.status": None, "term.price_edited": "The creator edited a price",
+            "message.sent": "New message", "change.detected": "A change card needs you", "change.applied": "A change was applied"}
+    items = []
+    for did in ids:
+        deal = deals.get_deal(d, did)
+        c = d.one("select display_name from creators where id = :c", {"c": deal["creator_id"]})
+        for e in d.events_for(did):
+            if e["type"] not in text or e["actor"] in mine:
+                continue
+            line = text[e["type"]]
+            if e["type"] == "money.status":
+                line = {"authorized": "Money held by PayPal", "paid": "Payment collected", "refunded": "Refund sent",
+                        "expired": "A hold expired: hold again"}.get(e["payload"].get("to"))
+            if not line:
+                continue
+            items.append({"event_id": e["id"], "deal": did, "creator": c["display_name"], "line": line, "at": e["at"],
+                          "unread": e["id"] not in read})
+    items.sort(key=lambda x: x["event_id"], reverse=True)
+    return {"items": items[:60], "unread": sum(i["unread"] for i in items)}
+
+
+@app.post("/api/brand/inbox/read")
+def brand_inbox_read(body: ReadIn, acc: dict = Depends(require_brand)):
+    ids = set(_brand_deal_ids(acc))
+    ok = [i for i in body.event_ids if (e := get_db().one("select deal_id from events where id = :i", {"i": i})) and e["deal_id"] in ids]
+    return {"marked": inbox.mark_read(get_db(), acc["id"], ok)}
+
+
+@app.get("/api/brand/shortlist")
+def shortlist(acc: dict = Depends(require_brand)):
+    rows = get_db().all("select s.creator_id, c.handle, c.display_name from shortlist s join creators c on c.id = s.creator_id "
+                        "where s.account_id = :a order by s.at desc", {"a": acc["id"]})
+    return {"items": rows}
+
+
+class ShortIn(BaseModel):
+    creator_id: str
+    on: bool = True
+
+
+@app.post("/api/brand/shortlist")
+def shortlist_set(body: ShortIn, acc: dict = Depends(require_brand)):
+    d = get_db()
+    if not d.one("select id from creators where id = :c", {"c": body.creator_id}):
+        raise HTTPException(404, "Creator not found")
+    have = d.one("select 1 as x from shortlist where account_id = :a and creator_id = :c", {"a": acc["id"], "c": body.creator_id})
+    if body.on and not have:
+        d.insert("shortlist", {"account_id": acc["id"], "creator_id": body.creator_id, "at": db_now()})
+    elif not body.on and have:
+        d.execute("delete from shortlist where account_id = :a and creator_id = :c", {"a": acc["id"], "c": body.creator_id})
+    d.log_event("shortlist.changed", actor=acc["party_id"] or acc["id"], payload={"creator": body.creator_id, "on": body.on})
+    return shortlist(acc)
+
+
+class SearchIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    query: str = Field(max_length=1000)
+
+
+@app.get("/api/brand/searches")
+def searches(acc: dict = Depends(require_brand)):
+    return {"items": get_db().all("select id, name, query, at from saved_searches where account_id = :a order by at desc",
+                                  {"a": acc["id"]})}
+
+
+@app.post("/api/brand/searches")
+def search_save(body: SearchIn, acc: dict = Depends(require_brand)):
+    q = body.query.lstrip("?")
+    get_db().insert("saved_searches", {"id": new_id("ss"), "account_id": acc["id"], "name": body.name, "query": q, "at": db_now()})
+    get_db().log_event("search.saved", actor=acc["party_id"] or acc["id"], payload={"name": body.name})
+    return searches(acc)
+
+
+@app.delete("/api/brand/searches/{sid}")
+def search_delete(sid: str, acc: dict = Depends(require_brand)):
+    get_db().execute("delete from saved_searches where id = :i and account_id = :a", {"i": sid, "a": acc["id"]})
+    return searches(acc)
+
+
+class TeamIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    email: str | None = Field(None, max_length=120)
+    role: str = Field(pattern="^(Marketing|Legal|Finance|Other)$")
+
+
+@app.get("/api/brand/team")
+def team(acc: dict = Depends(require_brand)):
+    return {"items": get_db().all("select id, name, email, role from team_members where account_id = :a order by at",
+                                  {"a": acc["id"]})}
+
+
+@app.post("/api/brand/team")
+def team_add(body: TeamIn, acc: dict = Depends(require_brand)):
+    get_db().insert("team_members", {"id": new_id("tm"), "account_id": acc["id"], **body.model_dump(), "at": db_now()})
+    get_db().log_event("team.changed", actor=acc["party_id"] or acc["id"], payload={"added": body.name})
+    return team(acc)
+
+
+@app.delete("/api/brand/team/{tid}")
+def team_remove(tid: str, acc: dict = Depends(require_brand)):
+    get_db().execute("delete from team_members where id = :i and account_id = :a", {"i": tid, "a": acc["id"]})
+    return team(acc)
 
 
 class WhoIn(BaseModel):

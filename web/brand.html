@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brand · Amend</title>
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+</head><body class="studio">
+<header class="top">
+  <a class="logo" href="/brand">Amend</a><span class="title" id="ttl">Inbox</span>
+  <a class="btn small" href="/creators">Find creators</a>
+  <button class="chip-me" id="me" onclick="toggleMenu('mm')">…</button>
+  <div class="menu" id="mm"><button onclick="go('/brand/company')">Company profile</button><button onclick="signOut()">Sign out</button></div>
+</header>
+<main class="wrap" id="view"></main>
+<nav class="tabs">
+  <a href="/brand" data-tab="inbox"><span class="ic">📥</span>Inbox<span class="badge" id="ubadge" hidden></span></a>
+  <a href="/brand/deals" data-tab="deals"><span class="ic">💬</span>My deals</a>
+  <a href="/brand/shortlist" data-tab="shortlist"><span class="ic">♡</span>Shortlist</a>
+  <a href="/brand/searches" data-tab="searches"><span class="ic">🔎</span>Searches</a>
+  <a href="/brand/company" data-tab="company"><span class="ic">🏢</span>Company</a>
+  <a href="/brand/team" data-tab="team" class="side-only"><span class="ic">👥</span>Team</a>
+  <a href="#" class="side-out" onclick="signOut(); return false;"><span class="ic">↩</span>Sign out</a>
+</nav>
+<script>
+let ME = null;
+const TITLES = { inbox: "Inbox", deals: "My deals", shortlist: "Shortlist", searches: "Saved searches", company: "Company profile", team: "Team members" };
+function go(path) { history.pushState({}, "", path); route(); }
+$$(".tabs a[data-tab]").forEach(a => a.onclick = e => { e.preventDefault(); go(a.getAttribute("href")); });
+window.onpopstate = route;
+
+async function route() {
+  const seg = location.pathname.split("/")[2] || "inbox";
+  const tab = TITLES[seg] ? seg : "inbox";
+  $$(".tabs a[data-tab]").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
+  $("#ttl").textContent = TITLES[tab];
+  $("#view").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div>`;
+  try {
+    if (!ME) { ME = await api("/api/brand/me"); $("#me").textContent = ME.name.split(" ")[0] + " ▾"; }
+    await ({ inbox, deals, shortlist, searches, company, team })[tab]();
+  } catch (e) {
+    if (e.status === 401) { location.href = "/login?tab=brand"; return; }
+    $("#view").innerHTML = `<div class="empty"><div class="ic">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="route()">Try again</button></div>`;
+  }
+}
+function badge(n) { const b = $("#ubadge"); b.hidden = !n; b.textContent = n > 99 ? "99+" : n; }
+
+async function inbox() {
+  const r = await api("/api/brand/inbox"); badge(r.unread);
+  $("#view").innerHTML = `<h1>Inbox</h1><p class="muted small">Updates from creators on your deals, newest first.</p>
+    ${r.items.length ? `<div class="card" style="padding:6px">${r.items.map(x => `
+      <a class="inbox-row ${x.unread ? "unread" : ""}" href="#" data-ev="${x.event_id}" data-deal="${x.deal}">
+        <span class="ic">${x.line.includes("held") || x.line.includes("Payment") || x.line.includes("Refund") ? "💰" : "💬"}</span>
+        <div class="grow"><div class="row between"><b>${esc(x.creator)}</b><span class="tiny muted">${ago(x.at)}</span></div><div class="small">${esc(x.line)}</div></div>
+        ${x.unread ? '<span class="udot"></span>' : ""}</a>`).join("")}</div>`
+      : `<div class="empty"><div class="ic">📥</div>Nothing yet. Find a creator and request a deal.<br><br><a class="btn primary" href="/creators">Find creators</a></div>`}`;
+  const D = (await api("/api/brand/deals")).deals;
+  $$(".inbox-row").forEach(a => a.onclick = async e => {
+    e.preventDefault();
+    try { await api("/api/brand/inbox/read", { body: { event_ids: [+a.dataset.ev] } }); } catch {}
+    const d = D.find(x => x.id === a.dataset.deal); if (d && d.go) location.href = d.go;
+  });
+}
+async function deals() {
+  const r = await api("/api/brand/deals");
+  $("#view").innerHTML = `<h1>My deals</h1>${r.deals.length ? `<div class="stack">${r.deals.map(d => `
+    <a class="card dealcard" href="${d.go || "#"}"><div class="row"><div class="avatar">${initials(d.creator)}</div>
+      <div class="grow"><div class="row between"><b>${esc(d.creator)}</b><span>${d.total_cents ? usd(d.total_cents) : ""}</span></div>
+      <div class="row wrapx" style="margin-top:4px">${dealPill(d.status)} ${moneyPill(d.money)}</div>
+      <div class="tiny muted" style="margin-top:6px">@${esc(d.handle)} · updated ${ago(d.updated_at)}</div></div></div></a>`).join("")}</div>`
+    : `<div class="empty"><div class="ic">💬</div>No deals yet. Open a deal link a creator sent you while signed in, or request one from a creator's page.<br><br><a class="btn primary" href="/creators">Find creators</a></div>`}`;
+}
+async function shortlist() {
+  const r = await api("/api/brand/shortlist");
+  $("#view").innerHTML = `<div class="row between"><h1>Shortlist</h1>${r.items.length >= 2 ? `<a class="btn small primary" href="/creators/compare?ids=${r.items.slice(0, 3).map(i => i.creator_id).join(",")}">Compare ${Math.min(3, r.items.length)}</a>` : ""}</div>
+    ${r.items.length ? `<div class="card" style="padding:6px">${r.items.map(i => `<div class="inbox-row"><div class="avatar">${initials(i.display_name)}</div>
+      <div class="grow"><b>${esc(i.display_name)}</b><div class="small muted">@${esc(i.handle)}</div></div>
+      <a class="btn small" href="/c/${esc(i.handle)}">View</a><button class="btn small" data-rm="${i.creator_id}" aria-label="Remove">✕</button></div>`).join("")}</div>`
+      : `<div class="empty"><div class="ic">♡</div>Tap ♡ on a creator to save them here.<br><br><a class="btn primary" href="/creators">Find creators</a></div>`}`;
+  $$("[data-rm]").forEach(b => b.onclick = e => busy(e.currentTarget, async () => { await api("/api/brand/shortlist", { body: { creator_id: b.dataset.rm, on: false } }); shortlist(); }));
+}
+async function searches() {
+  const r = await api("/api/brand/searches");
+  $("#view").innerHTML = `<h1>Saved searches</h1><p class="muted small">Save a search from the Find creators page.</p>
+    ${r.items.length ? `<div class="card" style="padding:6px">${r.items.map(s => `<div class="inbox-row"><span class="ic">🔎</span>
+      <div class="grow"><b>${esc(s.name)}</b><div class="tiny muted">${esc(s.query) || "all creators"}</div></div>
+      <a class="btn small" href="/creators?${esc(s.query)}">Open</a><button class="btn small" data-rm="${s.id}" aria-label="Delete">✕</button></div>`).join("")}</div>`
+      : `<div class="empty"><div class="ic">🔎</div>No saved searches yet.</div>`}`;
+  $$("[data-rm]").forEach(b => b.onclick = e => busy(e.currentTarget, async () => { await api(`/api/brand/searches/${b.dataset.rm}`, { method: "DELETE" }); searches(); }));
+}
+async function company() {
+  $("#view").innerHTML = `<h1>Company profile</h1><form id="cf" class="card">
+    <label>Company name</label><input name="company" required maxlength="120" value="${esc(ME.company || "")}">
+    <label>Website</label><input name="website" maxlength="200" value="${esc(ME.website || "")}" placeholder="https://">
+    <label>About</label><textarea name="about" maxlength="600">${esc(ME.about || "")}</textarea>
+    <p class="small muted">Signed in as ${esc(ME.email)}</p>
+    <button class="btn primary block" id="cs">Save</button></form>
+    <a class="btn block" style="margin-top:14px" href="/brand/team" onclick="event.preventDefault(); go('/brand/team')">Team members</a><button class="btn danger block" style="margin-top:10px" onclick="signOut()">Sign out</button>`;
+  $("#cf").onsubmit = e => { e.preventDefault(); busy($("#cs"), async () => {
+    try { ME = await api("/api/brand/company", { method: "PUT", body: Object.fromEntries(new FormData(e.target)) }); toast("Saved"); } catch (er) { toast(er.message, "bad"); } }); };
+}
+async function team() {
+  const r = await api("/api/brand/team");
+  $("#view").innerHTML = `<h1>Team members</h1><p class="muted small">People at ${esc(ME.company || "your company")} who review deals. Each gets their own deal link from the deal room; only people allowed to confirm changes can move money.</p>
+    <div class="card" style="padding:6px">${r.items.map(t => `<div class="inbox-row"><div class="avatar">${initials(t.name)}</div><div class="grow"><b>${esc(t.name)}</b><div class="small muted">${esc(t.role)}${t.email ? " · " + esc(t.email) : ""}</div></div>
+      <button class="btn small" data-rm="${t.id}" aria-label="Remove">✕</button></div>`).join("") || '<p class="muted small" style="padding:8px">Only you so far.</p>'}</div>
+    <form id="tf" class="card" style="margin-top:14px"><h3>Add someone</h3>
+      <label>Name</label><input name="name" required maxlength="60"><label>Email</label><input name="email" type="email" maxlength="120">
+      <label>Role</label><select name="role"><option>Marketing</option><option>Legal</option><option>Finance</option><option>Other</option></select>
+      <button class="btn primary block" id="ta" style="margin-top:12px">Add</button></form>`;
+  $$("[data-rm]").forEach(b => b.onclick = e => busy(e.currentTarget, async () => { await api(`/api/brand/team/${b.dataset.rm}`, { method: "DELETE" }); team(); }));
+  $("#tf").onsubmit = e => { e.preventDefault(); busy($("#ta"), async () => { const f = Object.fromEntries(new FormData(e.target)); if (!f.email) delete f.email;
+    try { await api("/api/brand/team", { body: f }); team(); } catch (er) { toast(er.message, "bad"); } }); };
+}
+route();
+</script>
+</body></html>

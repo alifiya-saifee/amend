@@ -1,54 +1,80 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sign in · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
+<title>Sign in · Amend</title>
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
 </head><body>
-<header class="top"><a class="back" href="/">←</a><span class="title">Sign in to your studio</span></header>
-<main class="wrap stack">
-  <h1>Sign in to your studio</h1>
-  <div id="creators" class="stack"><div class="skeleton"></div><div class="skeleton"></div></div>
-  <form id="f">
-    <label for="pw">Demo password</label>
-    <div class="row">
-      <input id="pw" type="password" autocomplete="current-password" required class="grow">
-      <button type="button" class="btn small" id="eye" aria-label="Show password">👁</button>
+<header class="top"><a class="logo" href="/">Amend</a><span class="title" id="ttl"></span></header>
+<main class="wrap narrow stack">
+  <h1 id="h"></h1>
+  <div class="seg" role="tablist">
+    <button role="tab" data-k="creator">Creator</button>
+    <button role="tab" data-k="brand">Brand</button>
+  </div>
+  <form id="f" class="stack" autocomplete="on">
+    <div id="signup-fields" hidden>
+      <label for="name">Your name</label><input id="name" maxlength="80" autocomplete="name">
+      <div id="company-wrap"><label for="company">Company name</label><input id="company" maxlength="120" autocomplete="organization"></div>
     </div>
+    <div><label for="email">Email</label><input id="email" type="email" required maxlength="120" autocomplete="email"></div>
+    <div><label for="pw">Password</label>
+      <div class="row"><input id="pw" type="password" required class="grow" autocomplete="current-password">
+        <button type="button" class="btn small" id="eye" aria-label="Show password">👁</button></div>
+      <div class="hint" id="pw-hint" hidden>At least 8 characters.</div></div>
     <div id="err" class="err" hidden></div>
-    <button class="btn primary block" id="go" style="margin-top:16px">Sign in</button>
+    <button class="btn primary block" id="go"></button>
   </form>
-  <p class="muted small">Real creators would sign in with PayPal. This demo uses one shared password.</p>
+  <p class="small" id="switch"></p>
+  <div id="demo" class="card" hidden></div>
 </main>
 <script>
-let picked = null;
-async function load() {
-  const { creators } = await api("/api/login/creators");
-  if (!creators.length) { $("#creators").innerHTML = `<div class="empty">No creators yet. Run the seed script.</div>`; return; }
-  $("#creators").innerHTML = creators.map(c => `
-    <div class="pick" data-id="${c.id}" tabindex="0" role="radio" aria-checked="false">
-      <div class="avatar">${initials(c.display_name)}</div>
-      <div class="grow"><b>${esc(c.display_name)}</b> <span class="muted">@${esc(c.handle)}</span>
-      <div class="small muted">${esc(c.niche || "")} · ${(c.followers || 0).toLocaleString()} followers</div></div>
-    </div>`).join("");
-  $$(".pick").forEach(p => p.onclick = p.onkeydown = e => {
-    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
-    $$(".pick").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-checked", "false"); });
-    p.classList.add("on"); p.setAttribute("aria-checked", "true"); picked = p.dataset.id;
-  });
-  $(".pick").click();
+const Q = new URLSearchParams(location.search);
+const SIGNUP = location.pathname === "/signup";
+let KIND = Q.get("tab") === "brand" || Q.get("kind") === "brand" ? "brand" : "creator";
+
+function draw() {
+  $$(".seg button").forEach(b => b.classList.toggle("on", b.dataset.k === KIND));
+  $("#h").textContent = SIGNUP ? (KIND === "creator" ? "Join as a creator" : "Join as a brand") : (KIND === "creator" ? "Sign in to your studio" : "Sign in to your brand account");
+  $("#ttl").textContent = SIGNUP ? "Create an account" : "Sign in";
+  $("#signup-fields").hidden = !SIGNUP;
+  $("#company-wrap").hidden = KIND !== "brand";
+  $("#pw-hint").hidden = !SIGNUP;
+  $("#pw").autocomplete = SIGNUP ? "new-password" : "current-password";
+  $("#go").textContent = SIGNUP ? "Create account" : "Sign in";
+  $("#switch").innerHTML = SIGNUP ? `Already have an account? <a href="/login?tab=${KIND}">Sign in</a>`
+    : `New here? <a href="/signup?kind=${KIND}">Create a ${KIND} account</a>`;
+  demo();
 }
+async function demo() {
+  if (SIGNUP) { $("#demo").hidden = true; return; }
+  try {
+    const rows = KIND === "creator" ? (await api("/api/login/creators")).creators.map(c => [c.display_name, "@" + c.handle, c.email])
+      : (await api("/api/login/brands")).brands.map(b => [b.name, b.company, b.email]);
+    if (!rows.length) { $("#demo").hidden = true; return; }
+    $("#demo").hidden = false;
+    $("#demo").innerHTML = `<p class="small muted" style="margin-top:0">Demo accounts (made up) use the shared demo password:</p>
+      <div class="stack">${rows.map(r => `<button class="pick" type="button" data-email="${esc(r[2])}"><div class="avatar">${initials(r[0])}</div>
+        <div class="grow" style="text-align:left"><b>${esc(r[0])}</b> <span class="muted small">${esc(r[1])}</span></div></button>`).join("")}</div>`;
+    $$("#demo .pick").forEach(p => p.onclick = () => { $$("#demo .pick").forEach(x => x.classList.remove("on")); p.classList.add("on"); $("#email").value = p.dataset.email; $("#pw").focus(); });
+  } catch { $("#demo").hidden = true; }
+}
+$$(".seg button").forEach(b => b.onclick = () => { KIND = b.dataset.k; draw(); });
 $("#eye").onclick = () => { const i = $("#pw"); i.type = i.type === "password" ? "text" : "password"; };
 $("#f").onsubmit = e => {
   e.preventDefault();
   busy($("#go"), async () => {
     $("#err").hidden = true;
     try {
-      const r = await api("/login", { body: { creator: picked, password: $("#pw").value } });
+      const body = SIGNUP ? { kind: KIND, name: $("#name").value, email: $("#email").value, password: $("#pw").value, company: $("#company").value || null }
+        : { kind: KIND, email: $("#email").value, password: $("#pw").value };
+      const next = Q.get("next") ? `?next=${encodeURIComponent(Q.get("next"))}` : "";
+      const r = await api((SIGNUP ? "/signup" : "/login") + next, { body });
       location.href = r.go;
     } catch (err) { $("#err").textContent = err.message; $("#err").hidden = false; }
   });
 };
-load().catch(e => toast(e.message, "bad", load));
+draw();
 </script>
 </body></html>

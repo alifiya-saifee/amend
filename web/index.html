@@ -7,7 +7,7 @@
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
 </head><body>
-<header class="top"><a class="logo" href="/">Amend</a><span class="title"></span><a class="btn small" href="/login">Sign in</a></header>
+<header class="top"><a class="logo" href="/">Amend</a><span class="title"></span><span class="auth-slot"></span></header>
 <main class="wrap home">
   <section class="hero">
     <div class="tag-line">Money that changes when the truth changes.</div>
@@ -16,8 +16,13 @@
     <p class="lead">When the deal changes in the chat, Amend prices the change from the creator's own list and shows exactly what moves.</p>
     <p class="lead">Nothing is paid out until both sides confirm and the delivery matches the deal.</p>
     <div class="row wrapx hero-cta">
-      <a class="btn primary" href="/login">Sign in as creator</a>
-      <button class="btn" disabled title="Opens Tuesday">Try it yourself · opens Tuesday</button>
+      <a class="btn primary" href="/signup?kind=creator">Join as a creator</a>
+      <a class="btn" href="/signup?kind=brand">Join as a brand</a>
+    </div>
+    <div class="row wrapx" style="margin-top:10px;gap:10px">
+      <a class="btn small" href="/creators">Browse creators</a>
+      <a class="btn small" href="/login">Sign in as creator</a>
+      <a class="btn small" href="/try">Try it yourself</a>
     </div>
   </section>
 

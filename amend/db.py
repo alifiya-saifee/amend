@@ -35,6 +35,23 @@ EVENT_TYPES = {
     "ai.called", "ai.fallback", "ai.rejected",
     # system
     "webhook.received", "tick.ran", "login.ok", "login.failed",
+    # accounts (Phase 0)
+    "account.created", "account.attached", "shortlist.changed", "search.saved", "team.changed", "company.saved",
+    # webhooks (Phase 2)
+    "webhook.verified", "webhook.rejected", "webhook.duplicate", "webhook.applied",
+    # chat and changes (Phase 3)
+    "message.sent", "message.imported", "change.previewed", "change.discussed", "change.reminded", "change.override",
+    "feedback.classified", "teammate.invited", "change.suggested",
+    # discovery and briefs (Phase 4–5)
+    "profile.saved", "metrics.saved", "metrics.read_from_screenshot", "brief.field_countered", "brief.field_agreed",
+    "shipment.added", "product.received", "product.nudged", "review.left",
+    # delivery, money out (Phase 6)
+    "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned",
+    "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
+    # cancellation, calls, conflicts (Phase 7)
+    "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",
+    "call.uploaded", "call.nudged", "deal.paused", "deal.resumed", "media.deleted",
 }
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -139,10 +156,50 @@ create table if not exists webhook_events (
   processed_at text, payload_json text not null);
 create table if not exists inbox_reads (
   party_id text not null, event_id integer not null, at text not null, primary key (party_id, event_id));
+create table if not exists accounts (
+  id text primary key, kind text not null, email text unique not null, name text not null, company text,
+  website text, about text, password_hash text, party_id text, creator_id text, created_at text not null);
+create table if not exists shortlist (
+  account_id text not null, creator_id text not null, at text not null, primary key (account_id, creator_id));
+create table if not exists saved_searches (
+  id text primary key, account_id text not null, name text not null, query text not null, at text not null);
+create table if not exists team_members (
+  id text primary key, account_id text not null, name text not null, email text, role text not null, at text not null);
+create table if not exists creator_metrics (
+  id text primary key, creator_id text not null, platform text not null, followers integer not null,
+  avg_views integer, avg_likes integer, avg_comments integer, posts_per_week integer,
+  audience_json text not null default '{}', source text not null, as_of text not null, created_at text not null);
+create index if not exists ix_metrics_creator on creator_metrics(creator_id, platform, as_of);
+create table if not exists reviews (
+  id text primary key, deal_id text unique not null, creator_id text not null, rating integer not null,
+  text text, by_party text not null, at text not null);
+create table if not exists shipments (
+  id text primary key, deal_id text not null, courier text, tracking text, hand_delivery integer not null default 0,
+  added_at text not null, received_at text, photo_url text, nudged_at text);
+create table if not exists chat_reads (
+  deal_id text not null, party_id text not null, last_at text not null, primary key (deal_id, party_id));
 create index if not exists ix_money_deal on money_items(deal_id);
 create index if not exists ix_facts_deal on facts(deal_id);
 create index if not exists ix_terms_deal on terms(deal_id, version);
 """
+
+# columns added after the first release: added in place on start (portable `alter table ... add column`)
+COLUMNS = {
+    "parties": {"account_id": "text", "can_confirm": "integer not null default 0"},
+    "creators": {"niches_json": "text not null default '[]'", "city": "text", "country": "text",
+                 "languages_json": "text not null default '[]'", "styles_json": "text not null default '[]'",
+                 "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
+                 "samples_json": "text not null default '[]'", "keywords": "text", "is_demo": "integer not null default 0",
+                 "address": "text", "phone": "text"},
+    "deals": {"brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
+              "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
+              "posted_at": "text", "completed_at": "text"},
+    "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
+                "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
+                "delta_cents": "integer not null default 0"},
+    "money_items": {"payee_email": "text", "change_id": "text", "note": "text"},
+    "messages": {"meta_json": "text not null default '{}'"},
+}
 
 EVENTS_SQLITE = """
 create table if not exists events (
@@ -234,6 +291,17 @@ class Database:
                 for stmt in (SCHEMA + EVENTS_POSTGRES).split(";\n"):
                     if stmt.strip():
                         self.conn.execute(stmt)
+            for table, cols in COLUMNS.items():
+                have = self._columns(table)
+                for col, typ in cols.items():
+                    if col not in have:
+                        self.conn.execute(f"alter table {table} add column {col} {typ}")
+
+    def _columns(self, table: str) -> set[str]:
+        if self.kind == "sqlite":
+            return {r["name"] for r in self.conn.execute(f"pragma table_info({table})").fetchall()}
+        return {r["column_name"] for r in self.conn.execute(
+            "select column_name from information_schema.columns where table_name = %(t)s", {"t": table}).fetchall()}
 
     # ---- generic row helpers (never used for events) ----
     def insert(self, table: str, row: dict) -> dict:

@@ -97,3 +97,19 @@ function toggleMenu(id) { $("#" + id).classList.toggle("open"); }
 document.addEventListener("click", e => { if (!e.target.closest(".chip-me, .menu")) $$(".menu.open").forEach(m => m.classList.remove("open")); });
 
 async function signOut() { await api("/logout", { method: "POST" }); location.href = "/"; }
+
+// Header (S83): every page shows "Sign in", or the signed-in person's name with a link home.
+async function fillAuthSlots() {
+  const slots = $$(".auth-slot");
+  if (!slots.length) return;
+  let w = { signed_in: false };
+  try { w = await api("/api/whoami"); } catch {}
+  window.WHO = w;
+  const next = encodeURIComponent(location.pathname + location.search);
+  slots.forEach(s => {
+    s.innerHTML = w.signed_in
+      ? `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand dashboard" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`
+      : `<a class="btn small" href="/login?next=${next}">Sign in</a>`;
+  });
+}
+document.addEventListener("DOMContentLoaded", fillAuthSlots);

@@ -195,3 +195,14 @@ blockquote { margin: 8px 0; padding: 10px 12px; border-left: 3px solid var(--gol
 .events { list-style: none; padding: 0; margin: 0; font-size: .85rem; }
 .events li { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
 .events li:first-child { border-top: 0; }
+
+/* ---------- accounts (Phase 0) ---------- */
+.narrow { max-width: 460px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--raise); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 .95rem var(--font); padding: 10px; border-radius: 9px; cursor: pointer; }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+button.pick { width: 100%; font: inherit; color: var(--ink); }
+.auth-slot { display: flex; gap: 8px; align-items: center; }
+.auth-slot .who { font-size: .85rem; color: var(--ink); text-decoration: none; border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+.tabs .side-only { display: none; }
+@media (min-width: 1025px) { body.studio .tabs .side-only { display: flex; } }

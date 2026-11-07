@@ -77,5 +77,32 @@ def seed(db: Database) -> list[str]:
     return made
 
 
+DEMO_BRANDS = [("Nadia", "Dune Roast Coffee", "nadia@duneroast.example")]
+
+
+def ensure_demo_accounts(db: Database) -> int:
+    """Seeded creators and the demo brand get sign-in accounts that use the shared demo password (no hash)."""
+    made = 0
+    for c in db.all("select c.id, c.party_id, c.handle, c.display_name from creators c "
+                    "where not exists (select 1 from accounts a where a.creator_id = c.id)"):
+        aid = new_id("acc")
+        db.insert("accounts", {"id": aid, "kind": "creator", "email": f"{c['handle']}@creators.example",
+                               "name": c["display_name"], "password_hash": None, "party_id": c["party_id"],
+                               "creator_id": c["id"], "created_at": now()})
+        db.update("parties", "id", c["party_id"], {"account_id": aid})
+        made += 1
+    for name, company, email in DEMO_BRANDS:
+        if db.one("select id from accounts where email = :e", {"e": email}):
+            continue
+        pid, aid = new_id("p"), new_id("acc")
+        db.insert("parties", {"id": pid, "name": name, "role": "brand_main", "org": company, "confirmed": 1, "email": email,
+                              "account_id": aid, "created_at": now()})
+        db.insert("accounts", {"id": aid, "kind": "brand", "email": email, "name": name, "company": company,
+                               "password_hash": None, "party_id": pid, "created_at": now()})
+        made += 1
+    return made
+
+
 if __name__ == "__main__":
-    print("seeded:", seed(get_db()) or "nothing new")
+    d = get_db()
+    print("seeded:", seed(d) or "nothing new", "| accounts:", ensure_demo_accounts(d))
