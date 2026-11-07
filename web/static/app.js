@@ -68,13 +68,14 @@ async function busy(btn, fn) {
   try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = html; }
 }
 
-function sheet(html, { onOpen } = {}) {
+function sheet(html, { onOpen, drawer = false } = {}) {
   let bg = $("#sheet-bg"), sh = $("#sheet");
   if (!bg) {
     bg = document.createElement("div"); bg.id = "sheet-bg"; bg.className = "sheet-bg"; document.body.appendChild(bg);
     sh = document.createElement("div"); sh.id = "sheet"; sh.className = "sheet"; document.body.appendChild(sh);
     bg.onclick = closeSheet;
   }
+  sh.classList.toggle("drawer", drawer); sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true");
   sh.innerHTML = `<div class="grab"></div>` + html;
   bg.classList.add("open"); requestAnimationFrame(() => sh.classList.add("open"));
   if (onOpen) onOpen(sh);

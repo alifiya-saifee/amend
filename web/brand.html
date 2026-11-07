@@ -27,7 +27,7 @@ async function route() {
   try {
     if (!ME) { ME = await api("/api/brand/me"); Shell.setName(ME.name.split(" ")[0]); }
     const page = { "": window.brandHome || inbox, inbox, deals: window.brandDeals || deals, shortlist: window.brandShortlists || shortlist, searches,
-      payments: window.brandPayments || (() => soon("Payments")), team, settings: window.brandSettings || company, company: window.brandSettings || company }[seg] || inbox;
+      payments: window.brandPayments || (() => soon("Payments")), team: window.brandTeam || team, settings: window.brandSettings || company, company: window.brandSettings || company }[seg] || inbox;
     await page();
   } catch (e) {
     if (e.status === 401) { location.href = "/login?tab=brand"; return; }

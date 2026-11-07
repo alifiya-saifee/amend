@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -762,8 +762,8 @@ def brand_deals(acc: dict = Depends(require_brand)):
                      "where l.deal_id = :d and p.account_id = :a and l.revoked_at is null order by l.created_at desc limit 1",
                      {"d": did, "a": acc["id"]})
         hold = deals.open_hold(d, did)
-        out.append({"id": did, "creator": c["display_name"], "handle": c["handle"], "status": r["status"],
-                    "total_cents": r["total_cents"], "money": hold["status"] if hold else None,
+        out.append({"id": did, "creator": c["display_name"], "handle": c["handle"], "status": r["status"], "stage": studio.stage(d, r),
+                    "total_cents": r["total_cents"], "money": hold["status"] if hold else None, "deadline": r.get("deadline"),
                     "go": f"/d/{link['token']}" if link else None, "updated_at": r["updated_at"]})
     out.sort(key=lambda x: x["updated_at"], reverse=True)
     return {"deals": out}
@@ -861,17 +861,35 @@ class TeamIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     email: str | None = Field(None, max_length=120)
     role: str = Field(pattern="^(Marketing|Legal|Finance|Other)$")
+    can_confirm: bool = False
 
 
 @app.get("/api/brand/team")
 def team(acc: dict = Depends(require_brand)):
-    return {"items": get_db().all("select id, name, email, role from team_members where account_id = :a order by at",
-                                  {"a": acc["id"]})}
+    rows = get_db().all("select id, name, email, role, can_confirm from team_members where account_id = :a order by at", {"a": acc["id"]})
+    return {"items": [r | {"can_confirm": bool(r["can_confirm"])} for r in rows]}
+
+
+class TeamPatch(BaseModel):
+    can_confirm: bool | None = None
+    role: str | None = Field(None, pattern="^(Marketing|Legal|Finance|Other)$")
+
+
+@app.put("/api/brand/team/{tid}")
+def team_patch(tid: str, body: TeamPatch, acc: dict = Depends(require_brand)):
+    d = get_db()
+    if not d.one("select id from team_members where id = :i and account_id = :a", {"i": tid, "a": acc["id"]}):
+        raise HTTPException(404, "Team member not found")
+    patch = {k: (int(v) if k == "can_confirm" else v) for k, v in body.model_dump().items() if v is not None}
+    if patch:
+        d.update("team_members", "id", tid, patch)
+        d.log_event("team.changed", actor=acc["party_id"] or acc["id"], payload={"member": tid, **patch})
+    return team(acc)
 
 
 @app.post("/api/brand/team")
 def team_add(body: TeamIn, acc: dict = Depends(require_brand)):
-    get_db().insert("team_members", {"id": new_id("tm"), "account_id": acc["id"], **body.model_dump(), "at": db_now()})
+    get_db().insert("team_members", {"id": new_id("tm"), "account_id": acc["id"], **(body.model_dump() | {"can_confirm": int(body.can_confirm)}), "at": db_now()})
     get_db().log_event("team.changed", actor=acc["party_id"] or acc["id"], payload={"added": body.name})
     return team(acc)
 
@@ -880,6 +898,99 @@ def team_add(body: TeamIn, acc: dict = Depends(require_brand)):
 def team_remove(tid: str, acc: dict = Depends(require_brand)):
     get_db().execute("delete from team_members where id = :i and account_id = :a", {"i": tid, "a": acc["id"]})
     return team(acc)
+
+
+# ---------- brand workspace (Block 6) ----------
+
+@app.get("/api/brand/home")
+def brand_home(acc: dict = Depends(require_brand)):
+    return brandspace.home(get_db(), get_db().one("select * from accounts where id = :i", {"i": acc["id"]}))
+
+
+@app.get("/api/brand/payments")
+def brand_payments(acc: dict = Depends(require_brand)):
+    return {"items": brandspace.payments(get_db(), acc["id"]), "tiles": brandspace.tiles(get_db(), acc["id"])}
+
+
+@app.get("/api/brand/payments.csv")
+def brand_payments_csv(acc: dict = Depends(require_brand)):
+    from fastapi.responses import Response
+    return Response(brandspace.payments_csv(get_db(), acc["id"]), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="amend-payments.csv"'})
+
+
+@app.get("/api/brand/deals/{deal_id}/receipt.pdf")
+def brand_receipt(deal_id: str, acc: dict = Depends(require_brand)):
+    from fastapi.responses import Response
+    d = get_db()
+    if deal_id not in brandspace.deal_ids(d, acc["id"]):
+        raise HTTPException(404, "Deal not found")
+    c = d.one("select c.* from creators c join deals x on x.creator_id = c.id where x.id = :d", {"d": deal_id})
+    return Response(studio.receipt_pdf(d, c, deal_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="amend-receipt-{deal_id}.pdf"'})
+
+
+class ListIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    shared: bool = True
+
+
+class ListPatch(BaseModel):
+    name: str | None = Field(None, max_length=60)
+    shared: bool | None = None
+    notes: str | None = Field(None, max_length=1000)
+
+
+class ListItemIn(BaseModel):
+    creator_id: str
+    on: bool = True
+    note: str | None = Field(None, max_length=300)
+
+
+def _full_acc(acc: dict) -> dict:
+    return get_db().one("select * from accounts where id = :i", {"i": acc["id"]}) | {"party_id": acc.get("party_id")}
+
+
+def _lists(acc: dict) -> dict:
+    return {"lists": brandspace.shortlists(get_db(), _full_acc(acc))}
+
+
+@app.get("/api/brand/shortlists")
+def brand_lists(acc: dict = Depends(require_brand)):
+    return _lists(acc)
+
+
+@app.post("/api/brand/shortlists")
+def brand_list_new(body: ListIn, acc: dict = Depends(require_brand)):
+    r = brandspace.create_list(get_db(), _full_acc(acc), body.name, body.shared)
+    return _lists(acc) | r
+
+
+def _list_call(fn, *a, **k):
+    try:
+        return fn(*a, **k)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+
+
+@app.put("/api/brand/shortlists/{lid}")
+def brand_list_edit(lid: str, body: ListPatch, acc: dict = Depends(require_brand)):
+    _list_call(brandspace.update_list, get_db(), _full_acc(acc), lid, **body.model_dump())
+    return _lists(acc)
+
+
+@app.delete("/api/brand/shortlists/{lid}")
+def brand_list_delete(lid: str, acc: dict = Depends(require_brand)):
+    _list_call(brandspace.delete_list, get_db(), _full_acc(acc), lid)
+    return _lists(acc)
+
+
+@app.post("/api/brand/shortlists/{lid}/items")
+def brand_list_item(lid: str, body: ListItemIn, acc: dict = Depends(require_brand)):
+    _list_call(brandspace.set_item, get_db(), _full_acc(acc), lid, body.creator_id, body.on, body.note)
+    return _lists(acc)
 
 
 class WhoIn(BaseModel):
