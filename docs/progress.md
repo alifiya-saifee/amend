@@ -73,11 +73,21 @@
   - "Show QR" on the link sheet;
   - "Ask for changes" (it needs the chat, so Sunday).
 
+### Decisions (evening, 7 Nov)
+- **Option 2 confirmed** by Alifiya.
+- **Money statuses:** `expired` and `cancelled` were added to `CLAUDE.md`. The code already had them (`amend/models.py`).
+- **Git history:** Alifiya asked to remove `amend.db-shm` and `amend.db-wal` from every commit and force-push to the private repo. The commands were shown first and are waiting for her go.
+- **Secrets:** Alifiya adds `AMEND_SESSION_SECRET` and `AMEND_TICK_SECRET` to `.env` herself.
+- **Design changes D1–D5** are added to `docs/build-checklist.md` §3.16, to be built after the live PayPal hold test passes:
+  - D1: light theme by default, dark only when the device prefers it, with a contrast check;
+  - D2: a real intro page at `/`;
+  - D3: a welcome sheet for the brand's first visit;
+  - D4: an Inbox as the first studio tab;
+  - D5: the desktop layout above 1024 px.
+
+### Waiting on
+- **Live hold test:** order 8AE0…310G is created ($530, status `sent`). Alifiya approves it as Nadia at the local deal link. The deal should then show "Held ✅", and PayPal should show $530 authorised.
+
 ### Open questions
-- **Confirm Option 2** (see above).
 - **The repo is private for now.** It goes public when you say, after your reviewer has seen it.
-- **`CLAUDE.md` is out of date on money statuses:** its list doesn't include `expired` or `cancelled`, which the code now uses. Should I update it?
-- **Missing settings in `.env`:**
-  - `AMEND_SESSION_SECRET`: without it, sign-ins don't survive a restart.
-  - `AMEND_TICK_SECRET`: without it, `/internal/tick` refuses every call.
 - **Call audio (Wed):** Groq Whisper doesn't say who spoke. Decide between Gemini audio and tagging speakers by hand.

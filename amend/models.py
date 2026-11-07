@@ -5,7 +5,7 @@ Deal:       draft → offered → accepted → in_progress → delivered → com
 MoneyItem:  planned → approved → sent → (authorized | paid | voided | refunded | failed).
             authorized → paid (collected) | voided (released) | expired (hold ran out).
             paid → refunded only. **paid can never become voided or cancelled.**
-            planned/approved → cancelled (never sent, so nothing to undo in PayPal).
+            planned/approved/failed → cancelled (never reached PayPal, so nothing to undo).
             failed → sent (retry with the same PayPal-Request-Id).
 Change:     detected → previewed → confirmed_by_both → applied; detected/previewed → rejected | expired (48 h).
 """

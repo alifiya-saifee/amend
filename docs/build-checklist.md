@@ -506,6 +506,64 @@ Checks the token and order ID, **authorises only**, logs events, then redirects 
 
 ---
 
+### 3.16 Design changes (asked 7 Nov; build after the live PayPal hold test passes)
+
+**D1. Theme: light by default, dark when the device prefers it**
+- [ ] Light colours are the default (`:root`). Dark colours apply only under `@media (prefers-color-scheme: dark)`, and keep today's dark values.
+- [ ] Gold stays the accent in both themes. On light backgrounds, gold *text* uses a darker gold so it's readable. Gold *buttons* keep dark text in both themes.
+- [ ] Contrast check, WCAG AA (4.5:1 for body text, 3:1 for large text and UI edges), for these pairs in both themes:
+  - body text on the background;
+  - muted text;
+  - gold text;
+  - the text on gold buttons;
+  - every pill colour;
+  - the sandbox strip.
+
+  Write the measured ratios into the checklist.
+- [ ] `<meta name="theme-color">` follows the theme (one tag per theme with a `media` attribute). The manifest stays dark.
+- [ ] Screenshots: every Saturday screen in light mode and in dark mode (Playwright `color_scheme`).
+
+**D2. Home `/`: a real intro page**
+- [ ] What Amend is, in 3 lines (who it's for, what it does, why it's safe).
+- [ ] "How it works" in 3 steps:
+  1. Send the brand your deal link.
+  2. They pay and PayPal holds the money.
+  3. Every change is confirmed by both, and the money moves only when the delivery matches.
+- [ ] Buttons: **[Sign in as creator]** → `/login` · **[Try it yourself]** → `/try`. Until Tuesday it shows "Opens Tuesday" and is disabled.
+- [ ] Footer as before. Works at 390 px and on desktop.
+
+**D3. Brand first visit: a welcome sheet before the deal**
+- [ ] On the first visit, sheet 1: **"Sara Malik invited you to a deal"**, with Sara's avatar and handle, the same 3 steps, and **[Continue]**.
+- [ ] Then sheet 2, the existing check: **"This link is for Nadia at Dune Roast Coffee. Is that you?"** [Yes, that's me] / [No].
+- [ ] The creator's name comes from the deal; nothing is hard-coded.
+- [ ] Once the link is confirmed, neither sheet shows again.
+- [ ] Test: a first visit shows the welcome, then the check; a second visit shows neither.
+
+**D4. Inbox: a new first tab in Sara's studio**
+- [ ] The tabs become **Inbox · Deals · Prices · Ledger · Profile**, and `/studio` opens on Inbox. Routes: `/studio/inbox`, with `/studio/deals` for the list.
+- [ ] Shows, newest first:
+  - all conversations;
+  - change cards waiting for Sara;
+  - delivery gaps;
+  - PayPal updates.
+
+  Each row has an icon, the brand, one line and the time, plus an **unread dot**. Tapping a row opens the deal and marks the row read.
+- [ ] Filter chips: **All · Needs me · Messages · Money**. An unread count shows on the tab icon.
+- [ ] **Built now:**
+  - the page shell;
+  - the API `GET /api/studio/inbox` (paged), built from events that exist today: brief sent, draft ready, hold approved, held, PayPal returned;
+  - read/unread per creator, stored in a small `inbox_reads` table (party_id, event_id), never by changing events.
+- [ ] **Sunday:** chat messages and change cards feed the same list.
+- [ ] Empty state: "Nothing new. Messages, changes and PayPal updates show up here."
+
+**D5. Desktop layout (wider than 1024 px)**
+- [ ] **Deal room:** two columns, with the chat on the left and the deal and money panel on the right.
+  - The money panel shows the lines, total, hold status with real dates, and the event history.
+  - Until Sunday the chat column shows that day's state (brief, draft, pay).
+- [ ] **Studio:** a side menu on the left (Inbox, Deals, Prices, Ledger, Profile, with Sign out at the bottom) replaces the bottom tabs. Content up to about 880 px wide.
+- [ ] At 1024 px or narrower, the phone layout stays exactly as it is.
+- [ ] Screenshots at 1280 px of the studio and the deal room (brand side and creator side), and a check that nothing scrolls sideways at 390, 768 and 1280 px.
+
 ## 4. Tonight's checklist (in order)
 
 **Part 0: PayPal check**

@@ -50,7 +50,7 @@ Alifiya Saifee (GitHub `alifiya-saifee`), Dubai. She builds with you and reviews
 
 **Status rules** (anything else raises):
 - Deal: draft → offered → accepted → in_progress → delivered → completed; ↔ paused; → cancelled. Work starts only when money is held.
-- MoneyItem: planned → approved → sent → (authorized | paid | voided | refunded | failed). **paid can never become voided or cancelled.**
+- MoneyItem: planned → approved → sent → (authorized | paid | voided | refunded | failed). authorized → paid | voided | **expired** (the hold ran out: from PayPal's status or the expiry date; an expired hold can't be collected, and the brand sees "Hold expired, hold again"). planned/approved/failed → **cancelled** (never reached PayPal, so nothing to undo). failed → sent (retry with the same request ID). **paid can never become voided or cancelled.**
 - Change: detected → previewed → (confirmed_by_both → applied) | rejected | expired (48 h; the last confirmed version stays in force).
 
 ## Money flow (decided after the day-1 PayPal check)
