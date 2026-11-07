@@ -2,7 +2,8 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1 PYTHONUTF8=1 PIP_NO_CACHE_DIR=1
+# PIP_ROOT_USER_ACTION=ignore: installing as root is fine inside this image (no system Python to clash with)
+ENV PYTHONUNBUFFERED=1 PYTHONUTF8=1 PIP_NO_CACHE_DIR=1 PIP_ROOT_USER_ACTION=ignore PIP_DISABLE_PIP_VERSION_CHECK=1
 
 COPY requirements.txt ./
 # test-only and browser-test packages stay out of the image
