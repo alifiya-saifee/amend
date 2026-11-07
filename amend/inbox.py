@@ -93,7 +93,7 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
             c = db.one("select status, confirmed_creator_at from changes where id = :c", {"c": e["payload"]["change"]})
             if c and c["status"] == "previewed" and not c["confirmed_creator_at"]:
                 ch = e["payload"]["change"]  # actionable right from the Inbox
-        out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat,
+        out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat, "type": e["type"],
                     "line": line, "at": e["at"], "unread": e["id"] not in read, "change": ch})
     unread = sum(x["unread"] for x in out)
     counts = {"all": len(out), "needs_me": sum(x["category"] == "needs_me" for x in out),
@@ -106,27 +106,31 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
 
 
 def _threads(out: list[dict], deals: dict, flt: str) -> list[dict]:
-    """One row per deal (newest activity first): the latest line, how many updates, which are unread, and any change
-    card that can be confirmed right from the Inbox. A deal shows under a filter if any of its updates match it."""
+    """One row per brand (newest activity first): the latest line, whether it's a chat message or an activity update,
+    how many deals and updates, which updates are unread, and any change card that can be confirmed from the Inbox.
+    The row opens the brand's most recently active deal; `deals` lists all of them (newest first) for the deal picker.
+    A brand shows under a filter if any of its updates match it."""
     by: dict[str, dict] = {}
-    for x in out:  # out is newest first
-        t = by.get(x["deal"])
+    for x in sorted(out, key=lambda x: x["at"], reverse=True):
+        brand = x["brand"] or "Brand"
+        t = by.get(brand)
         if not t:
-            d = deals[x["deal"]]
-            t = by[x["deal"]] = {"deal": x["deal"], "brand": x["brand"], "icon": x["icon"], "line": x["line"], "at": x["at"],
-                                 "event_id": x["event_id"], "count": 0, "unread": 0, "unread_ids": [], "event_ids": [], "change": None,
-                                 "categories": set(), "total_cents": d["total_cents"], "status": d["status"]}
+            t = by[brand] = {"brand": brand, "deal": x["deal"], "icon": x["icon"], "line": x["line"], "at": x["at"],
+                             "kind": "message" if x["type"] == "message.sent" else "update", "event_id": x["event_id"],
+                             "count": 0, "unread": 0, "unread_ids": [], "change": None, "change_deal": None, "categories": set(), "deals": []}
         t["count"] += 1
-        t["event_ids"].append(x["event_id"])
         if x["unread"]:
             t["unread"] += 1; t["unread_ids"].append(x["event_id"])
         t["categories"].add(x["category"])
         if x["change"] and not t["change"]:
-            t["change"] = x["change"]
+            t["change"], t["change_deal"] = x["change"], x["deal"]
+        if x["deal"] not in {d["id"] for d in t["deals"]}:
+            d = deals[x["deal"]]
+            t["deals"].append({"id": d["id"], "total_cents": d["total_cents"], "status": d["status"], "at": x["at"]})
     rows = [t for t in by.values() if flt == "all" or flt in t["categories"]]
     for t in rows:
         t["categories"] = sorted(t["categories"])
-    return sorted(rows, key=lambda t: t["at"], reverse=True)  # newest activity first (by time, not by insert order)
+    return sorted(rows, key=lambda t: t["at"], reverse=True)
 
 
 def mark_read(db: Database, party_id: str, event_ids: list[int]) -> int:

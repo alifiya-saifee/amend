@@ -418,3 +418,13 @@ body.app .apptop { z-index: 25; }
 .hide-mobile { display: none; }
 @media (min-width: 1025px) { .hide-mobile { display: block; } }
 body { min-height: 100vh; }
+
+/* ---------- Inbox: one row per brand ---------- */
+.avatar.sm { width: 36px; height: 36px; font-size: 13px; flex: none; }
+.ib-line { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib-line .kind { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 99px; background: var(--chip); color: var(--muted); }
+.ib-line .kind svg { width: 12px; height: 12px; }
+.ib-line .kind.message { background: var(--gold-soft); color: var(--gold-ink); }
+.inbox-row.sel { box-shadow: inset 3px 0 0 var(--gold); }
+.pane-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }

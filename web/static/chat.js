@@ -13,7 +13,7 @@ const Chat = (() => {
         <form id="chat-form" class="composer">
      <button type="button" class="btn small" id="chat-attach" aria-label="Attach"><i data-lucide='paperclip' aria-hidden='true'></i></button>
      <button type="button" class="btn small" id="chat-mic" aria-label="Record a voice note"><i data-lucide='mic' aria-hidden='true'></i></button>
-     <textarea id="chat-in" rows="1" maxlength="4000" placeholder="Message… e.g. “Can we add one more Story and post Monday?”"></textarea>
+     <textarea id="chat-in" rows="1" maxlength="4000" placeholder="Write a message…"></textarea>
           <button class="btn primary small" id="chat-send">Send</button>
         </form>
         <input type="file" id="chat-file" hidden>

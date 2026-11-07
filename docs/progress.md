@@ -213,4 +213,5 @@ Next: Block 7.
 - Now: /api/studio/inbox returns `threads` (one per deal, newest activity first by time, latest line, update count, unread ids, actionable change card); the creator Inbox and the brand Inbox show one row per deal. Opening a row marks all its updates read. A brand with several deals shows each deal's amount ("$530 deal · 3 updates").
 - Also fixed: the local server on port 8000 was still running code from before Block 4 (Home showed "Not Found"); restarted. tests/browser/shots.py now signs out between people.
 - Test: tests/test_inbox_threads.py. Suite: 466 passed, 3 skipped.
-- Waiting for a yes: the wider Inbox redesign (points 2–7 proposed in chat).
+- Then (same day): one row per BRAND (all its deals and updates), "Message" / "Update" label on each row, panel with a deal picker and no card-in-card, chat placeholder shortened ("Write a message…") so it no longer gets cut off. On local data: 36 Dune Roast rows → 1.
+- Waiting for a yes: the rest of the Inbox polish (slimmer rows, deal summary in the panel, toolbar heights, smaller title).

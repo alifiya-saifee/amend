@@ -47,10 +47,10 @@ let IBF = { filter: "all", q: "", sel: null };
 async function inboxSplit() {
   const r = await api(`/api/studio/inbox?filter=${IBF.filter}&page=0`);
   badge(r.unread);
-  // one row per deal (the API groups the updates); a brand with several deals shows each deal's amount to tell them apart
+  // one row per brand (the API groups every update of every deal with that brand); the row opens the latest deal
   const items = (r.threads || []).filter(x => !IBF.q || (x.brand + " " + x.line).toLowerCase().includes(IBF.q.toLowerCase()));
-  const perBrand = {}; items.forEach(x => perBrand[x.brand] = (perBrand[x.brand] || 0) + 1);
-  const sub = x => [perBrand[x.brand] > 1 && x.total_cents ? usd(x.total_cents) + " deal" : "", x.count > 1 ? x.count + " updates" : ""].filter(Boolean).join(" · ");
+  IBF.threads = Object.fromEntries(items.map(x => [x.brand, x]));
+  const sub = x => [x.deals.length > 1 ? x.deals.length + " deals" : "", x.count > 1 ? x.count + " updates" : ""].filter(Boolean).join(" · ");
   const c = r.counts || {};
   $("#view").innerHTML = `
     <div class="row between wrapx" style="gap:8px"><h1>Inbox</h1>
@@ -61,16 +61,16 @@ async function inboxSplit() {
       <input id="ib-q" placeholder="Search the inbox" value="${esc(IBF.q)}" style="max-width:260px"></div>
     <div class="split">
       <div class="card" style="padding:6px">${items.length ? items.map(x => `
-        <div class="inbox-row ${x.unread ? "unread" : ""} ${IBF.sel === x.deal ? "sel" : ""}" data-ids="${x.unread_ids.join(",")}" data-deal="${x.deal}" tabindex="0" role="button">
-          <span class="ic">${I(x.icon)}</span>
-          <div class="grow"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
-            <div class="small">${esc(x.line)}</div>
+        <div class="inbox-row ${x.unread ? "unread" : ""} ${IBF.selBrand === x.brand ? "sel" : ""}" data-ids="${x.unread_ids.join(",")}" data-deal="${x.deal}" data-brand="${esc(x.brand)}" tabindex="0" role="button">
+          <span class="avatar sm">${initials(x.brand)}</span>
+          <div class="grow" style="min-width:0"><div class="row between"><b>${esc(x.brand)}</b><span class="tiny muted">${ago(x.at)}</span></div>
+            <div class="small ib-line"><span class="kind ${x.kind}">${I(x.kind === "message" ? "message-circle" : x.icon)} ${x.kind === "message" ? "Message" : "Update"}</span> ${esc(x.line)}</div>
             ${sub(x) ? `<div class="tiny muted">${esc(sub(x))}</div>` : ""}
-            ${x.change ? `<div class="row" style="gap:6px;margin-top:6px"><button class="btn small primary" data-cc="${x.change}" data-cd="${x.deal}" data-a="confirm">${I("check")} Confirm</button>
-              <button class="btn small" data-cc="${x.change}" data-cd="${x.deal}" data-a="reject">Reject</button></div>` : ""}</div>
+            ${x.change ? `<div class="row" style="gap:6px;margin-top:6px"><button class="btn small primary" data-cc="${x.change}" data-cd="${x.change_deal}" data-a="confirm">${I("check")} Confirm</button>
+              <button class="btn small" data-cc="${x.change}" data-cd="${x.change_deal}" data-a="reject">Reject</button></div>` : ""}</div>
           ${x.unread ? `<span class="udot" aria-label="${x.unread} unread"></span>` : ""}</div>`).join("")
         : emptyState("inbox", "Nothing new", "Messages, change cards and PayPal updates show up here.")}</div>
-      <div class="pane hide-mobile" id="ib-pane">${IBF.sel ? "" : `<div class="card">${emptyState("messages-square", "Pick a conversation", "Its chat opens here.")}</div>`}</div>
+      <div class="pane hide-mobile" id="ib-pane">${IBF.sel ? "" : `<div class="card">${emptyState("messages-square", "Pick a brand", "The chat for its latest deal opens here.")}</div>`}</div>
     </div>`;
   $$(".chips button").forEach(b => b.onclick = () => { IBF.filter = b.dataset.f; inboxSplit(); });
   let tq; $("#ib-q").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { IBF.q = e.target.value; inboxSplit().then(() => $("#ib-q").focus()); }, 250); };
@@ -84,16 +84,24 @@ async function inboxSplit() {
   $$(".inbox-row[data-deal]").forEach(row => row.onclick = async () => {
     const ids = row.dataset.ids ? row.dataset.ids.split(",").map(Number) : [];
     if (ids.length) { try { await api("/api/studio/inbox/read", { body: { event_ids: ids } }); } catch {} }  // opening the deal reads all its updates
-    if (matchMedia("(min-width: 1025px)").matches) { IBF.sel = row.dataset.deal; await inboxSplit(); openPane(row.dataset.deal); }
+    if (matchMedia("(min-width: 1025px)").matches) { IBF.sel = row.dataset.deal; IBF.selBrand = row.dataset.brand; await inboxSplit(); openPane(IBF.sel); }
     else location.href = `/studio/deals/${row.dataset.deal}`;
   });
   if (IBF.sel) openPane(IBF.sel);
 }
+const PANE_STATUS = { draft: "Waiting for brief", offered: "Draft to accept", accepted: "Accepted", in_progress: "In progress", delivered: "Delivered",
+  completed: "Done", paused: "Paused", cancelled: "Cancelled" };
 async function openPane(dealId) {
-  const pane = $("#ib-pane");
-  pane.innerHTML = `<div class="card"><div class="row between"><h3 style="margin:0" id="pane-ttl">Conversation</h3>
-    <a class="btn small" href="/studio/deals/${dealId}">${I("external-link")} Open deal</a></div><div id="pane-chat" style="margin-top:10px"><div class="skeleton"></div></div></div>`;
-  try { const v = await api(`/api/deals/${dealId}`); $("#pane-ttl").textContent = v.deal.brand_org; } catch {}
+  // one panel (no card inside a card): brand + deal picker + open-deal button on top, then the chat
+  const pane = $("#ib-pane"), t = (IBF.threads || {})[IBF.selBrand] || { deals: [] };
+  const label = d => `${d.total_cents ? usd(d.total_cents) : "No price yet"} · ${PANE_STATUS[d.status] || d.status}`;
+  pane.innerHTML = `<div class="pane-head"><div style="min-width:0"><h3 style="margin:0" id="pane-ttl">${esc(IBF.selBrand || "Conversation")}</h3>
+      ${t.deals.length > 1 ? `<select id="pane-deal" aria-label="Which deal" style="width:auto;margin-top:6px">${t.deals.map(d => `<option value="${d.id}" ${d.id === dealId ? "selected" : ""}>${esc(label(d))}</option>`).join("")}</select>`
+        : t.deals[0] ? `<div class="small muted">${esc(label(t.deals[0]))}</div>` : ""}</div>
+      <a class="btn small" href="/studio/deals/${dealId}">${I("external-link")} Open deal</a></div>
+    <div id="pane-chat"><div class="skeleton"></div></div>`;
+  if ($("#pane-deal")) $("#pane-deal").onchange = e => { IBF.sel = e.target.value; openPane(IBF.sel); };
+  if (!IBF.selBrand) { try { const v = await api(`/api/deals/${dealId}`); $("#pane-ttl").textContent = v.deal.brand_org; } catch {} }
   if (typeof Chat !== "undefined") Chat.mount($("#pane-chat"), { base: `/api/deals/${dealId}`, isBrand: false, token: "" });
 }
 
