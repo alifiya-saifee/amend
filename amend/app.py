@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, briefs, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, webhooks
+from amend import ai, auth, briefs, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -44,11 +44,12 @@ from contextlib import asynccontextmanager
 async def lifespan(_app):
     get_settings()  # refuses to start unless PAYPAL_ENV=sandbox
     d = get_db()
-    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery
+    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery, seed_history
     seed(d)  # adds any demo creators that are missing; existing ones are left alone
     seed_discovery(d)
     ensure_exclusivity_item(d)
     ensure_demo_accounts(d)
+    seed_history(d)  # Sara's demo history (skipped with AMEND_SEED_HISTORY=0, as in tests)
     from amend import fakes
     if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
         import sys
@@ -492,7 +493,8 @@ def my_deals(filter: str = "all", q: str = "", page: int = 0, c: dict = Depends(
         last = d.one("select type, at, actor from events where deal_id = :d order by id desc limit 1", {"d": r["id"]})
         out.append({"id": r["id"], "brand": r["brand_org"], "status": r["status"], "total_cents": r["total_cents"],
                     "money": hold["status"] if hold else None, "needs_me": r["status"] in NEEDS_ME,
-                    "last": last, "updated_at": r["updated_at"]})
+                    "last": last, "updated_at": r["updated_at"], "stage": studio.stage(d, r), "deadline": r.get("deadline"),
+                    "draft_due": r.get("draft_due"), "is_demo": bool(r.get("is_demo")), "version": r["version"]})
     counts = {"all": len(out), "needs_me": sum(x["needs_me"] for x in out),
               "held": sum(x["money"] == "authorized" for x in out)}
     flt = {"all": lambda x: True, "needs_me": lambda x: x["needs_me"],
@@ -962,6 +964,48 @@ async def paypal_return(t: str, token: str | None = None):
 
 
 # ---------- system ----------
+
+# ---------- creator studio: Home, Earnings, Calendar (Block 4) ----------
+
+@app.get("/api/studio/home")
+def studio_home(c: dict = Depends(require_creator)):
+    return studio.home(get_db(), c)
+
+
+@app.get("/api/studio/earnings")
+def studio_earnings(c: dict = Depends(require_creator)):
+    return studio.earnings(get_db(), c["id"])
+
+
+@app.get("/api/studio/earnings/statement.pdf")
+def studio_statement(month: str, c: dict = Depends(require_creator)):
+    import re as _re
+    from fastapi.responses import Response
+    if not _re.fullmatch(r"\d{4}-\d{2}", month):
+        raise HTTPException(400, "month must be YYYY-MM")
+    return Response(studio.statement_pdf(get_db(), c, month), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="amend-statement-{month}.pdf"'})
+
+
+@app.get("/api/deals/{deal_id}/receipt.pdf")
+def studio_receipt(deal_id: str, c: dict = Depends(require_creator)):
+    from fastapi.responses import Response
+    own_deal(deal_id, c)
+    return Response(studio.receipt_pdf(get_db(), c, deal_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="amend-receipt-{deal_id}.pdf"'})
+
+
+@app.get("/api/studio/calendar")
+def studio_calendar(c: dict = Depends(require_creator)):
+    return {"events": studio.calendar_events(get_db(), c["id"])}
+
+
+@app.get("/api/studio/calendar.ics")
+def studio_ics(c: dict = Depends(require_creator)):
+    from fastapi.responses import Response
+    return Response(studio.ics(get_db(), c), media_type="text/calendar",
+                    headers={"Content-Disposition": 'attachment; filename="amend-calendar.ics"'})
+
 
 # ---------- brief builder and shipping (Phase 5) ----------
 

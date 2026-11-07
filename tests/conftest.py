@@ -67,6 +67,7 @@ FAKE = {
     "AMEND_TICK_SECRET": "test-tick-secret",
     "DATABASE_URL": "sqlite:///:memory:",
     "BASE_URL": "http://testserver",
+    "AMEND_SEED_HISTORY": "0",
 }
 
 

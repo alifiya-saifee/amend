@@ -195,6 +195,145 @@ STYLES_ = ["UGC", "cinematic", "talking head", "tutorial", "AI-made"]
 
 TRY_HANDLE = "try.demo"
 
+# ---------- demo history for Sara (Block 4): 8 deals, 3 made-up brands, all marked Demo ----------
+HISTORY_BRANDS = [("Nadia", "Dune Roast Coffee", "nadia@duneroast.example"), ("Mira", "Sahara Sips", None), ("Karim", "Oud & Ember", None)]
+
+
+def seed_history(db: Database) -> int:
+    """Realistic, clearly-labelled demo history so Home, Earnings and Calendar show real numbers from real tables.
+    Written straight into the tables (no PayPal calls); IDs look like sandbox IDs but are marked demo."""
+    import os
+    from datetime import date, datetime, timedelta, timezone
+    if os.environ.get("AMEND_SEED_HISTORY") == "0":
+        return 0
+    sara = db.one("select * from creators where handle = 'sara.eats'")
+    if not sara or db.one("select id from deals where creator_id = :c and is_demo = 1", {"c": sara["id"]}):
+        return 0
+    prices = {p["code"]: p for p in db.all("select * from price_items where creator_id = :c", {"c": sara["id"]})}
+    now_dt = datetime.now(timezone.utc)
+    today = now_dt.date()
+    iso = lambda d: (datetime.combine(d, datetime.min.time(), timezone.utc) + timedelta(hours=10)).isoformat()
+    brands = {}
+    for name, org, email in HISTORY_BRANDS:
+        acc = db.one("select party_id from accounts where email = :e", {"e": email}) if email else None
+        if acc:
+            brands[org] = acc["party_id"]
+        else:
+            pid = new_id("p")
+            db.insert("parties", {"id": pid, "name": name, "role": "brand_main", "org": org, "confirmed": 1, "created_at": now()})
+            brands[org] = pid
+    import secrets as _s
+
+    def deal(org, status, lines, *, created, deadline=None, changes_=(), holds="authorized", captured=False, payouts=(),
+             holdback=None, review=None, draft=False, shipment=None, post=None, offered_only=False, cancel_pct=None):
+        did, bp = new_id("deal"), brands[org]
+        total = sum(prices[c]["standard_cents"] * q for c, q in lines) + sum(c[1] for c in changes_)
+        t0 = iso(created)
+        db.insert("deals", {"id": did, "creator_id": sara["id"], "brand_party_id": bp, "brand_org": org, "status": status,
+                            "version": 0 if offered_only else 1 + len(changes_), "total_cents": total, "created_at": t0, "updated_at": t0,
+                            "deadline": deadline.isoformat() if deadline else None, "brief": f"Demo brief for {org}.", "is_demo": 1,
+                            "silent_approval_days": 3, "holdback_pct": 10, "holdback_days": 30,
+                            "done_means_json": json.dumps([{"value": "Posted on Instagram", "quote": None}, {"value": "Disclosure: #ad", "quote": None}])})
+        db.insert("deal_links", {"token": _s.token_urlsafe(32), "deal_id": did, "party_id": bp, "role": "brand_main",
+                                 "expires_at": iso(created + timedelta(days=60)), "opened_at": t0, "created_at": t0})
+        ev = lambda t, p=None, at=t0, actor=bp: db.execute(
+            "insert into events (at, type, actor, deal_id, payload_json) values (:at, :t, :a, :d, :p)",
+            {"at": at, "t": t, "a": actor, "d": did, "p": json.dumps(p or {})})
+        ev("deal.created", {"brand": org}, t0, sara["party_id"]); ev("link.opened"); ev("brief.submitted", {"brief": "Demo brief"})
+        facts = []
+        for k, (code, qty) in enumerate(lines):
+            fid = new_id("f")
+            db.insert("facts", {"id": fid, "deal_id": did, "field": "deliverable", "value": f"{code} x{qty}", "quote": f"{qty} {prices[code]['name']}",
+                                "source": "brief", "speaker_id": bp, "said_at": t0, "confirmed": 1, "created_at": t0})
+            facts.append(fid)
+            db.insert("terms", {"id": new_id("t"), "deal_id": did, "version": 0 if offered_only else 1, "price_item_id": prices[code]["id"],
+                                "fact_id": fid, "qty": qty, "unit_price_cents": prices[code]["standard_cents"],
+                                "amount_cents": prices[code]["standard_cents"] * qty, "rules_json": "{}", "pos": k})
+        ev("deal.drafted", {"total_cents": total}, t0, "ai")
+        if offered_only:
+            return did
+        ev("deal.accepted", {"version": 1, "total_cents": total}, iso(created + timedelta(hours=2)), sara["party_id"])
+        base_total = total - sum(c[1] for c in changes_)
+        def mi(kind, amt, st, note=None, paypal=None, at=None, parent=None, fee=0, cap=0, change=None):
+            iid = new_id("mi")
+            db.insert("money_items", {"id": iid, "deal_id": did, "kind": kind, "status": st, "amount_cents": amt, "request_id": f"amend-{iid}",
+                                      "depends_on_fact_ids": json.dumps(facts), "paypal_id": paypal, "paypal_parent_id": parent, "note": note,
+                                      "fee_cents": fee, "captured_cents": cap, "change_id": change, "created_at": at or t0, "updated_at": at or t0,
+                                      "expires_at": iso(created + timedelta(days=29)) if kind == "hold" else None,
+                                      "honor_until": iso(created + timedelta(days=3)) if kind == "hold" else None})
+            ev("money.status", {"item": iid, "from": "sent", "to": st}, at or t0, "paypal")
+            return iid
+        mi("hold", base_total, "paid" if captured else holds, paypal=f"DEMO{_s.token_hex(4).upper()}", parent=f"DEMOAUTH{_s.token_hex(3).upper()}",
+           at=iso(created + timedelta(hours=3)), cap=base_total if captured else 0)
+        for k, (label, amt) in enumerate(changes_):
+            cid = new_id("ch")
+            at = iso(created + timedelta(days=2 + k))
+            db.insert("changes", {"id": cid, "deal_id": did, "status": "applied", "kind": "change", "delta_cents": amt, "quote": label,
+                                  "lines_json": json.dumps([{"label": label, "amount_cents": amt, "quote": label}]), "ripple_json": "{}",
+                                  "untouched_count": 2, "proposed_by": bp, "source": "chat", "expires_at": at, "created_at": at,
+                                  "confirmed_brand_at": at, "confirmed_creator_at": at})
+            ev("change.applied", {"change": cid, "version": 2 + k, "delta_cents": amt}, at, sara["party_id"])
+            mi("hold", amt, "paid" if captured else "authorized", note="new hold for a confirmed change", paypal=f"DEMO{_s.token_hex(4).upper()}",
+               at=at, cap=amt if captured else 0, change=cid)
+        if draft:
+            db.insert("deliveries", {"id": new_id("dv"), "deal_id": did, "kind": "draft", "frames_json": "[]",
+                                     "result_json": json.dumps({"status": "approved" if status != "in_progress" else "submitted", "checks": []}),
+                                     "created_at": iso(today - timedelta(days=1)) if status == "in_progress" else iso(created + timedelta(days=5))})
+        if shipment:
+            db.insert("shipments", {"id": new_id("sh"), "deal_id": did, "courier": "Aramex (demo)", "tracking": "DEMO123456",
+                                    "hand_delivery": 0, "added_at": iso(shipment)})
+        if post:
+            db.update("deals", "id", did, {"posted_at": post.isoformat()})
+            ev("post.submitted", {"url": "https://instagram.example/p/demo"}, iso(post), sara["party_id"])
+        if captured:
+            paid_at = iso(post or created + timedelta(days=10))
+            gross = total if cancel_pct is None else total * cancel_pct // 100
+            mi("capture", gross, "paid", note="release:capture of demo hold" if cancel_pct is None else "cancel:creator share",
+               paypal=f"DEMOCAP{_s.token_hex(3).upper()}", at=paid_at, fee=int(gross * 0.0349) + 49)
+        for note, amt, st, when in payouts:
+            mi("payout", amt, st, note=note, paypal=f"DEMOPB{_s.token_hex(3).upper()}" if st == "paid" else None, at=iso(when))
+        if holdback:
+            db.update("deals", "id", did, {"holdback_release_at": iso(holdback)})
+        if review:
+            db.insert("reviews", {"id": new_id("rv"), "deal_id": did, "creator_id": sara["id"], "rating": review[0], "text": review[1],
+                                  "by_party": bp, "at": iso(created + timedelta(days=40))})
+        if status == "completed":
+            db.update("deals", "id", did, {"completed_at": iso(created + timedelta(days=35))})
+        if status == "cancelled" and cancel_pct is not None:
+            db.insert("changes", {"id": new_id("ch"), "deal_id": did, "status": "applied", "kind": "cancel", "delta_cents": -(total - total * cancel_pct // 100),
+                                  "lines_json": "[]", "ripple_json": json.dumps({"split": {"pct": cancel_pct}}), "untouched_count": 0,
+                                  "proposed_by": bp, "source": "cancellation", "expires_at": t0, "created_at": iso(created + timedelta(days=6))})
+        return did
+
+    m = lambda days: today - timedelta(days=days)
+    first_of_month = today.replace(day=1)
+    # 1-3 completed and paid (one this month), with extras that would usually go unpaid
+    deal("Sahara Sips", "completed", [("reel", 1), ("story_set", 1)], created=m(75), deadline=m(68), changes_=[("+ 1 Story set", 8000)],
+         captured=True, post=m(68), payouts=[("release:creator payout", 55100, "paid", m(67)), ("holdback:creator payout on day N", 6100, "paid", m(37))],
+         review=(5, "Fast, clear and the change was priced in a minute. Demo review."), draft=True)
+    deal("Oud & Ember", "completed", [("reel", 1)], created=m(45), deadline=m(38), changes_=[("Extra revision (3rd)", 10000)],
+         captured=True, post=m(38), payouts=[("release:creator payout", 49500, "paid", m(37)), ("holdback:creator payout on day N", 5500, "paid", max(m(7), first_of_month))],
+         review=(4, "Great work; one extra revision, paid as agreed. Demo review."), draft=True)
+    deal("Dune Roast Coffee", "completed", [("story_set", 2)], created=m(100), deadline=m(92), captured=True, post=m(92),
+         payouts=[("release:creator payout", 14400, "paid", m(91)), ("holdback:creator payout on day N", 1600, "paid", m(61))],
+         review=(5, "Always on time. Demo review."), draft=True)
+    # 4 cancelled after the draft: fair split, 60% paid
+    deal("Sahara Sips", "cancelled", [("reel", 1)], created=m(30), deadline=m(22), captured=True, cancel_pct=60,
+         payouts=[("cancel:creator payout", 27000, "paid", m(24))], draft=True)
+    # 5 delivered: release approved, holdback waiting for day N
+    deal("Oud & Ember", "delivered", [("reel", 1), ("usage_rights", 2)], created=m(14), deadline=m(6), captured=True, post=m(6),
+         payouts=[("release:creator payout", 67500, "paid", m(5)), ("holdback:creator payout on day N", 7500, "approved", m(5))],
+         holdback=today + timedelta(days=24), draft=True)
+    # 6 in production: held, draft waiting for the brand's review
+    deal("Dune Roast Coffee", "in_progress", [("reel", 1), ("story_set", 1)], created=m(6), deadline=today + timedelta(days=4),
+         changes_=[("+ 1 Story set", 8000)], draft=True)
+    # 7 held, product shipped, not received yet
+    did7 = deal("Sahara Sips", "in_progress", [("reel", 1)], created=m(2), deadline=today + timedelta(days=10), shipment=m(1))
+    db.update("deals", "id", did7, {"draft_due": (today + timedelta(days=6)).isoformat()})
+    # 8 a draft waiting for Sara to accept
+    deal("Oud & Ember", "offered", [("reel", 1), ("story_set", 1)], created=m(0), deadline=today + timedelta(days=14), offered_only=True)
+    return 8
+
 
 def ensure_try_creator(db: Database) -> str:
     """The judges' demo creator (/try): small made-up prices so every try deal stays at or under $100."""

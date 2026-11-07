@@ -88,8 +88,13 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
             icon = "hourglass"
         if e["type"] == "deal.drafted" and deal["status"] != "offered":
             cat = "messages"
+        ch = None
+        if e["type"] == "change.detected" and e["payload"].get("change"):
+            c = db.one("select status, confirmed_creator_at from changes where id = :c", {"c": e["payload"]["change"]})
+            if c and c["status"] == "previewed" and not c["confirmed_creator_at"]:
+                ch = e["payload"]["change"]  # actionable right from the Inbox
         out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat,
-                    "line": line, "at": e["at"], "unread": e["id"] not in read})
+                    "line": line, "at": e["at"], "unread": e["id"] not in read, "change": ch})
     unread = sum(x["unread"] for x in out)
     counts = {"all": len(out), "needs_me": sum(x["category"] == "needs_me" for x in out),
               "messages": sum(x["category"] == "messages" for x in out), "money": sum(x["category"] == "money" for x in out)}

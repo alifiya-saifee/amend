@@ -4,7 +4,7 @@
 <title>Studio · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
-<script src="/static/studio-pages.js"></script>
+<script src="/static/chat.js"></script><script src="/static/studio-pages.js"></script>
 </head><body class="studio">
 <main class="wrap" id="view"></main>
 <script>
@@ -31,7 +31,7 @@ async function route() {
   try {
     if (!ME) { ME = await api("/api/me"); Shell.setName(ME.display_name.split(" ")[0]); }
     if (tab !== "inbox") refreshBadge();
-    const page = { home: () => window.homeTab ? homeTab() : inboxTab(), inbox: inboxTab, deals: deals, prices: prices, profile: profile,
+    const page = { home: () => window.homeTab ? homeTab() : inboxTab(), inbox: () => window.inboxSplit ? inboxSplit() : inboxTab(), deals: () => window.dealsBoard ? dealsBoard() : deals(), prices: prices, profile: profile,
       earnings: () => window.earningsTab ? earningsTab(seg === "ledger") : ledger(), calendar: () => window.calendarTab ? calendarTab() : soon("Calendar"),
       brands: () => window.brandsTab ? brandsTab() : soon("Brands"), settings: () => window.settingsTab ? settingsTab() : soon("Settings") }[tab];
     await page();
