@@ -141,7 +141,11 @@ function activeRoom(d) {
   const first = V.creator.name.split(" ")[0];
   const held = V.held_cents || 0;
   const pendingHolds = (V.extra_holds || []).filter(h => ["planned", "approved", "sent", "failed"].includes(h.status));
-  const banner = d.status === "paused" ? `<div class="banner bad">⏸ Paused: different instructions on the brand side. Money actions wait; the chat stays open.</div>`
+  const P = (() => { try { return JSON.parse(V.deal.pause_json || "{}"); } catch { return {}; } })();
+  const pa = P.a || {}, pb = P.b || {};
+  const banner = d.status === "paused" ? `<div class="banner bad">⏸ Paused: different instructions from ${esc(pa.name || "")} and ${esc(pb.name || "")}. Money actions wait; the chat stays open.
+      <blockquote class="small">${esc(pa.name || "")}: “${esc(pa.quote || "")}”</blockquote><blockquote class="small">${esc(pb.name || "")}: “${esc(pb.quote || "")}”</blockquote>
+      ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row" style="gap:8px"><button class="btn small" data-pick="a">Follow ${esc(pa.name || "A")}</button><button class="btn small" data-pick="b">Follow ${esc(pb.name || "B")}</button></div>` : ""}</div>`
     : d.status === "completed" ? `<div class="banner ok">✅ Completed</div>`
     : `<div class="banner ok">💰 ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${banner}
@@ -152,7 +156,11 @@ function activeRoom(d) {
     ${shipHtml()}
     <div id="work" style="margin-top:12px"></div>
     <div id="chat" style="margin-top:12px"></div>
-    ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row wrapx" style="margin-top:12px;gap:8px"><button class="btn small" id="invite">👥 Invite teammate</button></div>` : ""}`;
+    <div id="cancelbox"></div>
+    <div class="row wrapx" style="margin-top:12px;gap:8px">
+      ${IS_BRAND && V.me.role === "brand_main" ? `<button class="btn small" id="invite">👥 Invite teammate</button>` : ""}
+      ${(IS_BRAND ? V.me.role === "brand_main" : true) && !["completed", "cancelled"].includes(d.status) ? `<button class="btn small danger" id="cancel-deal">Cancel deal…</button>` : ""}
+      <button class="btn small" id="del-media">Delete my recordings and screenshots</button></div>`;
   Chat.mount($("#chat"), { base: url(""), isBrand: IS_BRAND, token: IS_BRAND ? KEY : "", onApplied: load });
   if ($("#pay-extra")) $("#pay-extra").onclick = e => busy(e.currentTarget, async () => {
     try { const r = await api(`/api/d/${KEY}/pay-hold/${pendingHolds[0].id}`, { method: "POST" }); location.href = r.approve_url; }
@@ -160,7 +168,36 @@ function activeRoom(d) {
   });
   if ($("#invite")) $("#invite").onclick = inviteSheet;
   bindShip();
+  $$("[data-pick]").forEach(b => b.onclick = () => busy(b, async () => { try { V = await api(url("/pause/resolve"), { body: { pick: b.dataset.pick } }); render(); toast("Resumed"); } catch (e) { toast(e.message, "bad"); } }));
+  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
+    const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
+  if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
+  cancelBox();
   if (window.Work) Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
+}
+
+/* ---------- cancellation with a fair split (Phase 7) ---------- */
+async function cancelBox() {
+  let r; try { r = await api(url("/cancel")); } catch { return; }
+  const p = r.proposal; if (!p || !$("#cancelbox")) return;
+  const s = p.split, o = p.second_opinion || {};
+  const mine = IS_BRAND ? p.brand_ok : p.creator_ok;
+  $("#cancelbox").innerHTML = `<div class="changecard" style="margin-top:12px"><b>Cancellation proposed</b> <span class="muted small">“${esc(p.reason || "")}”</span>
+    <ul class="events" style="margin-top:8px">${s.evidence.map(e => `<li><span>✓</span><span class="grow">${esc(e.label)}</span><span class="tiny muted">${new Date(e.at).toLocaleString()}</span></li>`).join("")}</ul>
+    <p class="small"><b>Work done: ${s.pct}%</b> (${esc(s.why)}${s.minimum_applied ? `, raised to the creator's ${s.minimum_pct}% minimum` : ""})</p>
+    <div class="banner gold small">${esc(s.maths)}</div>
+    <p class="small muted">Second opinion: ${o.available ? `${o.pct}% · ${esc(o.reason || "")} ${o.agrees ? "✅ agrees" : "⚠️ differs: both views are shown, you decide"}` : esc(o.note || "not available")}</p>
+    <div class="tiny muted">Brand ${p.brand_ok ? "✅" : "⏳"} · Creator ${p.creator_ok ? "✅" : "⏳"}</div>
+    ${mine ? "" : `<button class="btn primary block" id="cancel-ok" style="margin-top:8px">Approve: collect ${usd(s.creator_cents)}, release ${usd(s.brand_cents)}</button>`}</div>`;
+  if ($("#cancel-ok")) $("#cancel-ok").onclick = e => busy(e.currentTarget, async () => { try { await api(url("/cancel/approve"), { method: "POST" }); toast("Approved"); load(); } catch (er) { toast(er.message, "bad"); } });
+}
+async function cancelSheet() {
+  let r; try { r = await api(url("/cancel")); } catch (e) { toast(e.message, "bad"); return; }
+  const s = r.preview;
+  sheet(`<h2>Cancel this deal?</h2>${s ? `<p class="small">Based on the evidence so far: <b>${s.pct}%</b> of the work (${esc(s.why)}).</p><div class="banner gold small">${esc(s.maths)}</div>` : ""}
+    <label>Reason (the other side sees this)</label><textarea id="cx-why" maxlength="300"></textarea>
+    <button class="btn danger block" id="cx-go" style="margin-top:10px">Propose cancellation</button><p class="hint">Nothing moves until both of you approve.</p>`);
+  $("#cx-go").onclick = e => busy(e.currentTarget, async () => { try { await api(url("/cancel"), { body: { reason: $("#cx-why").value } }); closeSheet(); toast("Proposed"); load(); } catch (er) { toast(er.message, "bad"); } });
 }
 
 /* ---------- product shipping (Phase 5.3) ---------- */

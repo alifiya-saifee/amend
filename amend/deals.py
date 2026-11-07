@@ -359,6 +359,8 @@ async def pay_change(db: Database, rail: money.PlatformRail, token: str, item_id
     deal, party = ctx["deal"], ctx["party"]
     if party["id"] != deal["brand_party_id"]:
         raise DealError("only the brand's main contact can hold the money")
+    if deal["status"] == "paused":
+        raise DealError("the deal is paused: money actions wait until the brand decides")
     item = db.one("select * from money_items where id = :i and deal_id = :d and kind = 'hold' and change_id is not null",
                   {"i": item_id, "d": deal["id"]})
     if not item:

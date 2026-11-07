@@ -157,7 +157,7 @@ def test_s23_reviewer_creates_suggestion_only(client, mocks, held):
     link = client.post(f"/api/d/{tok}/invite", json={"name": "Ali", "role": "Legal"}, headers=ORIGIN).json()["link"]
     ali = link.rsplit("/", 1)[1]
     says(mocks, {"kind": "change", "fields": [{"field": "post_date", "value": MON, "quote": "post Monday 14 Dec"}], "quote": "post Monday 14 Dec"})
-    c = client.post(f"/api/d/{ali}/messages", json={"body": "Hold it, post Monday 14 Dec"}, headers=ORIGIN).json()["change"]
+    c = client.post(f"/api/d/{ali}/messages", json={"body": "Could we post Monday 14 Dec instead?"}, headers=ORIGIN).json()["change"]
     assert c["suggestion"] and c["status"] == "detected"
     r = client.post(f"/api/deals/{deal}/changes/{c['id']}/confirm", json={}, headers=ORIGIN)
     assert r.status_code == 400 and "suggestion" in r.json()["detail"]

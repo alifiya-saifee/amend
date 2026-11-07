@@ -12,6 +12,7 @@ const Chat = (() => {
         <div id="chat-ai" class="busy" hidden>Checking the message for deal changes…</div>
         <form id="chat-form" class="composer">
           <button type="button" class="btn small" id="chat-attach" aria-label="Attach">📎</button>
+          <button type="button" class="btn small" id="chat-mic" aria-label="Record a voice note">🎙️</button>
           <textarea id="chat-in" rows="1" maxlength="4000" placeholder="Message… e.g. “Can we add one more Story and post Monday?”"></textarea>
           <button class="btn primary small" id="chat-send">Send</button>
         </form>
@@ -20,6 +21,8 @@ const Chat = (() => {
     $("#chat-form").onsubmit = e => { e.preventDefault(); send(); };
     $("#chat-in").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
     $("#chat-attach").onclick = attachMenu;
+    $("#chat-mic").onclick = voice;
+    if (!window.MediaRecorder) $("#chat-mic").hidden = true;
     load();
     clearInterval(timer);
     timer = setInterval(() => { if (!document.hidden) load(true); }, 6000);
@@ -39,6 +42,10 @@ const Chat = (() => {
     list.innerHTML = t.items.length ? t.items.map(item).join("") :
       `<div class="empty small">No messages yet. Changes typed here become change cards that both of you confirm.</div>`;
     $$("[data-act]", list).forEach(b => b.onclick = () => act(b));
+    $$("[data-nudge]", list).forEach(b => b.onclick = () => busy(b, async () => {
+      try { const r = await api(`${base}/nudge/${b.dataset.nudge}`, { body: { answer: b.dataset.ans } }); lastSig = ""; draw(r);
+        if (b.dataset.ans === "something") voice(); } catch (e) { toast(e.message, "bad"); }
+    }));
     $$("[data-payhold]", list).forEach(b => b.onclick = () => busy(b, async () => {
       try { const r = await api(`/api/d/${token}/pay-hold/${b.dataset.payhold}`, { method: "POST" }); location.href = r.approve_url; }
       catch (e) { toast(e.message, "bad"); }
@@ -55,8 +62,11 @@ const Chat = (() => {
     const media = i.media_url ? (i.kind === "image"
       ? `<a href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><img class="chat-img" src="${mediaUrl(i.media_url)}" alt="${esc(i.meta.name || "image")}"></a>`
       : `<a class="filechip" href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener">📄 ${esc(i.meta.name || "file")}</a>`) : "";
+    if (i.meta && i.meta.nudge) return `<div class="changecard"><b>📞 ${esc(i.body)}</b><div class="row" style="gap:8px;margin-top:8px">
+      <button class="btn small" data-nudge="${i.id}" data-ans="nothing">Nothing changed ✅</button>
+      <button class="btn small primary" data-nudge="${i.id}" data-ans="something">Something changed 🎙️</button></div></div>`;
     return `<div class="bubble ${i.mine ? "mine" : ""}"><div class="tiny muted">${esc(i.mine ? "You" : i.from)} · ${time(i.at)}</div>
-      ${i.body ? `<div>${esc(i.body)}</div>` : ""}${media}</div>`;
+      ${i.body ? `<div>${esc(i.body)}</div>` : ""}${media}${i.meta && i.meta.transcript ? '<div class="tiny muted">🎙️ voice note · transcribed</div>' : ""}</div>`;
   }
   function mediaUrl(u) { return isBrand ? `${u}?t=${encodeURIComponent(token)}` : u; }
   function time(iso) { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -72,7 +82,7 @@ const Chat = (() => {
       <div class="row between"><b>${title}</b>${c.source && c.source !== "chat" ? `<span class="pill">${esc(c.source.split(":")[0])}</span>` : ""}</div>
       ${c.suggestion ? `<p class="small muted">From ${esc(c.proposed_by || "a teammate")}. Suggestions can't move money until the brand's main contact proposes them.</p>` : ""}
       <div class="list">${c.lines.map(l => `<div class="line"><div class="grow">${esc(l.label)}
-          ${l.source ? `<div class="tiny muted">${esc(l.source)}</div>` : ""}</div>
+          ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}</div>
           <div class="amt">${l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
           <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words">❝</button></div>`).join("")}</div>
       ${c.conflicts.map(x => `<div class="conflict">⚠️ ${esc(x)}</div>`).join("")}
@@ -123,14 +133,64 @@ const Chat = (() => {
     $("#chat-ai").hidden = true;
   }
 
+  // ---- voice notes (S45): recorded in the browser, transcribed by Groq Whisper ----
+  let rec = null, chunks = [];
+  async function voice() {
+    if (rec) { rec.stop(); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { toast("Microphone not available", "bad"); return; }
+    chunks = []; rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); const mime = (rec.mimeType || "audio/webm").split(";")[0]; rec = null;
+      $("#chat-mic").textContent = "🎙️"; $("#chat-ai").hidden = false;
+      const data = await new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(",")[1]); f.readAsDataURL(blob); });
+      try { const r = await api(`${base}/voice`, { body: { data_b64: data, mime } }); lastSig = ""; draw(r); if (r.change) toast("Change card added from your voice note"); }
+      catch (e) { toast(e.message, "bad"); }
+      $("#chat-ai").hidden = true;
+    };
+    rec.start(); $("#chat-mic").textContent = "⏹ Stop";
+  }
+
+  // ---- call upload (S46, S47): consent tick, then tag who is who ----
+  function callSheet() {
+    sheet(`<h3>Upload a call recording</h3><p class="small muted">Zoom's audio-only .m4a, a phone voice memo or a WhatsApp voice note (25 MB max).
+      Only your and ${isBrand ? "the creator's" : "the brand's"} words can change money. The audio isn't kept; only the transcript.</p>
+      <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" id="call-consent" style="width:auto"> Everyone on the call agreed to the recording</label>
+      <input type="file" id="call-file" accept="audio/*,.m4a" style="margin-top:8px"><button class="btn primary block" id="call-go" style="margin-top:10px">Upload and transcribe</button>`);
+    $("#call-go").onclick = e => busy(e.currentTarget, async () => {
+      const f = $("#call-file").files[0];
+      if (!f) { toast("Choose the recording", "bad"); return; }
+      const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(f); });
+      try {
+        const r = await api(`${base}/call`, { body: { data_b64: data, mime: f.type || "audio/mp4", name: f.name, consent: $("#call-consent").checked } });
+        tagSheet(r);
+      } catch (er) { toast(er.message, "bad"); }
+    });
+  }
+  function tagSheet(r) {
+    sheet(`<h3>Who is who?</h3><p class="small muted">Lines from anyone who isn't the brand's main contact or the creator are ignored.</p>
+      ${r.speakers.map(s => `<label>${esc(s)} <span class="tiny muted">“${esc((r.segments.find(x => x.speaker === s) || {}).text || "").slice(0, 60)}…”</span></label>
+        <select data-spk="${esc(s)}"><option value="unknown">Someone else</option>${r.people.map(p => `<option value="${p.id}">${esc(p.name)}${p.decider ? "" : " (can't change money)"}</option>`).join("")}</select>`).join("")}
+      <button class="btn primary block" id="tag-go" style="margin-top:12px">Check the call for changes</button>`);
+    $("#tag-go").onclick = e => busy(e.currentTarget, async () => {
+      const mapping = Object.fromEntries($$("[data-spk]").map(s => [s.dataset.spk, s.value]));
+      try { const t = await api(`${base}/call/${r.message}/tag`, { body: { mapping } }); closeSheet(); lastSig = ""; draw(t);
+        toast(t.change ? "Change card added from the call" : "No deal changes found in the call"); }
+      catch (er) { toast(er.message, "bad"); }
+    });
+  }
+
   function attachMenu() {
     sheet(`<h3>Add to the chat</h3><div class="stack">
+      <button class="btn block" data-up="call">📞 Call recording (Zoom .m4a, voice memo)</button>
       <button class="btn block" data-up="image">📷 Photo</button>
       <button class="btn block" data-up="screenshot">🧾 Screenshot of a chat (Amend reads the changes)</button>
       <button class="btn block" data-up="whatsapp">💬 WhatsApp "Export chat" file (.txt)</button>
       <button class="btn block" data-up="file">📄 File (up to 2 MB)</button></div>
       <p class="hint">Only your and ${isBrand ? "the creator's" : "the brand's"} words can change money. Other people's words are ignored.</p>`);
-    $$("[data-up]").forEach(b => b.onclick = () => pick(b.dataset.up));
+    $$("[data-up]").forEach(b => b.onclick = () => b.dataset.up === "call" ? callSheet() : pick(b.dataset.up));
   }
   function pick(kind) {
     const inp = $("#chat-file");

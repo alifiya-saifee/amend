@@ -9,6 +9,7 @@ Security (checklist A4, B):
 """
 from __future__ import annotations
 
+import base64
 import hmac
 import json
 import logging
@@ -23,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, briefs, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, webhooks
+from amend import ai, auth, briefs, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -1258,6 +1259,231 @@ def ledger(c: dict = Depends(require_creator)):
     return {"rows": rows, "fees_usd": sum(r["fee_usd"] for r in rows)}
 
 
+# ---------- cancellation, calls, conflicts (Phase 7) ----------
+
+def _people(deal: dict) -> list[dict]:
+    d = get_db()
+    creator_party = d.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
+    rows = d.all("select p.id, p.name, p.role from parties p where p.id = :c or p.id in (select party_id from deal_links where deal_id = :d)",
+                 {"c": creator_party, "d": deal["id"]})
+    return [{"id": r["id"], "name": r["name"], "role": r["role"], "decider": r["id"] in (creator_party, deal["brand_party_id"])} for r in rows]
+
+
+class VoiceIn(BaseModel):
+    data_b64: str = Field(max_length=34_000_000)
+    mime: str = Field(max_length=60)
+
+
+async def _voice(deal: dict, pid: str, body: VoiceIn) -> dict:
+    rate_limit(f"voice:{deal['id']}", 10, 600)
+    try:
+        raw = base64.b64decode(body.data_b64, validate=True)
+        text = await calls.transcribe_voice(raw, body.mime)
+    except (ValueError, calls.CallError) as e:
+        raise HTTPException(400, str(e) if isinstance(e, calls.CallError) else "That recording couldn't be read.")
+    d = get_db()
+    mid = new_id("md")
+    d.insert("media", {"id": mid, "deal_id": deal["id"], "party_id": pid, "kind": "voice", "mime": body.mime, "name": "voice note",
+                       "size": len(raw), "data_b64": body.data_b64 if len(raw) <= 2_000_000 else None, "created_at": db_now()})
+    m = changes.post_message(d, deal["id"], pid, text, kind="voice", media_id=mid, meta={"transcript": text, "voice": True})
+    d.log_event("voice.transcribed", actor=pid, deal_id=deal["id"], payload={"message": m["id"], "chars": len(text)})
+    out = await _detect(deals.get_deal(d, deal["id"]), pid, text, f"voice:{m['id']}", m["id"])
+    return {**out, **_chat(deals.get_deal(d, deal["id"]), pid)}
+
+
+@app.post("/api/d/{token}/voice")
+async def brand_voice(token: str, body: VoiceIn):
+    return await _voice(*_brand_ctx(token), body)
+
+
+@app.post("/api/deals/{deal_id}/voice")
+async def creator_voice(deal_id: str, body: VoiceIn, c: dict = Depends(require_creator)):
+    return await _voice(*_creator_ctx(deal_id, c), body)
+
+
+class CallIn(BaseModel):
+    data_b64: str = Field(max_length=34_000_000)
+    mime: str = Field(max_length=60)
+    name: str = Field("call.m4a", max_length=120)
+    consent: bool = False
+
+
+async def _call(deal: dict, pid: str, body: CallIn) -> dict:
+    if not body.consent:  # S47
+        raise HTTPException(400, "Tick the box to confirm everyone on the call agreed to the recording.")
+    rate_limit(f"call:{deal['id']}", 4, 600)
+    try:
+        raw = base64.b64decode(body.data_b64, validate=True)
+        if len(raw) > calls.MAX_AUDIO:
+            raise calls.CallError("that recording is too long (25 MB max)")
+        segs = await calls.transcribe_call(f"data:{body.mime};base64,{body.data_b64}")
+    except (ValueError, calls.CallError, ai.ProviderError) as e:
+        raise HTTPException(400, str(e) if isinstance(e, calls.CallError) else "That recording couldn't be read.")
+    m = calls.save_call(get_db(), deal["id"], pid, raw=raw, mime=body.mime, name=body.name, segments=segs)
+    return {"message": m["id"], "speakers": sorted({s["speaker"] for s in segs}), "segments": segs[:40], "people": _people(deal)}
+
+
+@app.post("/api/d/{token}/call")
+async def brand_call(token: str, body: CallIn):
+    return await _call(*_brand_ctx(token), body)
+
+
+@app.post("/api/deals/{deal_id}/call")
+async def creator_call(deal_id: str, body: CallIn, c: dict = Depends(require_creator)):
+    return await _call(*_creator_ctx(deal_id, c), body)
+
+
+class TagIn(BaseModel):
+    mapping: dict[str, str]
+
+
+async def _tag(deal: dict, pid: str, mid: str, body: TagIn) -> dict:
+    d = get_db()
+    try:
+        text, seconds = calls.tagged_text(d, deal, mid, body.mapping)
+    except calls.CallError as e:
+        raise HTTPException(400, str(e))
+    out = await _detect(deal, deal["brand_party_id"] if pid != deal["brand_party_id"] and
+                        changes.side_of(d, deal, pid) == "creator" else pid, text, f"call:{mid}", mid) if text else {}
+    if out.get("change"):  # each line links to the second in the call it came from
+        ch = d.one("select lines_json from changes where id = :c", {"c": out["change"]["id"]})
+        lines = json.loads(ch["lines_json"])
+        for l in lines:
+            l["second"] = next((s for t, s in seconds.items() if engine.quote_in(l.get("quote") or "", t)), None)
+        d.update("changes", "id", out["change"]["id"], {"lines_json": json.dumps(lines)})
+        out["change"] = changes.card(d, d.one("select * from changes where id = :c", {"c": out["change"]["id"]}))
+    return {**out, "used_lines": len(text.splitlines()) if text else 0, **_chat(deals.get_deal(d, deal["id"]), pid)}
+
+
+@app.post("/api/d/{token}/call/{mid}/tag")
+async def brand_tag(token: str, mid: str, body: TagIn):
+    return await _tag(*_brand_ctx(token), mid, body)
+
+
+@app.post("/api/deals/{deal_id}/call/{mid}/tag")
+async def creator_tag(deal_id: str, mid: str, body: TagIn, c: dict = Depends(require_creator)):
+    return await _tag(*_creator_ctx(deal_id, c), mid, body)
+
+
+@app.get("/api/d/{token}/people")
+def brand_people(token: str):
+    return {"people": _people(_brand_ctx(token)[0])}
+
+
+@app.get("/api/deals/{deal_id}/people")
+def creator_people(deal_id: str, c: dict = Depends(require_creator)):
+    return {"people": _people(_creator_ctx(deal_id, c)[0])}
+
+
+class NudgeIn(BaseModel):
+    answer: str = Field(pattern="^(nothing|something)$")
+
+
+def _nudge(deal: dict, pid: str, mid: str, body: NudgeIn) -> dict:
+    d = get_db()
+    changes.post_message(d, deal["id"], pid, "Nothing changed on the call ✅" if body.answer == "nothing"
+                         else "Something changed on the call: I'll send a voice note or a message with the change.", kind="text")
+    return _chat(deals.get_deal(d, deal["id"]), pid)
+
+
+@app.post("/api/d/{token}/nudge/{mid}")
+def brand_nudge(token: str, mid: str, body: NudgeIn):
+    return _nudge(*_brand_ctx(token), mid, body)
+
+
+@app.post("/api/deals/{deal_id}/nudge/{mid}")
+def creator_nudge(deal_id: str, mid: str, body: NudgeIn, c: dict = Depends(require_creator)):
+    return _nudge(*_creator_ctx(deal_id, c), mid, body)
+
+
+class PickIn(BaseModel):
+    pick: str = Field(pattern="^(a|b)$")
+
+
+@app.post("/api/d/{token}/pause/resolve")
+def brand_resolve(token: str, body: PickIn):
+    deal, pid = _brand_ctx(token)
+    try:
+        calls.resolve_pause(get_db(), deals.get_deal(get_db(), deal["id"]), pid, body.pick)
+    except calls.CallError as e:
+        raise HTTPException(400, str(e))
+    return _brand_view(token)
+
+
+class CancelIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+
+
+def _cancel_view(deal_id: str) -> dict:
+    d = get_db()
+    deal = deals.get_deal(d, deal_id)
+    return {"proposal": cancel.open_proposal(d, deal_id), "preview": cancel.split(d, deal) if deal["status"] not in ("cancelled", "completed") else None,
+            "status": deal["status"]}
+
+
+async def _cancel(deal: dict, pid: str, body: CancelIn) -> dict:
+    d = get_db()
+    s = cancel.split(d, deal)
+    rule = next((p for p in engine.price_items(d, deal["creator_id"], include_retired=True) if p["code"] == "cancellation"), None)
+    opinion = await cancel.second_opinion(s, ((rule or {}).get("rules") or {}).get("note", "Pay for work done"))
+    try:
+        cancel.propose(d, deal, pid, body.reason, opinion)
+    except cancel.CancelError as e:
+        raise HTTPException(400, str(e))
+    changes.post_message(d, deal["id"], pid, f"Proposed to cancel: “{body.reason}”. Fair split: {s['maths']}.", kind="text")
+    return _cancel_view(deal["id"])
+
+
+@app.get("/api/d/{token}/cancel")
+def brand_cancel_view(token: str):
+    return _cancel_view(_brand_ctx(token)[0]["id"])
+
+
+@app.get("/api/deals/{deal_id}/cancel")
+def creator_cancel_view(deal_id: str, c: dict = Depends(require_creator)):
+    return _cancel_view(_creator_ctx(deal_id, c)[0]["id"])
+
+
+@app.post("/api/d/{token}/cancel")
+async def brand_cancel(token: str, body: CancelIn):
+    return await _cancel(*_brand_ctx(token), body)
+
+
+@app.post("/api/deals/{deal_id}/cancel")
+async def creator_cancel(deal_id: str, body: CancelIn, c: dict = Depends(require_creator)):
+    return await _cancel(*_creator_ctx(deal_id, c), body)
+
+
+async def _cancel_ok(deal: dict, pid: str) -> dict:
+    try:
+        await cancel.approve(get_db(), rail(), deal, pid)
+    except (cancel.CancelError, money.ApprovalError) as e:
+        raise HTTPException(400, str(e))
+    return _cancel_view(deal["id"])
+
+
+@app.post("/api/d/{token}/cancel/approve")
+async def brand_cancel_ok(token: str):
+    return await _cancel_ok(*_brand_ctx(token))
+
+
+@app.post("/api/deals/{deal_id}/cancel/approve")
+async def creator_cancel_ok(deal_id: str, c: dict = Depends(require_creator)):
+    return await _cancel_ok(*_creator_ctx(deal_id, c))
+
+
+@app.post("/api/d/{token}/media/delete-mine")
+def brand_delete_media(token: str):
+    deal, pid = _brand_ctx(token)
+    return {"deleted": calls.delete_mine(get_db(), deal["id"], pid)}
+
+
+@app.post("/api/deals/{deal_id}/media/delete-mine")
+def creator_delete_media(deal_id: str, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    return {"deleted": calls.delete_mine(get_db(), deal_id, pid)}
+
+
 # ---------- "try it yourself" for judges (S42) ----------
 
 TRY_CAP_CENTS = 10_000
@@ -1406,7 +1632,12 @@ class MessageIn(BaseModel):
 
 
 async def _send(deal: dict, party_id: str, body: str) -> dict:
-    m = changes.post_message(get_db(), deal["id"], party_id, body)
+    d = get_db()
+    m = changes.post_message(d, deal["id"], party_id, body)
+    calls.note_call(d, m)  # "call at 5?" → a nudge after the call (S48)
+    paused = calls.maybe_pause(d, deal, party_id, body)  # a reviewer's "hold" against the main contact's instruction (S49)
+    if paused:
+        return {"message": m["id"], "paused": True, **_chat(paused, party_id)}
     out = await _detect(deal, party_id, body, f"chat:{m['id']}", m["id"])
     return {"message": m["id"], **out, **_chat(deals.get_deal(get_db(), deal["id"]), party_id)}
 
@@ -1568,7 +1799,7 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     return {"ok": True, **result}
 
 
-TICK_TASKS: list = [shipping.tick, delivery.tick_silent]
+TICK_TASKS: list = [shipping.tick, delivery.tick_silent, calls.tick_nudges]
 
 
 @app.post("/api/paypal/webhook")
