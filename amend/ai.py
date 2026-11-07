@@ -163,11 +163,18 @@ class Quoted(BaseModel):
     quote: str
 
 
+class FieldOut(BaseModel):
+    key: str
+    value: str
+    quote: str
+
+
 class BriefOut(BaseModel):
     lines: list[LineOut]
     not_on_list: list[NotOnList] = []
     post_date: Quoted | None = None
     done_means: list[Quoted] = []
+    fields: list[FieldOut] = []
 
 
 @dataclass
@@ -191,13 +198,19 @@ class Draft:
     provider: str
     attempts: int
     fell_back: bool
+    fields: list = None  # brief-builder fields [{key, value, quote}] (checked word for word in briefs.from_ai)
 
 
 SYSTEM = """You turn a brand's brief into deal lines for a creator. Reply with ONE JSON object only:
 {"lines":[{"item_code":"<code from the price list>","qty":<1-10>,"quote":"<exact words from the brief>"}],
  "not_on_list":[{"what":"<thing asked for that is not on the list>","quote":"<exact words>"}],
  "post_date":{"value":"<YYYY-MM-DD or weekday name>","quote":"<exact words>"} or null,
- "done_means":[{"value":"<a delivery condition>","quote":"<exact words>"}]}
+ "done_means":[{"value":"<a delivery condition>","quote":"<exact words>"}],
+ "fields":[{"key":"<one of: objective, kpi, audience, key_messages, must_include, platform, format, length, posting_window,
+   cross_posting, days_live, dos_donts, banned_claims, disclosure, product, draft_due, review_days, revision_rounds,
+   usage_rights, exclusivity, assets, budget>","value":"<short value>","quote":"<exact words from the brief>"}]}
+Usage rights for paid ads for N months = a line "usage_rights" with qty N. Exclusivity for N months = a line "exclusivity"
+with qty N (only if those codes are on the price list). Only include fields the brief actually states; leave others out.
 Rules: never invent prices or totals. Every quote must be copied word for word from the brief (a short exact
 phrase). Only use item codes from the price list; anything else goes in not_on_list. Rules-type items
 (date changes, cancellation) are never lines unless the brief asks for them."""
@@ -256,5 +269,5 @@ async def brief_to_terms(brief: str, price_list: list[dict], *, today: str, trie
                      post_date=out.post_date.model_dump() if out.post_date else None,
                      done_means=[x.model_dump() for x in out.done_means],
                      total_cents=sum(l.amount_cents for l in lines), provider=res.provider,
-                     attempts=res.attempts, fell_back=res.fell_back)
+                     attempts=res.attempts, fell_back=res.fell_back, fields=[f.model_dump() for f in out.fields])
     raise DraftFailed("; ".join(errors))

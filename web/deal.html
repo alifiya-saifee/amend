@@ -68,6 +68,45 @@ function linesHtml(editable = false) {
 function bindQuotes(root = document) {
   $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));
 }
+/* ---------- brief fields (Phase 5): brand fills or accepts defaults; creator accepts or counters ---------- */
+function briefHtml(editable) {
+  const B = V.brief_fields || { fields: [] };
+  if (!B.fields.length) return "";
+  const side = IS_BRAND ? "brand" : "creator";
+  const st = f => ({ agreed: '<span class="pill collected">Agreed</span>', countered: '<span class="pill waiting">Countered</span>',
+    needs_brand: f.value ? '<span class="pill held">Suggested default</span>' : '<span class="pill failed">Not set</span>', pending: "" })[f.status] || "";
+  return `<details class="card" style="margin-top:12px" ${editable ? "open" : ""}><summary><b>The brief</b> <span class="muted small">(${B.fields.length} fields)</span></summary>
+    ${B.flags.map(x => `<div class="conflict">⚠️ ${esc(x)}</div>`).join("")}
+    <div class="list">${B.fields.map(f => `<div class="line" style="flex-wrap:wrap">
+      <div class="grow" style="min-width:60%"><div class="small muted">${esc(f.label)} ${st(f)}</div>
+        <div>${f.value ? esc(f.value) : '<span class="muted">—</span>'}</div>
+        ${f.counter ? `<div class="small" style="margin-top:4px">↪ ${IS_BRAND ? "Creator's counter" : "Your counter"}: <b>${esc(f.counter.value)}</b>${f.counter.reason ? ` <span class="muted">(${esc(f.counter.reason)})</span>` : ""}</div>` : ""}
+        ${f.source === "default" || f.status === "needs_brand" ? `<div class="tiny muted">Suggested by Amend because the brief didn't say</div>` : ""}</div>
+      ${f.quote ? `<button class="q" data-quote="${esc(f.quote)}">❝</button>` : ""}
+      ${editable ? `<div class="row" style="gap:6px;width:100%;justify-content:flex-end">${side === "brand"
+        ? `${f.status === "countered" ? `<button class="btn small primary" data-fa="accept_counter" data-k="${f.key}">Accept counter</button>` : ""}
+           <button class="btn small" data-fa="edit" data-k="${f.key}">${f.value ? "Change" : "Fill in"}</button>`
+        : `${f.status !== "agreed" && f.value ? `<button class="btn small" data-fa="accept" data-k="${f.key}">Accept</button>` : ""}
+           <button class="btn small" data-fa="counter" data-k="${f.key}">Counter</button>`}</div>` : ""}
+    </div>`).join("")}</div>
+    ${!IS_BRAND && B.blockers.length ? `<div class="banner wait small" style="margin-top:8px">${B.blockers.map(esc).join("<br>")}</div>` : ""}</details>`;
+}
+function bindBrief() {
+  $$("[data-fa]").forEach(b => b.onclick = () => {
+    const action = b.dataset.fa, key = b.dataset.k;
+    let value = null, reason = null;
+    if (action === "edit" || action === "counter") {
+      value = prompt(action === "edit" ? "New value" : "Your counter (what you can do instead)");
+      if (!value) return;
+      if (action === "counter") reason = prompt("Reason (optional)") || null;
+    }
+    busy(b, async () => {
+      try { V = await api(url(`/brief/fields/${key}`), { body: { action, value, reason } }); render(); toast("Saved"); }
+      catch (e) { toast(e.message, "bad"); }
+    });
+  });
+}
+
 function extrasHtml() {
   const d = V.deal; let h = "";
   if (d.deadline) h += `<p class="small">📅 Post: <b>${esc(d.deadline)}</b></p>`;
@@ -88,6 +127,7 @@ function render() {
   if (IS_BRAND && !V.me.confirmed_link) return welcomeSheet();
   if (IS_BRAND) brand(d); else creator(d);
   panel();
+  bindBrief();
   bindQuotes();
   if (Q.get("held")) { toast("Held ✅"); history.replaceState({}, "", location.pathname); }
   if (Q.get("pay_cancelled") || Q.get("pay_error")) {
@@ -109,6 +149,7 @@ function activeRoom(d) {
     ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     <div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+    ${shipHtml()}
     <div id="work" style="margin-top:12px"></div>
     <div id="chat" style="margin-top:12px"></div>
     ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row wrapx" style="margin-top:12px;gap:8px"><button class="btn small" id="invite">👥 Invite teammate</button></div>` : ""}`;
@@ -118,7 +159,40 @@ function activeRoom(d) {
     catch (er) { toast(er.message, "bad"); }
   });
   if ($("#invite")) $("#invite").onclick = inviteSheet;
+  bindShip();
   if (window.Work) Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
+}
+
+/* ---------- product shipping (Phase 5.3) ---------- */
+function hasProduct() {
+  const f = (V.brief_fields && V.brief_fields.fields || []).find(x => x.key === "product");
+  return f && f.value && !/^no product/i.test(f.value);
+}
+function shipHtml() {
+  const s = V.shipment;
+  if (!hasProduct() && !s) return "";
+  if (!s) return IS_BRAND && V.me.role === "brand_main"
+    ? `<div class="card" style="margin-top:12px"><h3>Ship the product</h3>
+        <p class="small">${V.ship_to ? `Ship to: <b>${esc(V.ship_to)}</b>` : `${esc(V.creator.name.split(" ")[0])} hasn't added an address yet.`}</p>
+        <div class="row" style="gap:8px"><input id="sh-courier" placeholder="Courier" class="grow"><input id="sh-track" placeholder="Tracking number" class="grow"></div>
+        <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" id="sh-hand" style="width:auto"> Hand delivery</label>
+        <button class="btn primary block" id="sh-go" style="margin-top:8px">Save shipping</button>
+        <p class="hint">The draft deadline starts when the creator marks the product received.</p></div>`
+    : `<div class="card" style="margin-top:12px"><h3>Product</h3><p class="small muted">Waiting for the brand to ship it.${!IS_BRAND && !V.my_address ? " Add your address in Profile (it's shown to the brand only after the money is held)." : ""}</p></div>`;
+  return `<div class="card" style="margin-top:12px"><h3>Product</h3>
+    <p class="small">${s.hand_delivery ? "Hand delivery" : `${esc(s.courier || "")} · ${esc(s.tracking || "")}`}</p>
+    ${s.received_at ? `<p class="small">✅ Received ${esc(s.received_at)} · draft due ${esc(V.deal.draft_due || "")}</p>`
+      : (!IS_BRAND ? `<button class="btn primary block" id="sh-recv">Product received</button>` : `<p class="small muted">Waiting for ${esc(V.creator.name.split(" ")[0])} to confirm it arrived.</p>`)}</div>`;
+}
+function bindShip() {
+  if ($("#sh-go")) $("#sh-go").onclick = e => busy(e.currentTarget, async () => {
+    try { V = await api(url("/shipping"), { body: { courier: $("#sh-courier").value, tracking: $("#sh-track").value, hand_delivery: $("#sh-hand").checked } }); render(); toast("Shipping saved"); }
+    catch (er) { toast(er.message, "bad"); }
+  });
+  if ($("#sh-recv")) $("#sh-recv").onclick = e => busy(e.currentTarget, async () => {
+    try { V = await api(url("/received"), { method: "POST" }); render(); toast("Marked received · the draft clock starts today"); }
+    catch (er) { toast(er.message, "bad"); }
+  });
 }
 
 function inviteSheet() {
@@ -202,17 +276,41 @@ function brand(d) {
           ${V.price_list.map(p => `<div class="line"><div class="grow">${esc(p.name)}${p.rules && p.rules.note ? `<div class="tiny muted">${esc(p.rules.note)}</div>` : ""}</div>
             <div class="amt small">${p.standard_cents == null ? "Terms" : usd(p.standard_cents)}</div></div>`).join("")}</div></details></div>
       <h2 style="margin-top:18px">What do you need?</h2>
-      <textarea id="brief" maxlength="2000" placeholder="e.g. 1 Reel showing our cold brew at home, plus 1 Story set. Post Friday. Mention 'new cold brew'. #ad.">${esc(lastBrief)}</textarea>
-      <div class="hint" id="cnt">0 / 2000</div><div id="ai-state"></div>
-      <button class="btn primary block" id="draft" style="margin-top:12px">Draft my deal</button>`;
+      <div class="seg" style="margin-bottom:10px"><button type="button" data-mode="free" class="on">Type freely</button><button type="button" data-mode="form">Use the form</button></div>
+      <div id="mode-free">
+        <textarea id="brief" maxlength="2000" placeholder="e.g. 1 Reel showing our cold brew at home, plus 1 Story set. Post Friday 18:00–21:00. Mention 'new cold brew'. #ad. Organic repost only.">${esc(lastBrief)}</textarea>
+        <div class="hint" id="cnt">0 / 2000</div></div>
+      <form id="mode-form" hidden class="stack">
+        ${V.price_list.filter(p => p.kind !== "rule").map(p => `<div class="row between"><span>${esc(p.name)} <span class="muted small">${usd(p.standard_cents)}${p.unit === "month" ? " / month" : ""}</span></span>
+          <input type="number" min="0" max="10" value="0" data-qty="${esc(p.name)}" data-unit="${esc(p.unit)}" style="max-width:80px"></div>`).join("")}
+        ${[["Objective", "objective", "e.g. Launch awareness for the new cold brew"], ["Main KPI", "kpi", "e.g. reach"], ["Audience", "audience", "e.g. coffee lovers in Dubai, 25–34"],
+           ["Key messages (max 3)", "key_messages", "e.g. new cold brew; smooth; made in Dubai"], ["Must include", "must_include", "e.g. @duneroast #ad code DUNE10"],
+           ["Posting date", "post_date", "e.g. Friday 13 Nov"], ["Posting time window", "posting_window", "e.g. 18:00–21:00"], ["Days live", "days_live", "e.g. 30"],
+           ["Do's and don'ts", "dos_donts", ""], ["Disclosure", "disclosure", "e.g. #ad at the start"], ["Product to ship", "product", "e.g. 2 bottles of cold brew"],
+           ["Usage rights", "usage_rights", "e.g. Organic repost only, or paid ads for 3 months"], ["Exclusivity", "exclusivity", "e.g. None, or no other coffee brands for 1 month"],
+           ["Assets", "assets", "links to logo / brand guide"], ["Budget", "budget", "e.g. $600"]]
+          .map(([l, k, ph]) => `<div><label>${l}</label><input data-k="${k}" data-l="${l}" maxlength="200" placeholder="${esc(ph)}"></div>`).join("")}
+      </form>
+      <div id="ai-state"></div>
+      <button class="btn primary block" id="draft" style="margin-top:12px">Draft my deal</button>
+      <p class="hint">Anything you leave out that a deal needs (posting window, usage rights, disclosure…) is flagged with a sensible default you can change.</p>`;
     const cnt = () => $("#cnt").textContent = `${$("#brief").value.length} / 2000`; cnt();
     $("#brief").oninput = cnt;
-    $("#draft").onclick = e => sendBrief(e.currentTarget, "POST");
+    $$("[data-mode]").forEach(b => b.onclick = () => { $$("[data-mode]").forEach(x => x.classList.toggle("on", x === b)); $("#mode-free").hidden = b.dataset.mode !== "free"; $("#mode-form").hidden = b.dataset.mode !== "form"; });
+    $("#draft").onclick = e => {
+      if (!$("#mode-form").hidden) {  // the form becomes plain sentences, so every line still has exact words behind it
+        const parts = $$("[data-qty]").filter(i => +i.value > 0).map(i => `${i.value} ${i.dataset.qty}${i.dataset.unit === "month" ? " months" : ""}`);
+        const rest = $$("[data-k]").filter(i => i.value.trim()).map(i => `${i.dataset.l}: ${i.value.trim()}.`);
+        $("#brief").value = (parts.length ? parts.join(", ") + ". " : "") + rest.join(" ");
+      }
+      sendBrief(e.currentTarget, "POST");
+    };
     return;
   }
   if (d.status === "offered") {
     $("#view").innerHTML = `
       <div class="card gold"><h2>Your draft deal</h2>${linesHtml()}${extrasHtml()}</div>
+      ${briefHtml(V.me.role === "brand_main")}
       <div class="banner wait" style="margin-top:12px">⏳ Waiting for ${esc(first)} to accept</div>
       <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>
       <p class="hint">Prices come from ${esc(first)}'s own price list. The AI only picks the items; it never sets prices.</p>`;
@@ -231,7 +329,8 @@ function brand(d) {
         <p class="small muted">A PayPal hold lasts up to 29 days (sandbox check, 7 Nov).</p>
         <button class="btn primary block" id="pay">${waiting ? "Continue at PayPal" : `Pay with PayPal: hold ${usd(V.total_cents)}`}</button>
       </div>
-      <details class="card hide-desktop" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>`;
+      <details class="card hide-desktop" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>
+      ${briefHtml(false)}`;
     $("#pay").onclick = e => busy(e.currentTarget, async () => {
       try { const r = await api(url("/pay"), { method: "POST" }); if (r.approve_url) location.href = r.approve_url; else toast("PayPal didn't give a link. Try again.", "bad"); }
       catch (er) { toast(er.message, "bad", () => $("#pay").click()); }
@@ -314,6 +413,7 @@ function creator(d) {
       <div class="banner gold">✍️ ${esc(brandName)} sent a brief. Check the draft and accept.</div>
       <div class="card" style="margin-top:12px"><p class="small muted">The brief</p><blockquote class="small">${esc(d.brief || "")}</blockquote></div>
       <div class="card gold" style="margin-top:12px"><h2>Draft deal</h2>${linesHtml(true)}${extrasHtml()}</div>
+      ${briefHtml(true)}
       <div class="stack" style="margin-top:14px">
         <button class="btn primary block" id="acc">Accept deal: version 1</button>
         <button class="btn block" id="ask">Ask for changes</button>

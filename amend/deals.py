@@ -245,9 +245,14 @@ def store_draft(db: Database, token: str, brief: str, draft: Draft) -> dict:
         if draft.post_date:
             engine.add_fact(db, deal["id"], "post_date", draft.post_date["value"], draft.post_date["quote"], brief,
                             source="brief", speaker_id=party["id"])
+        from amend import briefs
+        fields = briefs.from_ai(draft.fields or [], brief)
+        bdoc = briefs.complete(db, deal, fields, lines=[{"item_code": l.item_code} for l in draft.lines],
+                               post_date=draft.post_date, brief_text=brief)
         extra = {"brief": brief, "total_cents": draft.total_cents,
                  "deadline": draft.post_date["value"] if draft.post_date else None,
-                 "done_means_json": json.dumps(draft.done_means), "not_on_list_json": json.dumps(draft.not_on_list)}
+                 "done_means_json": json.dumps(briefs.done_means(bdoc)), "not_on_list_json": json.dumps(draft.not_on_list),
+                 "brief_json": json.dumps(bdoc)}
         if deal["status"] == "draft":
             deal = _move(db, deal, "offered", party["id"], **extra)
         else:
@@ -294,9 +299,17 @@ def accept(db: Database, deal_id: str, *, creator_party: str) -> dict:
     terms = deal_terms(db, deal_id, 0)
     if not terms:
         raise DealError("the draft has no priced lines")
+    from amend import briefs
+    raw = db.one("select brief_json from deals where id = :id", {"id": deal_id})
+    bdoc = briefs.load(raw)
+    blocking = briefs.blockers(bdoc)
+    if blocking:  # S72: acceptance only when every field is agreed
+        raise DealError("Not every brief field is agreed yet: " + "; ".join(blocking))
+    bdoc = briefs.agree_all(bdoc)
     with db.tx():
         db.execute("update terms set version = 1 where deal_id = :d and version = 0", {"d": deal_id})
-        deal = _move(db, deal, "accepted", creator_party, version=1)
+        deal = _move(db, deal, "accepted", creator_party, version=1, brief_json=json.dumps(bdoc),
+                     silent_approval_days=briefs.silent_days(bdoc), done_means_json=json.dumps(briefs.done_means(bdoc)))
         hold = money.plan_item(db, deal_id, "hold", deal["total_cents"], [t["fact_id"] for t in terms], actor=creator_party)
         db.log_event("deal.accepted", actor=creator_party, deal_id=deal_id,
                      payload={"version": 1, "total_cents": deal["total_cents"], "hold": hold["id"]})
@@ -374,6 +387,13 @@ async def paypal_return(db: Database, rail: money.PlatformRail, token: str, orde
     return item
 
 
+def _brief_view(db: Database, deal_id: str) -> dict:
+    from amend import briefs
+    raw = db.one("select brief_json from deals where id = :id", {"id": deal_id})
+    b = briefs.load(raw)
+    return {"fields": briefs.view(b), "flags": b.get("flags", []), "blockers": briefs.blockers(b)}
+
+
 def deal_view(db: Database, deal_id: str) -> dict:
     deal = get_deal(db, deal_id)
     c = creator(db, deal["creator_id"])
@@ -395,6 +415,7 @@ def deal_view(db: Database, deal_id: str) -> dict:
                    "min_cents": t["min_cents"], "max_cents": t["max_cents"], "standard_cents": t["standard_cents"],
                    "quote": t["quote"]} for t in terms],
         "total_cents": deal["total_cents"], "total_aed": money.fmt_aed(deal["total_cents"]),
+        "brief_fields": _brief_view(db, deal_id),
         "hold": ({"id": hold["id"], "status": hold["status"], "amount_cents": hold["amount_cents"],
                   "approve_url": hold["approve_url"], "expires_at": hold["expires_at"],
                   "honor_until": hold["honor_until"], "paypal_id": hold["paypal_id"],

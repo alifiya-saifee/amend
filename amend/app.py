@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, changes, deals, discovery, engine, inbox, money, webhooks
+from amend import ai, auth, briefs, changes, deals, discovery, engine, inbox, money, shipping, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -510,6 +510,8 @@ def studio_deal(deal_id: str, c: dict = Depends(require_creator)):
     v["links"] = [{"url": f"{base}/d/{l['token']}", "token": l["token"], "expires_at": l["expires_at"],
                    "opened_at": l["opened_at"], "revoked": bool(l["revoked_at"])} for l in deals.links_for(get_db(), deal_id)]
     v["viewer"] = "creator"
+    v["shipment"] = shipping.current(get_db(), deal_id)
+    v["my_address"] = bool(get_db().one("select address from creators where id = :c", {"c": c["id"]})["address"])
     return v
 
 
@@ -686,6 +688,8 @@ def _brand_view(token: str) -> dict:
     c = deals.creator(get_db(), v["deal"]["creator_id"])
     v["price_list"] = [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)}
                        for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
+    v["shipment"] = shipping.current(get_db(), v["deal"]["id"])
+    v["ship_to"] = c.get("address") if v["money_held"] else None  # the address stays private until the hold
     return v
 
 
@@ -940,6 +944,76 @@ async def paypal_return(t: str, token: str | None = None):
 
 # ---------- system ----------
 
+# ---------- brief builder and shipping (Phase 5) ----------
+
+class FieldActIn(BaseModel):
+    action: str = Field(pattern="^(accept_default|edit|accept_counter|accept|counter)$")
+    value: str | None = Field(None, max_length=300)
+    reason: str | None = Field(None, max_length=200)
+
+
+@app.post("/api/d/{token}/brief/fields/{key}")
+def brand_field(token: str, key: str, body: FieldActIn):
+    deal, pid = _brand_ctx(token)
+    if pid != deal["brand_party_id"] or body.action in ("accept", "counter"):
+        raise HTTPException(400, "Only the brand's main contact can fill or accept brief fields.")
+    try:
+        briefs.act(get_db(), deals.get_deal(get_db(), deal["id"]) | {"brief_json": get_db().one(
+            "select brief_json from deals where id = :d", {"d": deal["id"]})["brief_json"]}, "brand", key, body.action, value=body.value)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _brand_view(token)
+
+
+@app.post("/api/deals/{deal_id}/brief/fields/{key}")
+def creator_field(deal_id: str, key: str, body: FieldActIn, c: dict = Depends(require_creator)):
+    deal, _ = _creator_ctx(deal_id, c)
+    if body.action not in ("accept", "counter"):
+        raise HTTPException(400, "The creator can accept or counter a field.")
+    try:
+        briefs.act(get_db(), deal | {"brief_json": get_db().one("select brief_json from deals where id = :d", {"d": deal_id})["brief_json"]},
+                   "creator", key, body.action, value=body.value, reason=body.reason)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
+class ShipIn(BaseModel):
+    courier: str = Field("", max_length=60)
+    tracking: str = Field("", max_length=80)
+    hand_delivery: bool = False
+
+
+@app.post("/api/d/{token}/shipping")
+def brand_shipping(token: str, body: ShipIn):
+    deal, pid = _brand_ctx(token)
+    try:
+        shipping.add(get_db(), deal, pid, **body.model_dump())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _brand_view(token)
+
+
+@app.post("/api/deals/{deal_id}/received")
+def creator_received(deal_id: str, c: dict = Depends(require_creator)):
+    deal, _ = _creator_ctx(deal_id, c)
+    try:
+        shipping.received(get_db(), deal, c["party_id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
+class AddressIn(BaseModel):
+    address: str = Field(max_length=300)
+
+
+@app.put("/api/studio/address")
+def save_address(body: AddressIn, c: dict = Depends(require_creator)):
+    get_db().update("creators", "id", c["id"], {"address": body.address.strip() or None})
+    return {"ok": True}
+
+
 # ---------- deal chat and change cards (Phase 3) ----------
 
 def _brand_ctx(token: str) -> tuple[dict, str]:
@@ -1158,7 +1232,7 @@ def tick(request: Request):  # S59: protected by the secret header, not the Orig
     return {"ok": True, **result}
 
 
-TICK_TASKS: list = []
+TICK_TASKS: list = [shipping.tick]
 
 
 @app.post("/api/paypal/webhook")
