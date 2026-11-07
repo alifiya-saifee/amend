@@ -315,7 +315,7 @@ def decline(db: Database, deal_id: str, reason: str, *, creator_party: str) -> d
 
 
 def open_hold(db: Database, deal_id: str) -> dict | None:
-    rows = db.all("select * from money_items where deal_id = :d and kind = 'hold' and status not in "
+    rows = db.all("select * from money_items where deal_id = :d and kind = 'hold' and change_id is null and status not in "
                   "('cancelled','voided','expired','failed') order by created_at", {"d": deal_id})
     return rows[-1] if rows else None
 
@@ -338,6 +338,23 @@ async def pay(db: Database, rail: money.PlatformRail, token: str, *, base_url: s
                                   cancel_url=f"{base_url}/d/{token}?pay_cancelled=1",
                                   description=f"Amend deal {deal['id']} with {ctx['deal']['brand_org']} (sandbox)")
     return item
+
+
+async def pay_change(db: Database, rail: money.PlatformRail, token: str, item_id: str, *, base_url: str) -> dict:
+    """The extra hold a confirmed change needs ("Pay +$80 hold"). Same approval and PayPal path as the first hold."""
+    ctx = open_link(db, token)
+    deal, party = ctx["deal"], ctx["party"]
+    if party["id"] != deal["brand_party_id"]:
+        raise DealError("only the brand's main contact can hold the money")
+    item = db.one("select * from money_items where id = :i and deal_id = :d and kind = 'hold' and change_id is not null",
+                  {"i": item_id, "d": deal["id"]})
+    if not item:
+        raise DealError("that hold isn't part of this deal")
+    money.approve(db, item["id"], party["id"])
+    return await money.start_hold(db, rail, item["id"], actor=party["id"],
+                                  return_url=f"{base_url}/paypal/return?t={token}",
+                                  cancel_url=f"{base_url}/d/{token}?pay_cancelled=1",
+                                  description=f"Amend deal {deal['id']} change (sandbox)")
 
 
 async def paypal_return(db: Database, rail: money.PlatformRail, token: str, order_id: str) -> dict:
@@ -365,7 +382,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
     for it in items:
         money.mark_expired_if_due(db, it)
     items = money.items_for(db, deal_id)
-    hold = next((i for i in reversed(items) if i["kind"] == "hold"), None)
+    hold = next((i for i in reversed(items) if i["kind"] == "hold" and not i.get("change_id")), None)
+    extra_holds = [i for i in items if i["kind"] == "hold" and i.get("change_id")]
     terms = deal_terms(db, deal_id)
     return {
         "deal": deal,
@@ -382,5 +400,10 @@ def deal_view(db: Database, deal_id: str) -> dict:
                   "honor_until": hold["honor_until"], "paypal_id": hold["paypal_id"],
                   "authorization": hold["paypal_parent_id"]} if hold else None),
         "money_held": bool(hold and hold["status"] == "authorized"),
+        "extra_holds": [{"id": i["id"], "status": i["status"], "amount_cents": i["amount_cents"], "approve_url": i["approve_url"],
+                         "change": i["change_id"]} for i in extra_holds],
+        "held_cents": sum(i["amount_cents"] - i["captured_cents"] for i in items if i["kind"] == "hold" and i["status"] == "authorized"),
+        "money": [{"id": i["id"], "kind": i["kind"], "status": i["status"], "amount_cents": i["amount_cents"],
+                   "note": i.get("note"), "paypal_id": i["paypal_id"]} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
     }

@@ -176,6 +176,9 @@ create table if not exists reviews (
 create table if not exists shipments (
   id text primary key, deal_id text not null, courier text, tracking text, hand_delivery integer not null default 0,
   added_at text not null, received_at text, photo_url text, nudged_at text);
+create table if not exists media (
+  id text primary key, deal_id text not null, party_id text, kind text not null, mime text not null, name text,
+  size integer not null, data_b64 text, created_at text not null, deleted_at text, deleted_by text);
 create table if not exists chat_reads (
   deal_id text not null, party_id text not null, last_at text not null, primary key (deal_id, party_id));
 create index if not exists ix_money_deal on money_items(deal_id);

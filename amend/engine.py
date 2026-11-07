@@ -180,7 +180,8 @@ def ripple(db: Database, deal_id: str, changes: list[dict]) -> Ripple:
     if increase:
         out.new_holds.append(RippleLine("", "planned", "new_hold", increase, "more money: a new hold for the difference"))
 
-    changed_terms = {t["id"] for t in terms if t.get("fact_id") in changed_facts}
+    term_facts = changed_facts | {c["term_fact_id"] for c in changes if c.get("term_fact_id")}
+    changed_terms = {t["id"] for t in terms if t.get("fact_id") in term_facts}
     out.untouched_terms = len(terms) - len(changed_terms)
     out.untouched_money = len(items) - len(touched)
     out.conflicts = limit_conflicts(db, deal_id, changes)

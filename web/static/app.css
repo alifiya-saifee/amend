@@ -206,3 +206,17 @@ button.pick { width: 100%; font: inherit; color: var(--ink); }
 .auth-slot .who { font-size: .85rem; color: var(--ink); text-decoration: none; border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
 .tabs .side-only { display: none; }
 @media (min-width: 1025px) { body.studio .tabs .side-only { display: flex; } }
+
+/* ---------- chat (Phase 3) ---------- */
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.chat-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.bubble { max-width: 86%; align-self: flex-start; background: var(--raise); border-radius: 14px 14px 14px 4px; padding: 8px 12px; overflow-wrap: anywhere; }
+.bubble.mine { align-self: flex-end; background: var(--gold-soft); border-radius: 14px 14px 4px 14px; }
+.sysline { align-self: center; font-size: .78rem; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 3px 10px; text-align: center; }
+.changecard { border: 1px solid var(--gold-text); border-radius: 14px; padding: 12px; background: var(--panel); }
+.changecard.applied { border-color: var(--green); } .changecard.rejected, .changecard.expired { opacity: .7; border-color: var(--line-2); }
+.conflict { color: var(--bad); background: var(--bad-soft); border-radius: 8px; padding: 6px 10px; font-size: .85rem; margin-top: 6px; }
+.composer { display: flex; gap: 8px; align-items: flex-end; }
+.composer textarea { min-height: 44px; max-height: 140px; resize: none; flex: 1; }
+.chat-img { max-width: 220px; max-height: 220px; border-radius: 10px; margin-top: 6px; display: block; }
+.filechip { display: inline-block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--chip); text-decoration: none; color: var(--ink); }

@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script>
 </head><body class="dealroom">
 <header class="top">
   <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
@@ -94,6 +94,51 @@ function render() {
     toast(Q.get("pay_error") === "paypal" ? "PayPal didn't answer. Nothing was charged." : "Payment not finished", "bad", () => $("#pay")?.click());
     history.replaceState({}, "", location.pathname);
   }
+}
+
+/* ---------- the active deal room: held money, the work, the chat (Phase 3+) ---------- */
+function activeRoom(d) {
+  const first = V.creator.name.split(" ")[0];
+  const held = V.held_cents || 0;
+  const pendingHolds = (V.extra_holds || []).filter(h => ["planned", "approved", "sent", "failed"].includes(h.status));
+  const banner = d.status === "paused" ? `<div class="banner bad">⏸ Paused: different instructions on the brand side. Money actions wait; the chat stays open.</div>`
+    : d.status === "completed" ? `<div class="banner ok">✅ Completed</div>`
+    : `<div class="banner ok">💰 ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
+  $("#view").innerHTML = `${banner}
+    ${V.hold && V.hold.expires_at ? `<p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}. Nothing is collected until the delivery matches the deal.</p>` : ""}
+    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
+      <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
+    <div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+    <div id="work" style="margin-top:12px"></div>
+    <div id="chat" style="margin-top:12px"></div>
+    ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row wrapx" style="margin-top:12px;gap:8px"><button class="btn small" id="invite">👥 Invite teammate</button></div>` : ""}`;
+  Chat.mount($("#chat"), { base: url(""), isBrand: IS_BRAND, token: IS_BRAND ? KEY : "", onApplied: load });
+  if ($("#pay-extra")) $("#pay-extra").onclick = e => busy(e.currentTarget, async () => {
+    try { const r = await api(`/api/d/${KEY}/pay-hold/${pendingHolds[0].id}`, { method: "POST" }); location.href = r.approve_url; }
+    catch (er) { toast(er.message, "bad"); }
+  });
+  if ($("#invite")) $("#invite").onclick = inviteSheet;
+  if (window.Work) Work.mount($("#work"), { V, IS_BRAND, url, reload: load });
+}
+
+function inviteSheet() {
+  const sh = sheet(`<h2>Invite a teammate</h2><p class="small muted">They get their own link. Unless you allow it, their messages are suggestions only and can't move money.</p>
+    <form id="inv"><label>Name</label><input name="name" required maxlength="60" placeholder="Ali">
+      <label>Role</label><select name="role"><option>Legal</option><option>Finance</option><option>Marketing</option><option>Other</option></select>
+      <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" name="can_confirm" style="width:auto"> Can confirm changes (moves money)</label>
+      <button class="btn primary block" id="inv-go" style="margin-top:12px">Make their link</button></form><div id="inv-out"></div>`);
+  $("#inv", sh).onsubmit = e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    busy($("#inv-go"), async () => {
+      try {
+        const r = await api(url("/invite"), { body: { name: f.get("name"), role: f.get("role"), can_confirm: !!f.get("can_confirm") } });
+        $("#inv-out").innerHTML = `<label>Their link</label><input readonly value="${esc(r.link)}" onclick="this.select()">
+          <button class="btn block" style="margin-top:8px" id="inv-cp">Copy link</button>`;
+        $("#inv-cp").onclick = async () => { try { await navigator.clipboard.writeText(r.link); } catch {} toast("Copied"); };
+      } catch (er) { toast(er.message, "bad"); }
+    });
+  };
 }
 
 /* ---------- desktop money panel (D5) ---------- */
@@ -193,14 +238,7 @@ function brand(d) {
     });
     return;
   }
-  if (d.status === "in_progress") {
-    $("#view").innerHTML = `
-      <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held by PayPal · ${esc(first)} can start work</div>
-      <p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}. Nothing is collected until the delivery matches the deal.</p>
-      <div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
-      <div class="empty"><div class="ic">💬</div>The deal chat opens here on Sunday: changes, confirmations and the ripple preview.</div>`;
-    return;
-  }
+  if (["in_progress", "delivered", "paused", "completed"].includes(d.status)) return activeRoom(d);
   if (d.status === "cancelled") {
     $("#view").innerHTML = `<div class="banner bad">This deal was ${d.decline_reason ? "declined" : "cancelled"}.</div>
       ${d.decline_reason ? `<div class="card" style="margin-top:12px"><p class="muted small">${esc(first)}'s reason</p><blockquote>${esc(d.decline_reason)}</blockquote></div>` : ""}`;
@@ -313,14 +351,7 @@ function creator(d) {
       <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>`;
     return;
   }
-  if (d.status === "in_progress") {
-    $("#view").innerHTML = `
-      <div class="banner ok">💰 ${usd(V.hold.amount_cents)} held · start work</div>
-      <p class="small muted" style="margin-top:8px">PayPal authorisation ${esc(V.hold.authorization || "")} · expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}</p>
-      <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
-      <div class="empty"><div class="ic">💬</div>Chat, change cards and drafts arrive here on Sunday and Tuesday.</div>`;
-    return;
-  }
+  if (["in_progress", "delivered", "paused", "completed"].includes(d.status)) return activeRoom(d);
   if (d.status === "cancelled") {
     $("#view").innerHTML = `<div class="banner bad">Declined.</div>${d.decline_reason ? `<blockquote>${esc(d.decline_reason)}</blockquote>` : ""}`;
     return;

@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, deals, engine, inbox, money, webhooks
+from amend import ai, auth, changes, deals, engine, inbox, money, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -847,6 +847,206 @@ async def paypal_return(t: str, token: str | None = None):
 
 # ---------- system ----------
 
+# ---------- deal chat and change cards (Phase 3) ----------
+
+def _brand_ctx(token: str) -> tuple[dict, str]:
+    ctx = deals.open_link(get_db(), token)
+    return ctx["deal"], ctx["party"]["id"]
+
+
+def _creator_ctx(deal_id: str, c: dict) -> tuple[dict, str]:
+    own_deal(deal_id, c)
+    return deals.get_deal(get_db(), deal_id), c["party_id"]
+
+
+async def _detect(deal: dict, party_id: str, text: str, source: str, message_id: str | None) -> dict:
+    """Run change detection on words from the chat. The AI picks codes and quotes; the code prices and ripples."""
+    if deal["status"] not in ("accepted", "in_progress", "delivered", "paused") or deal["version"] < 1:
+        return {}
+    d = get_db()
+    plist = engine.price_items(d, deal["creator_id"])
+    current = [{"item_code": t["code"], "qty": t["qty"]} for t in deals.deal_terms(d, deal["id"])]
+    rate_limit(f"ai:{deal['id']}", 20, 60)
+    try:
+        out = await changes.detect_change(text, price_list=plist, current=current, post_date=deal.get("deadline"),
+                                          today=date.today().isoformat())
+    except (ai.DraftRejected, ai.ProviderError) as e:
+        d.log_event("ai.rejected", actor="ai", deal_id=deal["id"], payload={"why": str(e)[:200], "source": source})
+        return {"ai_error": "Couldn't check this message for changes right now."}
+    if out.kind == "revision" or out.lines:
+        d.log_event("feedback.classified", actor="ai", deal_id=deal["id"], payload={"kind": out.kind, "source": source})
+    c = changes.build(d, deal, out, message=text, proposer=party_id, source=source, message_id=message_id)
+    return {"change": changes.card(d, c)} if c else {}
+
+
+def _chat(deal: dict, party_id: str) -> dict:
+    d = get_db()
+    t = changes.timeline(d, deal["id"], party_id)
+    changes.mark_chat_read(d, deal["id"], party_id)
+    t["me"] = party_id
+    t["side"] = changes.side_of(d, deal, party_id)
+    t["deal_status"] = deal["status"]
+    return t
+
+
+@app.get("/api/d/{token}/chat")
+def brand_chat(token: str):
+    return _chat(*_brand_ctx(token))
+
+
+@app.get("/api/deals/{deal_id}/chat")
+def creator_chat(deal_id: str, c: dict = Depends(require_creator)):
+    return _chat(*_creator_ctx(deal_id, c))
+
+
+class MessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+async def _send(deal: dict, party_id: str, body: str) -> dict:
+    m = changes.post_message(get_db(), deal["id"], party_id, body)
+    out = await _detect(deal, party_id, body, f"chat:{m['id']}", m["id"])
+    return {"message": m["id"], **out, **_chat(deals.get_deal(get_db(), deal["id"]), party_id)}
+
+
+@app.post("/api/d/{token}/messages")
+async def brand_send(token: str, body: MessageIn):
+    rate_limit(f"msg:{token[:12]}", 30, 60)
+    return await _send(*_brand_ctx(token), body.body)
+
+
+@app.post("/api/deals/{deal_id}/messages")
+async def creator_send(deal_id: str, body: MessageIn, c: dict = Depends(require_creator)):
+    return await _send(*_creator_ctx(deal_id, c), body.body)
+
+
+class UploadIn(BaseModel):
+    kind: str = Field(pattern="^(image|file|whatsapp|screenshot)$")
+    name: str = Field(max_length=120)
+    mime: str = Field(max_length=80)
+    data_b64: str = Field(max_length=2_800_000)
+    caption: str = Field("", max_length=500)
+
+
+async def _upload(deal: dict, party_id: str, up: UploadIn) -> dict:
+    d = get_db()
+    try:
+        med = changes.save_media(d, deal["id"], party_id, kind="image" if up.kind in ("image", "screenshot") else "file",
+                                 mime=up.mime, name=up.name, data_b64=up.data_b64)
+    except (ValueError, changes.ChangeError) as e:
+        raise HTTPException(400, str(e) if isinstance(e, changes.ChangeError) else "That file couldn't be read.")
+    meta, out = {"name": up.name, "size": med["size"]}, {}
+    if up.kind == "screenshot":  # S24: the quote must come from the text read off the image
+        try:
+            text = await changes.read_screenshot(f"data:{up.mime};base64,{up.data_b64}")
+        except (ai.DraftRejected, ai.ProviderError):
+            text = ""
+        meta["extracted_text"] = text
+        m = changes.post_message(d, deal["id"], party_id, up.caption or "Shared a screenshot", kind="image", media_id=med["id"], meta=meta)
+        d.log_event("message.imported", actor=party_id, deal_id=deal["id"], payload={"kind": "screenshot", "chars": len(text)})
+        out = await _detect(deal, party_id, text, f"screenshot:{med['id']}", m["id"]) if text else \
+            {"ai_error": "Couldn't read text from that screenshot."}
+    elif up.kind == "whatsapp":  # S25: WhatsApp "Export chat" .txt; only deciders' lines can change money
+        try:
+            txt = med["raw"].decode("utf-8", errors="replace")
+        except Exception:
+            raise HTTPException(400, "That file couldn't be read.")
+        lines = changes.parse_whatsapp(txt)
+        names = {p["name"].lower(): p["id"] for p in d.all(
+            "select p.id, p.name from parties p where p.id = :b or p.id = (select party_id from creators where id = :c)",
+            {"b": deal["brand_party_id"], "c": deal["creator_id"]})}
+        mine = [(s, t) for s, t in lines if s.lower().split()[0] in {n.split()[0] for n in names}]
+        meta.update({"lines": len(lines), "from_deciders": len(mine)})
+        m = changes.post_message(d, deal["id"], party_id, up.caption or f"Imported a WhatsApp chat ({len(lines)} messages)",
+                                 kind="file", media_id=med["id"], meta=meta)
+        d.log_event("message.imported", actor=party_id, deal_id=deal["id"], payload={"kind": "whatsapp", "lines": len(lines)})
+        text = "\n".join(t for _, t in mine[-30:])
+        out = await _detect(deal, party_id, text, f"whatsapp:{med['id']}", m["id"]) if text else {}
+    else:
+        changes.post_message(d, deal["id"], party_id, up.caption or up.name, kind=up.kind, media_id=med["id"], meta=meta)
+    return {**out, **_chat(deals.get_deal(d, deal["id"]), party_id)}
+
+
+@app.post("/api/d/{token}/upload")
+async def brand_upload(token: str, body: UploadIn):
+    rate_limit(f"up:{token[:12]}", 10, 300)
+    return await _upload(*_brand_ctx(token), body)
+
+
+@app.post("/api/deals/{deal_id}/upload")
+async def creator_upload(deal_id: str, body: UploadIn, c: dict = Depends(require_creator)):
+    return await _upload(*_creator_ctx(deal_id, c), body)
+
+
+class ActIn(BaseModel):
+    reason: str | None = Field(None, max_length=300)
+
+
+def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None) -> dict:
+    d = get_db()
+    if not d.one("select id from changes where id = :c and deal_id = :d", {"c": cid, "d": deal["id"]}):
+        raise HTTPException(404, "change not found")
+    try:
+        card = changes.act(d, cid, party_id, action, reason=reason)
+    except changes.ChangeError as e:
+        raise HTTPException(400, str(e))
+    return {"change": card, **_chat(deals.get_deal(d, deal["id"]), party_id)}
+
+
+@app.post("/api/d/{token}/changes/{cid}/{action}")
+def brand_act(token: str, cid: str, action: str, body: ActIn):
+    return _act(*_brand_ctx(token), cid, action, body.reason)
+
+
+@app.post("/api/deals/{deal_id}/changes/{cid}/{action}")
+def creator_act(deal_id: str, cid: str, action: str, body: ActIn, c: dict = Depends(require_creator)):
+    return _act(*_creator_ctx(deal_id, c), cid, action, body.reason)
+
+
+class InviteIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    role: str = Field(pattern="^(Legal|Finance|Marketing|Other)$")
+    can_confirm: bool = False
+
+
+@app.post("/api/d/{token}/invite")
+def brand_invite(token: str, body: InviteIn):
+    deal, pid = _brand_ctx(token)
+    try:
+        t = changes.invite(get_db(), deal, pid, name=body.name, role=body.role, can_confirm=body.can_confirm)
+    except changes.ChangeError as e:
+        raise HTTPException(400, str(e))
+    return {"link": f"{get_settings().base_url.rstrip('/')}/d/{t}"}
+
+
+@app.post("/api/d/{token}/pay-hold/{item_id}")
+async def brand_pay_hold(token: str, item_id: str):
+    item = await deals.pay_change(get_db(), rail(), token, item_id, base_url=get_settings().base_url.rstrip("/"))
+    return {"approve_url": item["approve_url"], "status": item["status"]}
+
+
+@app.get("/api/media/{mid}")
+def get_media(mid: str, request: Request, t: str | None = None):
+    import base64 as b64
+    d = get_db()
+    m = d.one("select * from media where id = :i", {"i": mid})
+    if not m or m["deleted_at"]:
+        raise HTTPException(404, "not found")
+    ok = False
+    if t:
+        try:
+            ok = deals.open_link(d, t)["deal"]["id"] == m["deal_id"]
+        except deals.LinkError:
+            ok = False
+    c = current_creator(request)
+    if c and d.one("select id from deals where id = :d and creator_id = :c", {"d": m["deal_id"], "c": c["id"]}):
+        ok = True
+    if not ok:
+        raise HTTPException(404, "not found")
+    from fastapi.responses import Response
+    return Response(b64.b64decode(m["data_b64"]), media_type=m["mime"], headers={"Cache-Control": "private, max-age=3600"})
+
+
 @app.post("/internal/tick")
 def tick(request: Request):  # S59: protected by the secret header, not the Origin check
     want = get_settings().amend_tick_secret.get_secret_value()
@@ -858,8 +1058,14 @@ def tick(request: Request):  # S59: protected by the secret header, not the Orig
     for it in d.all("select * from money_items where status = 'authorized' and expires_at is not null"):
         if money.mark_expired_if_due(d, it)["status"] == "expired":
             expired += 1
-    d.log_event("tick.ran", actor="system", payload={"expired_holds": expired})
-    return {"ok": True, "expired_holds": expired}
+    result = {"expired_holds": expired, **changes.tick(d)}
+    for extra in TICK_TASKS:  # later phases add checks here (shipping nudges, silent approval, holdback, call nudges)
+        result.update(extra(d))
+    d.log_event("tick.ran", actor="system", payload=result)
+    return {"ok": True, **result}
+
+
+TICK_TASKS: list = []
 
 
 @app.post("/api/paypal/webhook")

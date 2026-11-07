@@ -19,6 +19,11 @@ KINDS = {
     "deal.drafted": ("✍️", "needs_me"),
     "approval.recorded": ("🤝", "money"),
     "money.status": ("💰", "money"),
+    "message.sent": ("💬", "messages"),
+    "change.detected": ("💡", "needs_me"),
+    "change.suggested": ("💡", "messages"),
+    "change.applied": ("✅", "money"),
+    "change.expired": ("⌛", "messages"),
 }
 
 PAGE = 30
@@ -37,6 +42,16 @@ def _line(e: dict, deal: dict, brand: str) -> str | None:
         return f"Draft ready: {fmt_usd(p.get('total_cents', 0))}" + (" · check and accept" if deal["status"] == "offered" else "")
     if t == "approval.recorded":
         return f"{brand} approved holding {fmt_usd(p.get('amount_cents', 0))}"
+    if t == "message.sent":
+        return f"{brand}: {p.get('preview', '')}" if p.get("preview") else f"{brand} sent a file"
+    if t == "change.detected":
+        return f"Change card from {brand}: {fmt_usd(abs(p.get('delta_cents', 0)))} · confirm or discuss"
+    if t == "change.suggested":
+        return "A teammate suggested a change (suggestion only)"
+    if t == "change.applied":
+        return f"Change applied · version {p.get('version')}"
+    if t == "change.expired":
+        return "A change card expired · the last confirmed version stays"
     if t == "money.status":
         if p.get("to") == "authorized":
             return "Money held by PayPal · you can start work"
@@ -71,7 +86,7 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
         icon, cat = KINDS[e["type"]]
         if e["type"] == "money.status" and e["payload"].get("to") == "expired":
             icon = "⌛"
-        if cat == "needs_me" and deal["status"] != "offered":
+        if e["type"] == "deal.drafted" and deal["status"] != "offered":
             cat = "messages"
         out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat,
                     "line": line, "at": e["at"], "unread": e["id"] not in read})

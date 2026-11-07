@@ -60,10 +60,11 @@ class Provider:
     def available(self) -> bool:
         return bool(self.key() and self.model())
 
-    async def complete_json(self, system: str, user: str) -> dict:
+    async def complete_json(self, system: str, user: str, image: str | None = None) -> dict:
+        content = user if not image else [{"type": "text", "text": user}, {"type": "image_url", "image_url": {"url": image}}]
         body = {"model": self.model(), "temperature": 0,
                 "response_format": {"type": "json_object"},
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}]}
         try:
             async with httpx.AsyncClient(transport=self.transport, timeout=60) as c:
                 r = await c.post(f"{self.base_url}/chat/completions", json=body,
@@ -107,9 +108,12 @@ class AIResult:
     cached: bool = False
 
 
+VISION = {"gemini"}  # providers that read images (Groq's backup chat model is text-only)
+
+
 async def call_json(system: str, user: str, *, retries: int = 2, base_delay: float = 0.5,
-                    use_cache: bool = True) -> AIResult:
-    key = hashlib.sha256(json.dumps([system, user]).encode()).hexdigest()
+                    use_cache: bool = True, image: str | None = None) -> AIResult:
+    key = hashlib.sha256(json.dumps([system, user, hashlib.sha256((image or "").encode()).hexdigest()]).encode()).hexdigest()
     if use_cache and key in _cache:
         r = _cache[key]
         return AIResult(r.data, r.provider, 0, r.fell_back, cached=True)
@@ -117,12 +121,12 @@ async def call_json(system: str, user: str, *, retries: int = 2, base_delay: flo
     attempts, last = 0, None
     for i, pid in enumerate(order):
         p = PROVIDERS[pid]
-        if not p.available():
+        if not p.available() or (image and pid not in VISION):
             continue
         for n in range(retries + 1):
             attempts += 1
             try:
-                data = await p.complete_json(system, user)
+                data = await p.complete_json(system, user, image) if image else await p.complete_json(system, user)
                 res = AIResult(data, pid, attempts, fell_back=i > 0)
                 _cache[key] = res
                 log.info("ai ok provider=%s attempts=%s", pid, attempts)
