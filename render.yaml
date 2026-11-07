@@ -1,0 +1,50 @@
+# Render blueprint for Amend (free plan). Secrets are set in the Render dashboard, never here.
+services:
+  - type: web
+    name: amend
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    autoDeploy: false
+    envVars:
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: MONEY_RAIL
+        value: platform
+      - key: AI_PROVIDER
+        value: gemini
+      - key: BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_MODEL
+        sync: false
+      - key: AMEND_DEMO_PASSWORD
+        sync: false
+      - key: AMEND_SESSION_SECRET
+        sync: false
+      - key: AMEND_TICK_SECRET
+        sync: false
+      - key: SANDBOX_BRAND_EMAIL
+        sync: false
+      - key: SANDBOX_CREATOR_EMAIL
+        sync: false
+      - key: SANDBOX_EDITOR_EMAIL
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false

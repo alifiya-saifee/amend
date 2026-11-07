@@ -10,6 +10,7 @@ Security (checklist A4, B):
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import secrets
 import time
@@ -22,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, deals, engine, inbox, money
+from amend import ai, auth, deals, engine, inbox, money, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -863,8 +864,20 @@ def tick(request: Request):  # S59: protected by the secret header, not the Orig
 
 @app.post("/api/paypal/webhook")
 async def paypal_webhook(request: Request):
-    """Sunday: verify with PayPal's verify-webhook-signature API, dedupe by event ID, never move a status backwards.
-    Until then every webhook is refused as unverified (no Origin check here: PayPal posts from its own servers)."""
-    body = await request.body()
-    get_db().log_event("webhook.received", actor="paypal", payload={"bytes": len(body), "verified": False})
-    return JSONResponse({"error": "webhook verification not set up yet"}, status_code=400)
+    """Verified with PayPal's verify-webhook-signature API; duplicates dropped by event ID; a status never moves
+    backwards (amend/webhooks.py). No Origin check here: PayPal posts from its own servers (S58)."""
+    raw = await request.body()
+    if len(raw) > 1_000_000:
+        raise HTTPException(413, "too large")
+    try:
+        event = json.loads(raw)
+    except ValueError:
+        get_db().log_event("webhook.rejected", actor="paypal", payload={"why": "not JSON"})
+        return JSONResponse({"error": "not JSON"}, status_code=400)
+    ok = await rail().pp.verify_webhook(dict(request.headers), event, get_settings().paypal_webhook_id)
+    if not ok:  # S27: fake or unsigned
+        get_db().log_event("webhook.rejected", actor="paypal",
+                           payload={"why": "signature not verified", "type": str(event.get("event_type"))[:60]})
+        return JSONResponse({"error": "signature not verified"}, status_code=400)
+    new, what = webhooks.record_and_apply(get_db(), event)
+    return {"ok": True, "duplicate": not new, "result": what}

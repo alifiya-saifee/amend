@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.venv
+.git
+*.db
+*.db-*
+.probe_state.json
+docs
+tests
+__pycache__
+**/__pycache__
+.claude

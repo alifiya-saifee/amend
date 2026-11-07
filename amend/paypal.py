@@ -201,6 +201,28 @@ class PayPalClient:
     async def get_payout(self, batch_id: str) -> dict:
         return await self._get(f"/v1/payments/payouts/{batch_id}")
 
+    # ---- webhooks ----
+    async def verify_webhook(self, headers: dict, event: dict, webhook_id: str) -> bool:
+        """PayPal's verify-webhook-signature API. Not a money write (it moves nothing), so it needs no approval
+        record or request ID; it only asks PayPal whether this notification really came from PayPal."""
+        need = ("paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id", "paypal-transmission-sig",
+                "paypal-transmission-time")
+        h = {k.lower(): v for k, v in headers.items()}
+        if not webhook_id or any(not h.get(k) for k in need):
+            return False
+        if not h["paypal-cert-url"].startswith("https://api.sandbox.paypal.com/") and \
+                not h["paypal-cert-url"].startswith("https://api-m.sandbox.paypal.com/"):
+            return False  # sandbox only
+        token = await self._get_token()
+        body = {"auth_algo": h["paypal-auth-algo"], "cert_url": h["paypal-cert-url"],
+                "transmission_id": h["paypal-transmission-id"], "transmission_sig": h["paypal-transmission-sig"],
+                "transmission_time": h["paypal-transmission-time"], "webhook_id": webhook_id, "webhook_event": event}
+        async with self._client() as c:
+            r = await c.post("/v1/notifications/verify-webhook-signature", json=body,
+                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        log.info("paypal verify-webhook status=%s", r.status_code)
+        return r.status_code == 200 and r.json().get("verification_status") == "SUCCESS"
+
 
 def approve_link(order: dict) -> str | None:
     return next((l["href"] for l in order.get("links", []) if l.get("rel") in ("approve", "payer-action")), None)
