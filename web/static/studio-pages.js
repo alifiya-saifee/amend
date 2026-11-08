@@ -316,6 +316,8 @@ async function settingsTab() {
         <p class="hint">Payouts from released deals go here (PayPal sandbox in this demo).</p>
         <label>UAE Advertiser Permit</label><p class="small">${esc(s.permit.label)} · <a href="/studio/prices">Edit in Price list</a></p></section>
       <section class="card"><h2>Notifications</h2>
+        <label for="s-phone">WhatsApp number</label><input id="s-phone" type="tel" inputmode="tel" value="${s.phone ? "+" + esc(s.phone) : ""}" placeholder="+971 50 123 4567">
+        <p class="hint">Alerts like "Nadia proposed +1 Story set" go here and open the deal. Leave empty to keep them in Amend only.</p>
         ${[["change", "Change cards"], ["money", "Money updates (held, paid)"], ["message", "New messages"], ["delivery", "Drafts, gaps and delivery"]].map(([k, l]) => `<label>${l}</label>${sel(k, s.notify[k])}`).join("")}
         <p class="hint">WhatsApp is sent from Amend's own number once the template is approved; in-app is always on in your Inbox.</p>
         <h2 style="margin-top:16px">Language and theme</h2>
@@ -329,7 +331,7 @@ async function settingsTab() {
       <p class="hint">Deleting keeps a record that the files were deleted, as the deal history requires.</p></section>`;
   $("#s-save").onclick = e => busy(e.currentTarget, async () => {
     try {
-      await api("/api/studio/settings", { method: "PUT", body: { name: $("#s-name").value, paypal_email: $("#s-pp").value, language: $("#s-lang").value,
+      await api("/api/studio/settings", { method: "PUT", body: { name: $("#s-name").value, paypal_email: $("#s-pp").value, phone: $("#s-phone").value, language: $("#s-lang").value,
         theme: $("#s-theme").value, notify: Object.fromEntries($$("[data-n]").map(x => [x.dataset.n, x.value])) } });
       applyTheme($("#s-theme").value); toast("Settings saved");
     } catch (er) { toast(er.message, "bad"); }

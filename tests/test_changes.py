@@ -88,9 +88,18 @@ def test_s17_expires_after_48h_with_one_reminder(client, mocks, held):
     cid = brand_says(client, tok, "one more Story set please")["change"]["id"]
     d = get_db()
     now = datetime.now(timezone.utc)
-    assert changes.tick(d, now + timedelta(hours=25)) == {"changes_expired": 0, "changes_reminded": 1}
-    assert changes.tick(d, now + timedelta(hours=26)) == {"changes_expired": 0, "changes_reminded": 0}
-    assert changes.tick(d, now + timedelta(hours=49)) == {"changes_expired": 1, "changes_reminded": 0}
+    sara = d.one("select party_id from creators where id = (select creator_id from deals where id = :d)", {"d": deal})["party_id"]
+    r = changes.tick(d, now + timedelta(hours=25))
+    assert (r["changes_expired"], r["changes_reminded"]) == (0, 1)
+    assert [p for p, _ in r["alerts"]] == [sara]  # only the side that hasn't confirmed (the brand proposed it)
+    assert "Reminder" in r["alerts"][0][1][2]
+    msgs = lambda: [m["body"] for m in d.all("select body from messages where deal_id = :d and kind = 'system'", {"d": deal})]
+    assert any(m.startswith("Reminder:") and "waiting for Sara" in m for m in msgs())
+    r = changes.tick(d, now + timedelta(hours=26))
+    assert (r["changes_expired"], r["changes_reminded"], r["alerts"]) == (0, 0, [])
+    r = changes.tick(d, now + timedelta(hours=49))
+    assert (r["changes_expired"], r["changes_reminded"]) == (1, 0) and len(r["alerts"]) == 2  # both sides told
+    assert any("expired after 48 h" in m and "Nothing moved" in m for m in msgs())
     assert d.one("select status from changes where id = :c", {"c": cid})["status"] == "expired"
     assert client.get(f"/api/d/{tok}").json()["deal"]["version"] == 1  # the last confirmed version stays
 

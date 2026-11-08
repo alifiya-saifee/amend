@@ -585,26 +585,84 @@ def apply(db: Database, c: dict, actor: str) -> dict:
     return D.get_deal(db, deal["id"])
 
 
-def expire(db: Database, c: dict) -> None:
-    if c["status"] in ("detected", "previewed"):
-        db.update("changes", "id", c["id"], {"status": "expired"})
-        db.log_event("change.expired", actor="system", deal_id=c["deal_id"], payload={"change": c["id"]})
+def _sides(db: Database, c: dict) -> tuple[dict, str, str]:
+    deal = db.one("select * from deals where id = :d", {"d": c["deal_id"]})
+    creator_party = db.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
+    return deal, deal["brand_party_id"], creator_party
+
+
+def _name(db: Database, party_id: str) -> str:
+    return ((db.one("select name from parties where id = :p", {"p": party_id}) or {}).get("name") or "").split(" ")[0] or "them"
+
+
+def expire(db: Database, c: dict) -> list[str]:
+    """48 h without both confirmations: the card expires, the last confirmed version stays, both sides are told.
+    Returns the parties to alert."""
+    if c["status"] not in ("detected", "previewed"):
+        return []
+    db.update("changes", "id", c["id"], {"status": "expired"})
+    db.log_event("change.expired", actor="system", deal_id=c["deal_id"], payload={"change": c["id"]})
+    deal, brand, creator = _sides(db, c)
+    post_message(db, deal["id"], None, f"A change expired after {EXPIRY_HOURS} h without both confirmations: “{(c['quote'] or '')[:80]}”. "
+                                       f"Nothing moved: the deal stays at the last confirmed terms (version {deal['version']}). "
+                                       f"Propose it again, or {_name(db, creator)} can pause the deal.", kind="system")
+    return [brand, creator]
 
 
 def tick(db: Database, at: datetime | None = None) -> dict:
-    """Expire cards after 48 h; remind once at about 24 h. Idempotent."""
+    """Expire cards after 48 h; remind once at about 24 h, in the chat and as an alert to whoever hasn't confirmed.
+    Idempotent. `alerts` (party, words) are sent by the caller (WhatsApp when set up, otherwise in-app)."""
     at = at or datetime.now(timezone.utc)
     expired = reminded = 0
+    alerts: list[tuple[str, list[str]]] = []
     for c in db.all("select * from changes where status in ('detected', 'previewed')"):
         exp = datetime.fromisoformat(c["expires_at"])
         if at >= exp:
-            expire(db, c)
+            for p in expire(db, c):
+                alerts.append((p, ["Amend", "a change expired", f"Expired, nothing moved: {(c['quote'] or '')[:60]}", c["deal_id"]]))
             expired += 1
         elif not c["reminded_at"] and at >= exp - timedelta(hours=EXPIRY_HOURS - REMIND_HOURS):
             db.update("changes", "id", c["id"], {"reminded_at": at.isoformat()})
             db.log_event("change.reminded", actor="system", deal_id=c["deal_id"], payload={"change": c["id"]})
+            deal, brand, creator = _sides(db, c)
+            waiting = ([brand] if not c["confirmed_brand_at"] else []) + ([creator] if not c["confirmed_creator_at"] else [])
+            if c["status"] == "previewed" and waiting:
+                hours = max(1, round((exp - at).total_seconds() / 3600))
+                post_message(db, deal["id"], None, f"Reminder: “{(c['quote'] or '')[:80]}” is waiting for "
+                                                   f"{' and '.join(_name(db, p) for p in waiting)} to confirm. It expires in about {hours} h; "
+                                                   "until then the last confirmed terms stay.", kind="system")
+                for p in waiting:
+                    alerts.append((p, [_name(db, c["proposed_by"]), deal.get("brand_org") or "your deal",
+                                       f"Reminder: {(c['quote'] or '')[:60]}", deal["id"]]))
             reminded += 1
-    return {"changes_expired": expired, "changes_reminded": reminded}
+    return {"changes_expired": expired, "changes_reminded": reminded, "alerts": alerts}
+
+
+def pause_by_creator(db: Database, deal: dict, party_id: str, reason: str = "") -> None:
+    """The creator stops the deal (e.g. the brand stopped answering). Nothing moves until she resumes."""
+    if side_of(db, deal, party_id) != "creator":
+        raise ChangeError("only the creator can pause the deal here")
+    if deal["status"] not in ("accepted", "in_progress", "delivered"):
+        raise ChangeError(f"a deal that is {deal['status'].replace('_', ' ')} can't be paused")
+    why = (reason or "").strip()[:300] or "Paused while waiting for an answer."
+    db.update("deals", "id", deal["id"], {"status": "paused", "paused_from": deal["status"], "updated_at": now(),
+                                          "pause_json": json.dumps({"kind": "creator_pause", "by": party_id, "name": _name(db, party_id),
+                                                                    "quote": why, "at": now()})})
+    db.log_event("deal.paused", actor=party_id, deal_id=deal["id"], payload={"from": deal["status"], "by": "creator"})
+    post_message(db, deal["id"], None, f"Paused by {_name(db, party_id)}: “{why}” Money actions wait until she resumes. The chat stays open.",
+                 kind="system")
+
+
+def resume_by_creator(db: Database, deal: dict, party_id: str) -> None:
+    pause = json.loads(deal.get("pause_json") or "{}")
+    if deal["status"] != "paused" or pause.get("kind") != "creator_pause":
+        raise ChangeError("this deal isn't paused by the creator")
+    if side_of(db, deal, party_id) != "creator":
+        raise ChangeError("only the creator can resume it")
+    back = deal.get("paused_from") or "in_progress"
+    db.update("deals", "id", deal["id"], {"status": back, "pause_json": json.dumps(pause | {"resolved_at": now()}), "updated_at": now()})
+    db.log_event("deal.resumed", actor=party_id, deal_id=deal["id"], payload={"to": back})
+    post_message(db, deal["id"], None, f"Resumed by {_name(db, party_id)}. The deal continues at the last confirmed terms.", kind="system")
 
 
 def open_new_holds(db: Database, deal_id: str) -> list[dict]:

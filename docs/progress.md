@@ -281,3 +281,11 @@ Next: Block 7.
 - **Open:** the AI removed both Story sets for "drop the story set" (qty 2). Idea: singular words + qty > 1 → propose −1 or ask. Gemini call `start` times come back as fractions. WhatsApp untested (Meta).
 
 Next: Block 7.
+
+## Decisions 8 Nov (night) — built
+- **S102 quantity wording:** singular removes one, plural/both/all/number removes that many, idioms ("after all") ignored, unclear → "Which one?" with priced options; Confirm blocked until a choice; same card re-priced; both confirm the choice.
+- **Call times:** Whisper segments give times; Gemini only the lines and speakers; no clear match → no time and no jump link.
+- **PayPal fees:** a platform cost. Ledger shows "Platform cost: PayPal fee (Amend pays, not you)"; never deducted from the creator; README production note.
+- **Alerts (WhatsApp design):** found nobody could save a phone number, and the 24 h reminder / 48 h expiry alerted no one. Now: WhatsApp number in Sara's Settings and on the brand's deal link (no account); reminder → chat line + alert to whoever hasn't confirmed; expiry → chat line ("nothing moved, last confirmed terms stay") + alert to both; Sara can **Pause deal** / **Resume**. Email alerts: not built (CLAUDE.md "not building: email as a channel").
+- **Tests:** 532 passed, 3 skipped. Browser-checked: Which-one card (390, 1280), alerts card (390, 1280), pause/resume, settings phone.
+- **Next:** live re-run of Story 3 with "drop the story set" (expect −1, $80 refund = $61 holdback + $19 owed), then Block 7.

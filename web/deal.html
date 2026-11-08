@@ -167,7 +167,9 @@ function activeRoom(d) {
   const pendingHolds = (V.extra_holds || []).filter(h => ["planned", "approved", "sent", "failed"].includes(h.status));
   const P = (() => { try { return JSON.parse(V.deal.pause_json || "{}"); } catch { return {}; } })();
   const pa = P.a || {}, pb = P.b || {};
-  const banner = d.status === "paused" ? `<div class="banner bad"><i data-lucide='circle-pause' aria-hidden='true'></i> Paused: different instructions from ${esc(pa.name || "")} and ${esc(pb.name || "")}. Money actions wait; the chat stays open.
+  const banner = d.status === "paused" && P.kind === "creator_pause" ? `<div class="banner bad"><i data-lucide='circle-pause' aria-hidden='true'></i> Paused by ${esc(P.name || first)}: “${esc(P.quote || "")}” Money actions wait until ${IS_BRAND ? "she resumes" : "you resume"}; the chat stays open.
+      ${!IS_BRAND ? `<div class="row" style="margin-top:6px"><button class="btn small primary" id="resume-deal">Resume the deal</button></div>` : ""}</div>`
+    : d.status === "paused" ? `<div class="banner bad"><i data-lucide='circle-pause' aria-hidden='true'></i> Paused: different instructions from ${esc(pa.name || "")} and ${esc(pb.name || "")}. Money actions wait; the chat stays open.
       <blockquote class="small">${esc(pa.name || "")}: “${esc(pa.quote || "")}”</blockquote><blockquote class="small">${esc(pb.name || "")}: “${esc(pb.quote || "")}”</blockquote>
       ${IS_BRAND && V.me.role === "brand_main" ? `<div class="row" style="gap:8px"><button class="btn small" data-pick="a">Follow ${esc(pa.name || "A")}</button><button class="btn small" data-pick="b">Follow ${esc(pb.name || "B")}</button></div>` : ""}</div>`
     : d.status === "completed" ? `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> Completed</div>`
@@ -183,9 +185,10 @@ function activeRoom(d) {
     <div class="rt" data-tab="money"><div class="hide-desktop" style="margin-top:12px">${moneyCardHtml()}</div></div>
     <div class="rt" data-tab="delivery">${shipHtml()}<div class="hide-desktop" style="margin-top:12px">${checklistHtml(d)}</div><div id="work" style="margin-top:12px"></div></div>
     <div class="rt" data-tab="chat"><div id="chat" style="margin-top:12px"></div><div id="cancelbox"></div></div>
-    <div class="rt" data-tab="history"><div class="hide-desktop" style="margin-top:12px">${historyHtml()}</div></div>
+    <div class="rt" data-tab="history"><div class="hide-desktop" style="margin-top:12px">${historyHtml()}${IS_BRAND ? alertsHtml() : ""}</div></div>
     <div class="row wrapx" style="margin-top:12px;gap:8px">
       ${IS_BRAND && V.me.role === "brand_main" ? `<button class="btn small" id="invite"><i data-lucide='users' aria-hidden='true'></i> Invite teammate</button>` : ""}
+      ${!IS_BRAND && ["accepted", "in_progress", "delivered"].includes(d.status) ? `<button class="btn small" id="pause-deal"><i data-lucide='circle-pause' aria-hidden='true'></i> Pause deal</button>` : ""}
       ${(IS_BRAND ? V.me.role === "brand_main" : true) && !["completed", "cancelled"].includes(d.status) ? `<button class="btn small danger" id="cancel-deal">Cancel deal…</button>` : ""}
       <button class="btn small" id="del-media">Delete my recordings and screenshots</button></div>`;
   Chat.mount($("#chat"), { base: url(""), isBrand: IS_BRAND, token: IS_BRAND ? KEY : "", onApplied: load });
@@ -199,6 +202,13 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
+  if ($("#pause-deal")) $("#pause-deal").onclick = e => {
+    const reason = prompt("Why are you pausing? The brand sees this. Nothing moves until you resume.", "Waiting for an answer on the open change.");
+    if (reason === null) return;
+    busy(e.currentTarget, async () => { try { V = await api(url("/pause"), { body: { reason } }); render(); toast("Deal paused"); } catch (er) { toast(er.message, "bad"); } });
+  };
+  if ($("#resume-deal")) $("#resume-deal").onclick = e => busy(e.currentTarget, async () => {
+    try { V = await api(url("/resume"), { body: {} }); render(); toast("Resumed"); } catch (er) { toast(er.message, "bad"); } });
   $$("[data-rt]").forEach(b => b.onclick = () => showRoomTab(b.dataset.rt));
   $$("[data-goto]").forEach(b => b.onclick = () => { showRoomTab(b.dataset.goto); document.querySelector(`.rt[data-tab="${b.dataset.goto}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); });
   showRoomTab(ROOM_TAB);
@@ -250,6 +260,8 @@ function historyHtml() {
 // What should happen next, and who does it. Worked out from the deal's status and money, never from the AI.
 function nextStep(d, pendingHolds) {
   const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "the brand").split(" ")[0];
+  const PP = (() => { try { return JSON.parse(d.pause_json || "{}"); } catch { return {}; } })();
+  if (d.status === "paused" && PP.kind === "creator_pause") return { ic: "circle-pause", t: IS_BRAND ? `Paused by ${first}` : "You paused the deal", s: IS_BRAND ? "Answer in the chat; nothing moves until she resumes." : "Resume when you're ready. Nothing moves until then." };
   if (d.status === "paused") return { ic: "circle-pause", t: "Resolve the conflict", s: IS_BRAND ? "Pick whose instruction to follow. Money waits until you do." : `Waiting for ${brandName} to pick whose instruction to follow.` };
   if (pendingHolds.length) return IS_BRAND ? { ic: "wallet", t: `Hold ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more`, s: "A confirmed change added work. Pay with PayPal to hold the extra." }
     : { ic: "hourglass", t: "Waiting for the extra hold", s: `${brandName} needs to hold the money for the confirmed change.` };
@@ -361,8 +373,24 @@ function panel() {
     <div style="margin-top:14px">${moneyCardHtml()}</div>
     ${["accepted", "in_progress", "delivered", "completed", "paused"].includes(V.deal.status) ? `<div style="margin-top:14px">${checklistHtml(V.deal)}</div>` : ""}
     <div class="card" style="margin-top:14px"><h3>History</h3>
-      <ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
+      <ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>
+    ${IS_BRAND ? alertsHtml() : ""}`;
   bindQuotes($("#panel"));
+  bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
+}
+// The brand needs no account: a WhatsApp number on the link is enough to be told when something needs them.
+function alertsHtml() {
+  const ph = V.me.phone;
+  return `<div class="card" style="margin-top:14px"><h3>${icon("bell")} Alerts</h3>
+    <p class="small muted">${ph ? `WhatsApp alerts go to +${esc(ph.slice(0, 3))} ••• ${esc(ph.slice(-3))}.` : "Get a WhatsApp alert when something here needs you. Otherwise alerts stay on this page."}</p>
+    <div class="row" style="gap:6px"><input class="al-phone" type="tel" inputmode="tel" placeholder="+971 50 123 4567" value="" aria-label="WhatsApp number">
+      <button class="btn small al-save">${ph ? "Change" : "Save"}</button></div></div>`;
+}
+function bindAlerts(root) {
+  $$(".al-save", root).forEach(b => b.onclick = () => busy(b, async () => {
+    try { V = await api(url("/alerts"), { body: { phone: b.parentElement.querySelector(".al-phone").value } }); render(); toast(V.me.phone ? "WhatsApp alerts on" : "Alerts stay on this page"); }
+    catch (e) { toast(e.message, "bad"); }
+  }));
 }
 
 /* ---------- brand side (3.8) ---------- */

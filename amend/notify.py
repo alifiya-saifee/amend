@@ -15,6 +15,20 @@ GRAPH = "https://graph.facebook.com/v21.0"
 TEMPLATES = {"change": "deal_change_proposed", "money": "deal_money_update"}
 
 
+def clean_phone(raw: str | None) -> str | None:
+    """A WhatsApp number in international form, stored as digits only (what the Cloud API's "to" wants).
+    Empty → None (alerts stay in-app). Anything else that isn't 8–15 digits is refused."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if any(not (ch.isdigit() or ch in "+ -()") for ch in raw):
+        raise ValueError("enter the number with its country code, e.g. +971 50 123 4567")
+    s = "".join(ch for ch in raw if ch.isdigit())
+    if not 8 <= len(s) <= 15:
+        raise ValueError("enter the number with its country code, e.g. +971 50 123 4567")
+    return s
+
+
 async def send(db: Database, party_id: str | None, kind: str, params: list[str], *, transport=None) -> dict:
     if not party_id:
         return {}

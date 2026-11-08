@@ -706,7 +706,8 @@ def _brand_view(token: str) -> dict:
     v = deals.deal_view(get_db(), ctx["deal"]["id"])
     v["viewer"] = "brand"
     v["me"] = {"name": ctx["party"]["name"], "org": ctx["party"]["org"], "role": ctx["role"],
-               "confirmed_link": bool(ctx["link"]["opened_at"])}
+               "confirmed_link": bool(ctx["link"]["opened_at"]),
+               "phone": (get_db().one("select phone from parties where id = :p", {"p": ctx["party"]["id"]}) or {}).get("phone")}
     c = deals.creator(get_db(), v["deal"]["creator_id"])
     v["price_list"] = [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)}
                        for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
@@ -1180,15 +1181,16 @@ def _my_account(request: Request) -> dict:
 @app.get("/api/studio/settings")
 def my_settings(request: Request, c: dict = Depends(require_creator)):
     a = _my_account(request)
-    party = get_db().one("select paypal_email from parties where id = :p", {"p": c["party_id"]}) or {}
+    party = get_db().one("select paypal_email, phone from parties where id = :p", {"p": c["party_id"]}) or {}
     return {"account": {"name": a["name"], "email": a["email"], "demo": a["password_hash"] is None},
-            "paypal_email": party.get("paypal_email"), "permit": deals.permit_check(c["permit_no"], c["permit_expiry"]),
+            "paypal_email": party.get("paypal_email"), "phone": party.get("phone"), "permit": deals.permit_check(c["permit_no"], c["permit_expiry"]),
             **business.settings(get_db(), a)}
 
 
 class SettingsIn(BaseModel):
     name: str | None = Field(None, max_length=80)
     paypal_email: str | None = Field(None, max_length=120)
+    phone: str | None = Field(None, max_length=30)
     language: str | None = None
     theme: str | None = None
     notify: dict = Field(default_factory=dict)
@@ -1203,6 +1205,11 @@ def save_my_settings(body: SettingsIn, request: Request, c: dict = Depends(requi
         if body.paypal_email and not auth.EMAIL_RE.match(body.paypal_email.strip()):
             raise HTTPException(400, "That PayPal email doesn't look right.")
         d.update("parties", "id", c["party_id"], {"paypal_email": body.paypal_email.strip() or None})
+    if body.phone is not None:
+        try:
+            d.update("parties", "id", c["party_id"], {"phone": notify.clean_phone(body.phone)})
+        except ValueError as e:
+            raise HTTPException(400, str(e))
     business.save_settings(d, d.one("select * from accounts where id = :i", {"i": a["id"]}), body.model_dump())
     return my_settings(request, c)
 
@@ -1478,17 +1485,53 @@ async def creator_refund(deal_id: str, item_id: str, c: dict = Depends(require_c
     return studio_deal(deal_id, c)
 
 
-class DeclineIn(BaseModel):
+class ReasonIn(BaseModel):
     reason: str = Field("", max_length=300)
 
 
 @app.post("/api/deals/{deal_id}/refunds/{item_id}/decline")
-def creator_refund_decline(deal_id: str, item_id: str, body: DeclineIn, c: dict = Depends(require_creator)):
+def creator_refund_decline(deal_id: str, item_id: str, body: ReasonIn, c: dict = Depends(require_creator)):
     """No approval, no refund: declining pauses the deal as a conflict (rule 8)."""
     deal, pid = _creator_ctx(deal_id, c)
     try:
         changes.decline_refund(get_db(), deal, item_id, pid, body.reason)
     except changes.RefundError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
+class PhoneIn(BaseModel):
+    phone: str = Field("", max_length=30)
+
+
+@app.post("/api/d/{token}/alerts")
+def brand_alerts(token: str, body: PhoneIn):
+    """The brand adds a WhatsApp number on the deal link (no account needed). Empty = in-app only."""
+    deal, pid = _brand_ctx(token)
+    try:
+        get_db().update("parties", "id", pid, {"phone": notify.clean_phone(body.phone)})
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    get_db().log_event("alerts.set", actor=pid, deal_id=deal["id"], payload={"whatsapp": bool(body.phone.strip())})
+    return _brand_view(token)
+
+
+@app.post("/api/deals/{deal_id}/pause")
+def creator_pause(deal_id: str, body: ReasonIn, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        changes.pause_by_creator(get_db(), deal, pid, body.reason)
+    except changes.ChangeError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
+@app.post("/api/deals/{deal_id}/resume")
+def creator_resume(deal_id: str, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        changes.resume_by_creator(get_db(), deal, pid)
+    except changes.ChangeError as e:
         raise HTTPException(400, str(e))
     return studio_deal(deal_id, c)
 
@@ -2187,7 +2230,11 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     for it in d.all("select * from money_items where status = 'authorized' and expires_at is not null"):
         if money.mark_expired_if_due(d, it)["status"] == "expired":
             expired += 1
-    result = {"expired_holds": expired, **changes.tick(d)}
+    ch = changes.tick(d)
+    base = get_settings().base_url.rstrip("/")
+    for party, words in ch.pop("alerts", []):  # reminders and expiries: WhatsApp when set up, otherwise in-app
+        await notify.send(d, party, "change", words[:3] + [f"{base}/"])
+    result = {"expired_holds": expired, **ch}
     for extra in TICK_TASKS:  # shipping nudges, silent approval, call nudges
         result.update(extra(d))
     result.update(await delivery.tick_holdback(d, rail()))
