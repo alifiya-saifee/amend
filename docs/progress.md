@@ -251,3 +251,12 @@ Next: Block 7.
 - Brief card says whose prices they are: "Priced from your list" (creator) / "Priced from the creator's list" (brand); the brand's words stay on the Quote chips.
 - Tests: 2 more in tests/test_inbox_fixes.py; inbox_layout.py now 198 checks, all pass. Suite: 477 passed, 3 skipped.
 - Next: Alifiya Manual Deploys on Render and finishes webhook + PAYPAL_WEBHOOK_ID, cron-job.org tick, Supabase password reset; then the live walk-through (docs/live-walk.md).
+
+## Live walk-through on Render (8 Nov) — both stories PASS
+Full record: docs/live-walk.md. Real PayPal sandbox + real Gemini, driven in a test browser (Alifiya's OK; sandbox buyer password read from settings, never printed).
+- Setup: Render is in Oregon → Supabase moved to West US (Oregon, aws-1 pooler); pages 26 s → <1 s. HEAD allowed for UptimeRobot. Cron tick 200.
+- Story 1 (deal …d858): offer $530 (Gemini 5.5 s) → hold $530 → "+1 Story set" +$80 → held $610 → draft video 4/4 → post → release: captures $530 + $80, payout $549 to Sara, holdback $61 due 8 Dec. PASS.
+- Story 2 (deal …144e): hold $450 → draft → brand cancels → 60% split ($270 / $180) → capture $270 final (PayPal: CAPTURED, rest released) → payout $270 → cancelled. PASS.
+- Bugs found and fixed (all with tests): "Your offer" on brand page; same-date change charged $50; draft check failed post-only items; post check named the wrong Friday; cancel capture didn't record PayPal's fee; seed made future deadlines expire today; AI time not logged; Inbox click slow; "Needs you" not emphasised.
+- Open for Alifiya: (1) Manual Deploy fe10d42; (2) set NVIDIA_MODEL in Render (second opinion shows "not set up"); (3) PayPal webhook only sends CHECKOUT.ORDER.APPROVED — tick Payment authorization created / Payment capture completed / Payouts events; (4) money rule: PayPal fees are taken from the platform's share (Sara got her full 90%) — confirm or change; (5) delete the old Frankfurt + Singapore Supabase projects; (6) failed first attempt deal …fe0a (duplicate change from my script) left as is.
+- Next: "Accept all suggested" button on long briefs; Block 7.
