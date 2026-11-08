@@ -334,7 +334,7 @@ def seed_history(db: Database) -> int:
     first_of_month = today.replace(day=1)
     # 1-3 completed and paid (one this month), with extras that would usually go unpaid
     deal("Sahara Sips", "completed", [("reel", 1), ("story_set", 1)], created=m(75), deadline=m(68), changes_=[("+ 1 Story set", 8000)],
-         captured=True, post=m(68), payouts=[("release:creator payout", 55100, "paid", m(67)), ("holdback:creator payout on day N", 6100, "paid", m(37))],
+         captured=True, post=m(68), payouts=[("release:creator payout", 54900, "paid", m(67)), ("holdback:creator payout on day N", 6100, "paid", m(37))],
          review=(5, "Fast, clear and the change was priced in a minute. Demo review."), draft=True, title="Summer mocktails")
     deal("Oud & Ember", "completed", [("reel", 1)], created=m(45), deadline=m(38), changes_=[("Extra revision (3rd)", 10000)],
          captured=True, post=m(38), payouts=[("release:creator payout", 49500, "paid", m(37)), ("holdback:creator payout on day N", 5500, "paid", max(m(7), first_of_month))],

@@ -289,3 +289,8 @@ Next: Block 7.
 - **Alerts (WhatsApp design):** found nobody could save a phone number, and the 24 h reminder / 48 h expiry alerted no one. Now: WhatsApp number in Sara's Settings and on the brand's deal link (no account); reminder → chat line + alert to whoever hasn't confirmed; expiry → chat line ("nothing moved, last confirmed terms stay") + alert to both; Sara can **Pause deal** / **Resume**. Email alerts: not built (CLAUDE.md "not building: email as a channel").
 - **Tests:** 532 passed, 3 skipped. Browser-checked: Which-one card (390, 1280), alerts card (390, 1280), pause/resume, settings phone.
 - **Next:** live re-run of Story 3 with "drop the story set" (expect −1, $80 refund = $61 holdback + $19 owed), then Block 7.
+
+## Block 7 (8 Nov night) — done, see `docs/block7.md`
+- Judge/video path polished (no layout shift, loading and error states), /try fixed (Start made no deal), `docs/judging.md`, accessibility (axe 0 violations, keyboard sheets), clean video account `@sara.video`, final screenshots in `docs/screenshots/final/`.
+- **Tests:** 534 passed, 3 skipped.
+- **Open for Alifiya:** paste the demo password + sandbox buyer into `docs/judging.md` (Devpost copy); OK to correct one live demo row (Sahara Sips payout $551 → $549); redeploy.

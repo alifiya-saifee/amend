@@ -196,7 +196,7 @@ async function earningsTab(ledgerView = false) {
     <div class="row between wrapx" style="gap:8px"><h1>Earnings</h1>
       <div class="row" style="gap:8px"><a class="btn small" href="/studio/ledger">${I("table")} Full ledger</a>
         <button class="btn small" id="e-csv">${I("download")} CSV</button>
-        ${e.months.length ? `<select id="e-month" aria-label="Statement month" style="width:auto">${e.months.map(m => `<option>${m}</option>`).join("")}</select>
+        ${e.months.length ? `<select id="e-month" aria-label="Statement month" style="width:auto">${e.months.map(m => `<option value="${m}">${new Date(m + "-15T12:00:00").toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</option>`).join("")}</select>
           <a class="btn small primary" id="e-pdf" href="/api/studio/earnings/statement.pdf?month=${e.months[0]}">${I("file-text")} Monthly statement</a>` : ""}</div></div>
     <div class="grid4" style="margin:16px 0">
       <div class="tile"><span class="k">Lifetime</span><span class="v">${usd(t.lifetime_cents)}</span></div>
@@ -207,9 +207,9 @@ async function earningsTab(ledgerView = false) {
     <p class="small muted">PayPal fees so far: <b>${usd(t.fees_cents)}</b> (a platform cost Amend pays, never taken from you) · Extras earned with Amend: <b>${usd(t.extras_cents)}</b></p>
     <section style="margin-top:16px"><h2>Payout history</h2>
       ${e.rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Brand</th><th class="n">Gross</th><th class="n" title="Paid by Amend, not deducted from you">PayPal fee (Amend pays)</th><th class="n">Editor</th><th class="n">Net to you</th><th>PayPal ID</th><th>Status</th><th></th></tr></thead>
-        <tbody>${e.rows.map(r => `<tr><td>${esc(r.date)}</td><td><a href="/studio/deals/${r.deal}">${esc(r.brand)}</a></td><td class="n">${usd(r.gross_cents)}</td><td class="n">${usd(r.fee_cents)}</td>
+        <tbody>${e.rows.map(r => `<tr><td>${esc(fmtDate(r.date))}</td><td><a href="/studio/deals/${r.deal}">${esc(r.brand)}</a></td><td class="n">${usd(r.gross_cents)}</td><td class="n">${usd(r.fee_cents)}</td>
           <td class="n">${usd(r.editor_cents)}</td><td class="n"><b>${usd(r.net_cents)}</b></td><td class="tiny">${esc(r.paypal_id || "–")}</td>
-          <td>${r.status === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${esc(r.status)}</span>`}</td>
+          <td>${r.status === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${esc(r.status.charAt(0).toUpperCase() + r.status.slice(1))}</span>`}</td>
           <td><a class="btn small ghost" href="/api/deals/${r.deal}/receipt.pdf" aria-label="Receipt PDF">${I("receipt")}</a></td></tr>`).join("")}</tbody></table></div>`
         : emptyState("wallet", "No payouts yet", "When a deal is released, PayPal pays you and it shows up here.")}</section>
     <section class="card" style="margin-top:16px"><h2>Holdbacks</h2>

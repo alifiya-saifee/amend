@@ -253,12 +253,12 @@ function moneyCardHtml() {
     ${(V.money || []).length ? `<div class="list">${row("lock", "Held by PayPal", held, h && h.expires_at && held ? "Hold expires " + dateStr(h.expires_at) : "")}
       ${row("wallet", "Collected", collected, "Only after the delivery matches the deal")}${released ? row("undo-2", "Released back to the brand", released) : ""}
       ${refunded ? row("rotate-ccw", "Refunded", refunded) : ""}${paidOut ? row("send", "Paid out to you", paidOut) : ""}</div>
-      ${proposals.map(p => `<div class="banner wait small" style="margin-top:8px">${icon("rotate-ccw")} Refund proposal: <b>${usd(p.amount_cents)}</b> back to the brand (a refund, never a cancel).
+      ${proposals.map(p => `<div class="banner wait small" style="margin-top:8px">${icon("rotate-ccw")}<div class="grow"><div>Refund proposal: <b>${usd(p.amount_cents)}</b> back to the brand (a refund, never a cancel).</div>
         ${IS_BRAND ? `Waiting for ${esc(V.creator.name.split(" ")[0])} to approve.` : `${p.funding ? `<div style="margin-top:6px">Paid by: <b>${[
             p.funding.holdback_cents ? `${usd(p.funding.holdback_cents)} from your holdback` : "",
             p.funding.owed_cents ? `${usd(p.funding.owed_cents)} from your next payout` : ""].filter(Boolean).join(" + ")}</b></div>` : ""}
           <div class="row" style="margin-top:6px;gap:6px"><button class="btn small primary" data-refund="${p.id}">Approve refund ${usd(p.amount_cents)}</button>
-          <button class="btn small" data-refund-no="${p.id}">Decline</button></div>`}</div>`).join("")}
+          <button class="btn small" data-refund-no="${p.id}">Decline</button></div>`}</div></div>`).join("")}
       ${h && h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : ""}
       ${!IS_BRAND ? `<a class="small" href="/studio/ledger">See every payment with the words behind it</a>` : ""}`
       : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>`;
@@ -280,6 +280,10 @@ function nextStep(d, pendingHolds) {
   const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "the brand").split(" ")[0];
   const PP = (() => { try { return JSON.parse(d.pause_json || "{}"); } catch { return {}; } })();
   if (d.status === "paused" && PP.kind === "creator_pause") return { ic: "circle-pause", t: IS_BRAND ? `Paused by ${first}` : "You paused the deal", s: IS_BRAND ? "Answer in the chat; nothing moves until she resumes." : "Resume when you're ready. Nothing moves until then." };
+  const refundAsk = (V.money || []).find(i => i.kind === "refund" && i.status === "planned");
+  if (refundAsk) return IS_BRAND
+    ? { ic: "rotate-ccw", t: `Refund of ${usd(refundAsk.amount_cents)} proposed`, s: `Waiting for ${first} to approve it. It comes back to you through PayPal.`, tab: "money" }
+    : { ic: "rotate-ccw", t: `Approve the ${usd(refundAsk.amount_cents)} refund`, s: "A confirmed change lowered the price after payment. Approve or decline it in Money.", tab: "money" };
   if (d.status === "paused") return { ic: "circle-pause", t: "Resolve the conflict", s: IS_BRAND ? "Pick whose instruction to follow. Money waits until you do." : `Waiting for ${brandName} to pick whose instruction to follow.` };
   if (pendingHolds.length) return IS_BRAND ? { ic: "wallet", t: `Hold ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more`, s: "A confirmed change added work. Pay with PayPal to hold the extra." }
     : { ic: "hourglass", t: "Waiting for the extra hold", s: `${brandName} needs to hold the money for the confirmed change.` };
