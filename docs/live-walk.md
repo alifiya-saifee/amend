@@ -96,3 +96,10 @@ Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
 - Audio not stored (`data_b64` null); only the transcript message. JS errors: none.
 
 **Live coverage now:** booking + hold, change + extra hold, draft check, post check, release + payout + holdback, cancellation split + second opinion, refund after payout (S98), voice note, call upload, webhooks (order approved, capture refunded). Not live: WhatsApp (waiting on Meta template approval).
+
+## S102 live re-run (deal …eecc), 8 Nov night — PASS
+- Story 1 again: $530 held (…831X) → "+1 Story set" card in 2.8 s → both confirm → +$80 held → draft checked (7 frames, 4.4 s) → brand approves → post checked (gap: posted Sun 8 Nov vs Fri 13 Nov, brand accepts) → both approve release → captures $530 (fee $18.99) + $80 (fee $3.28), fees recorded as platform costs.
+- **Owed balance recovered live:** Sara's payout was **$450, not $549**: the $99 she owed from Story 3 (deal …d858) came off first (`owed.deducted` $99 from gross $549); that owed item is now settled (`paid`, recovered $99). Holdback $61 scheduled for 8 Dec.
+- **Voice note** (same words as Story 3: "We don't need the story set after all. Please drop the story set."): card **"− 1 Story set" (−$80)**: S102 read "the story set" as one and ignored "after all". The script was set to stop unless the card said exactly that.
+- Refund card: *"$80 back to the brand… Paid by: $61 from your holdback + $19 from your next payout"*. Sara approved → **PayPal refund $80 (…760V)**; holdback → "used for refund $61"; **owed_by_creator $19**. JS errors: none.
+- **Webhooks, all verified, none rejected:** CHECKOUT.ORDER.APPROVED, PAYMENT.AUTHORIZATION.CREATED, PAYMENT.CAPTURE.COMPLETED, PAYMENT.PAYOUTSBATCH.PROCESSING / SUCCESS, PAYMENT.PAYOUTS-ITEM.SUCCEEDED, PAYMENT.CAPTURE.REFUNDED.
