@@ -29,6 +29,78 @@ AGES = ["13-17", "18-24", "25-34", "35-44", "45+"]
 GCC = {"UAE", "KSA", "Qatar", "Kuwait", "Bahrain", "Oman"}
 STALE_DAYS = 60
 
+# ---------- price privacy (Discovery v2, A) ----------
+# What a brand may see is decided here and only here. Hidden numbers never leave this module.
+PRIVACY = ("public", "range", "on_request")
+BANDS = [(0, 25_000), (25_000, 50_000), (50_000, 100_000), (100_000, 250_000), (250_000, 10 ** 9)]  # cents, [lo, hi)
+# a budget for a non-public creator is rounded DOWN to this grid before comparing, so repeated queries can only learn
+# which grid step the price is near, never the price itself
+BUDGET_GRID = [10_000, 15_000, 20_000, 25_000, 30_000, 40_000, 50_000, 65_000, 80_000, 100_000, 125_000, 150_000,
+               200_000, 250_000, 300_000, 400_000, 500_000]
+SLIGHTLY = 0.15
+
+
+def band_of(cents: int | None) -> tuple[int, int] | None:
+    if cents is None:
+        return None
+    return next(b for b in BANDS if b[0] <= cents < b[1])
+
+
+def band_label(b: tuple[int, int] | None) -> str | None:
+    if not b:
+        return None
+    lo, hi = b[0] // 100, b[1] // 100
+    return f"Under ${hi:,}" if lo == 0 else (f"${lo:,}+" if hi >= 10 ** 7 else f"${lo:,}–${hi:,}")
+
+
+def privacy_of(c: dict) -> str:
+    p = (c.get("price_privacy") or "public").strip()
+    return p if p in PRIVACY else "public"
+
+
+def price_view(mode: str, item: dict | None) -> dict:
+    """One price as a brand may see it. public: exact · range: her min–max (the band if min = max, which would
+    otherwise be the exact price) · on_request: words only."""
+    if not item:
+        return {"mode": mode, "label": None}
+    std, lo, hi = item.get("standard_cents"), item.get("min_cents"), item.get("max_cents")
+    if mode == "public":
+        return {"mode": mode, "standard_cents": std, "min_cents": lo, "max_cents": hi,
+                "label": f"${std // 100:,}" if std is not None else None}
+    if mode == "range":
+        if lo is not None and hi is not None and lo < hi:
+            return {"mode": mode, "label": f"${lo // 100:,}–${hi // 100:,}"}
+        return {"mode": mode, "label": band_label(band_of(std)), "band": True}
+    return {"mode": "on_request", "label": "Price on request"}
+
+
+def budget_fit(mode: str, private_cents: int | None, budget_cents: int | None) -> str | None:
+    """fits | slightly_above (≤ 15 % over) | above. For a non-public creator the budget is first rounded down to
+    BUDGET_GRID, so the answer only changes at fixed points and can't be used to find the hidden price."""
+    if private_cents is None or not budget_cents:
+        return None
+    b = budget_cents
+    if mode != "public":
+        b = max([g for g in BUDGET_GRID if g <= budget_cents] or [0])
+        if not b:
+            return "above"
+    if private_cents <= b:
+        return "fits"
+    return "slightly_above" if private_cents <= b * (1 + SLIGHTLY) else "above"
+
+
+def public_items(c: dict, items: list[dict]) -> list[dict]:
+    """The price list as a brand may see it (profile, compare). Names, units and notes; amounts per privacy mode."""
+    mode = privacy_of(c)
+    out = []
+    for p in items:
+        if p.get("hidden"):
+            continue
+        rules = p.get("rules") or {}
+        out.append({"id": p["id"], "code": p["code"], "name": p["name"], "kind": p["kind"], "unit": p["unit"],
+                    "note": rules.get("note") if mode == "public" else None, **price_view(mode, p)})
+    return out
+
 
 def tier(followers: int) -> str:
     return next(n for n, lo, hi in TIERS if lo <= followers < hi)
@@ -164,8 +236,11 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
             "avg_views": (main or {}).get("avg_views"), "engagement_rate": (main or {}).get("engagement_rate"),
             "view_rate": (main or {}).get("view_rate"), "platform": (main or {}).get("platform"),
             "top_country": {"name": top[0], "pct": top[1]} if top else None,
-            "reel_from_cents": reel["min_cents"] if reel and reel["min_cents"] else (reel or {}).get("standard_cents"),
-            "reel_standard_cents": (reel or {}).get("standard_cents"),
+            # exact numbers only for a public price list; otherwise the label from price_view (range or "on request")
+            "price": price_view(privacy_of(c), reel),
+            "reel_from_cents": (reel["min_cents"] if reel and reel["min_cents"] else (reel or {}).get("standard_cents"))
+            if privacy_of(c) == "public" else None,
+            "reel_standard_cents": (reel or {}).get("standard_cents") if privacy_of(c) == "public" else None,
             "rating": record["rating"], "reviews": record["reviews"], "completed": record["completed"],
             "source": "verified" if "verified" in sources else ("insights_screenshot" if "insights_screenshot" in sources else
                                                                   ("demo" if "demo" in sources else ("self_reported" if sources else None))),
@@ -174,9 +249,35 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
             "tier": tier((main or {}).get("followers") or c.get("followers") or 0), "created_at": c["created_at"]}
 
 
+def private_reel_cents(db: Database, creator_id: str) -> int | None:
+    """Used only inside this module (filters, sort, budget fit). Never put in a response."""
+    reel = next((p for p in engine.price_items(db, creator_id) if p["code"] == "reel" and not p["hidden"]), None)
+    return (reel or {}).get("standard_cents")
+
+
+def _price_in(mode: str, cents: int | None, lo: int | None, hi: int | None) -> bool:
+    """Price filter. Public: the exact price. Range / on request: the creator's band must overlap the filter, so
+    narrowing the filter can never locate the price more finely than its band."""
+    if cents is None:
+        return False
+    if mode == "public":
+        return (lo is None or cents >= lo) and (hi is None or cents <= hi)
+    b_lo, b_hi = band_of(cents)
+    return (lo is None or b_hi > lo) and (hi is None or b_lo <= hi)
+
+
+def _sort_price(mode: str, cents: int | None) -> int:
+    if cents is None:
+        return 10 ** 12
+    return cents if mode == "public" else band_of(cents)[0]
+
+
 def search(db: Database, q: dict) -> dict:
     rows = db.all("select * from creators where handle <> 'try.demo' order by created_at")
     cards = [card(db, c) for c in rows]
+    private = {c["id"]: private_reel_cents(db, c["id"]) for c in rows}
+    modes = {c["id"]: privacy_of(c) for c in rows}
+    budget = int(float(q["budget"]) * 100) if q.get("budget") else None
     full = {c["id"]: latest_metrics(db, c["id"]) for c in rows}
     term = (q.get("q") or "").strip().lower()
     niches = {n.strip().lower() for n in (q.get("niche") or "").split(",") if n.strip()}
@@ -202,11 +303,12 @@ def search(db: Database, q: dict) -> dict:
             continue
         if q.get("min_er") and ((m or {}).get("engagement_rate") or 0) < float(q["min_er"]):
             continue
-        price = c["reel_standard_cents"]
-        if q.get("max_reel") and (price is None or price > int(float(q["max_reel"]) * 100)):
-            continue
-        if q.get("min_reel") and (price is None or price < int(float(q["min_reel"]) * 100)):
-            continue
+        if q.get("max_reel") or q.get("min_reel"):
+            lo = int(float(q["min_reel"]) * 100) if q.get("min_reel") else None
+            hi = int(float(q["max_reel"]) * 100) if q.get("max_reel") else None
+            if not _price_in(modes[c["id"]], private[c["id"]], lo, hi):
+                continue
+        c["budget_fit"] = budget_fit(modes[c["id"]], private[c["id"]], budget)
         aud = (m or {}).get("audience", {})
         if q.get("country"):
             want = q["country"]
@@ -231,7 +333,7 @@ def search(db: Database, q: dict) -> dict:
                        + ((m or {}).get("engagement_rate") or 0) / 2 + (c["rating"] or 0) + (0 if c["stale"] else 1))
         out.append(c)
     sort = q.get("sort") or "match"
-    keyf = {"match": lambda c: -c["_match"], "price": lambda c: c["reel_standard_cents"] or 10 ** 9,
+    keyf = {"match": lambda c: -c["_match"], "price": lambda c: _sort_price(modes[c["id"]], private[c["id"]]),
             "views": lambda c: -(c["avg_views"] or 0), "engagement": lambda c: -(c["engagement_rate"] or 0),
             "rating": lambda c: -(c["rating"] or 0), "newest": lambda c: c["created_at"]}.get(sort, lambda c: -c["_match"])
     out.sort(key=keyf)

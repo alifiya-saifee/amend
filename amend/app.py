@@ -583,12 +583,14 @@ def public_creator(handle: str):
     c = deals.creator_by_handle(get_db(), handle)
     if not c:
         raise HTTPException(404, "Creator not found")
-    items = [p for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
     raw = get_db().one("select * from creators where id = :id", {"id": c["id"]})
     prof = discovery.profile(get_db(), raw)  # never phone, email or address (S77)
-    return prof | {"audience": c["audience"], "niche": c["niche"],
-                   "limits": {"posting_days": c["limits"].get("posting_days", [])},
-                   "items": [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)} for p in items]}
+    items = discovery.public_items(raw, engine.price_items(get_db(), c["id"]))  # amounts per her price privacy (v2)
+    for it in items:
+        if it.get("standard_cents") is not None:
+            it["aed"] = money.fmt_aed(it["standard_cents"], compact=True)
+    return prof | {"audience": c["audience"], "niche": c["niche"], "price_privacy": discovery.privacy_of(raw),
+                   "limits": {"posting_days": c["limits"].get("posting_days", [])}, "items": items}
 
 
 # ---------- discovery (Phase 4) ----------
@@ -610,7 +612,7 @@ def compare(ids: str):
         raw = get_db().one("select * from creators where id = :id", {"id": cid})
         if raw:
             p = discovery.profile(get_db(), raw)
-            p["items"] = [_price_json(x) for x in engine.price_items(get_db(), cid) if not x["hidden"]]
+            p["items"] = discovery.public_items(raw, engine.price_items(get_db(), cid))
             out.append(p)
     return {"creators": out}
 
@@ -709,8 +711,13 @@ def _brand_view(token: str) -> dict:
                "confirmed_link": bool(ctx["link"]["opened_at"]),
                "phone": (get_db().one("select phone from parties where id = :p", {"p": ctx["party"]["id"]}) or {}).get("phone")}
     c = deals.creator(get_db(), v["deal"]["creator_id"])
-    v["price_list"] = [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)}
-                       for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
+    raw_c = get_db().one("select * from creators where id = :id", {"id": c["id"]})
+    if discovery.privacy_of(raw_c) == "public":
+        v["price_list"] = [_price_json(p) | {"aed": money.fmt_aed(p["standard_cents"] or 0, compact=True)}
+                           for p in engine.price_items(get_db(), c["id"]) if not p["hidden"]]
+    else:  # Discovery v2 (A): her private price list never reaches the brand as numbers
+        v["price_list"] = discovery.public_items(raw_c, engine.price_items(get_db(), c["id"]))
+    deals.brand_safe(get_db(), v)
     v["shipment"] = shipping.current(get_db(), v["deal"]["id"])
     v["ship_to"] = c.get("address") if v["money_held"] else None  # the address stays private until the hold
     return v
@@ -765,7 +772,8 @@ def brand_deals(acc: dict = Depends(require_brand)):
                      {"d": did, "a": acc["id"]})
         hold = deals.open_hold(d, did)
         out.append({"id": did, "creator": c["display_name"], "handle": c["handle"], "status": r["status"], "stage": studio.stage(d, r),
-                    "total_cents": r["total_cents"], "money": hold["status"] if hold else None, "deadline": r.get("deadline"),
+                    "total_cents": None if deals.offer_hidden(d, r) else r["total_cents"],
+                    "money": hold["status"] if hold else None, "deadline": r.get("deadline"),
                     "go": f"/d/{link['token']}" if link else None, "updated_at": r["updated_at"]})
     out.sort(key=lambda x: x["updated_at"], reverse=True)
     return {"deals": out}
@@ -1133,6 +1141,24 @@ class TermsIn(BaseModel):
     silent_approval_days: int
     holdback_pct: int
     days_live: int
+
+
+class PrivacyIn(BaseModel):
+    mode: str = Field(pattern="^(public|range|on_request)$")
+
+
+@app.get("/api/studio/price-privacy")
+def get_price_privacy(c: dict = Depends(require_creator)):
+    raw = get_db().one("select price_privacy from creators where id = :id", {"id": c["id"]})
+    return {"mode": discovery.privacy_of(raw or {})}
+
+
+@app.put("/api/studio/price-privacy")
+def set_price_privacy(body: PrivacyIn, c: dict = Depends(require_creator)):
+    """Discovery v2 (A): who sees her prices. public | range (her min–max) | on_request (no numbers)."""
+    get_db().update("creators", "id", c["id"], {"price_privacy": body.mode})
+    get_db().log_event("prices.privacy", actor=c["party_id"], payload={"creator": c["id"], "mode": body.mode})
+    return {"mode": body.mode}
 
 
 @app.get("/api/studio/terms")

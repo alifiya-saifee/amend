@@ -32,13 +32,16 @@ function metricsHtml(c) {
       <div class="grow" style="min-width:150px"><h3>Gender</h3>${bars(m.audience.gender)}</div>
       <div class="grow" style="min-width:150px"><h3>Ages</h3>${bars(m.audience.ages)}</div></div></section>`).join("");
 }
+// Amounts come pre-shaped by the server per the creator's price privacy (public: exact · range: her min–max or a band ·
+// on request: no numbers). The page never works out a price itself.
 function priceCard(p) {
-  const range = p.min_cents != null && p.max_cents != null && p.min_cents !== p.max_cents;
+  const pub = p.mode === "public";
+  const range = pub && p.min_cents != null && p.max_cents != null && p.min_cents !== p.max_cents;
+  const amt = pub ? (p.standard_cents == null ? '<span class="muted small">Terms</span>'
+      : (range ? `${usd(p.min_cents)}–${usd(p.max_cents).slice(1)}` : usd(p.standard_cents)) + unitText(p) + (p.aed ? `<div class="aed">${p.aed}</div>` : ""))
+    : `<span class="${p.mode === "on_request" ? "muted small" : ""}">${esc(p.label || "Price on request")}</span>${p.mode === "range" && p.label ? unitText(p) : ""}`;
   return `<div class="line"><div class="grow"><b>${esc(p.name)}</b>
-      ${p.rules && p.rules.note ? `<div class="small muted">${esc(p.rules.note)}</div>` : ""}</div>
-    <div class="amt">${p.standard_cents == null ? '<span class="muted small">Terms</span>' :
-      (range ? `${usd(p.min_cents)}–${usd(p.max_cents).slice(1)}` : usd(p.standard_cents)) + unitText(p) +
-      `<div class="aed">${p.aed}</div>`}</div></div>`;
+      ${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ""}</div><div class="amt">${amt}</div></div>`;
 }
 async function load() {
   let c;

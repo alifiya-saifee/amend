@@ -50,7 +50,10 @@ function filtersHtml() {
    <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="100000"></div></div>
   <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="2"></div>
     <div><label>Reel price up to ($): <b id="reel-out">${Q.max_reel ? "$" + Q.max_reel : "any"}</b></label>
-      <input data-f="max_reel" type="range" min="100" max="2000" step="50" value="${Q.max_reel || 2000}"></div>
+      <input data-f="max_reel" type="range" min="100" max="2000" step="50" value="${Q.max_reel || 2000}">
+      <p class="hint">Creators who keep prices private match by price band.</p></div>
+    <div><label for="f-budget">Your budget per Reel ($)</label><input id="f-budget" data-f="budget" type="number" min="0" step="50" value="${v("budget")}" placeholder="500">
+      <p class="hint">Each card says if it fits. Private prices are never shown.</p></div>
     <div class="row"><div class="grow"><label>Audience in</label>${sel("country", [["UAE", "UAE"], ["KSA", "KSA"], ["GCC", "GCC"]])}</div>
    <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="50"></div></div>
     <div class="row"><div class="grow"><label>Audience mostly</label>${sel("gender", [["female", "Women"], ["male", "Men"]])}</div>
@@ -87,6 +90,11 @@ function syncUrl() { const s = new URLSearchParams(Q).toString(); history.replac
 function drawFilters() { $("#filters-side").innerHTML = `<h3>Filters</h3>` + filtersHtml(); bindFilters($("#filters-side")); }
 
 /* ---------- results ---------- */
+// Budget fit is worked out on the server from the creator's private price; only the verdict comes back.
+function fitBadge(f) {
+  const m = { fits: ["collected", "Fits your budget"], slightly_above: ["waiting", "Slightly above"], above: ["failed", "Above your budget"] }[f];
+  return m ? ` <span class="pill ${m[0]}">${m[1]}</span>` : "";
+}
 function cardHtml(c) {
   return `<div class="card ccard">
     <div class="row"><div class="avatar">${initials(c.display_name)}</div>
@@ -101,7 +109,8 @@ function cardHtml(c) {
       <div><b>${c.top_country ? Math.round(c.top_country.pct) + "%" : "–"}</b><span>${c.top_country ? esc(c.top_country.name) : "audience"}</span></div>
     </div>
     <div class="row between wrapx" style="gap:6px">
-      <span>${c.reel_standard_cents ? `Reel from <b>${usd(c.reel_from_cents || c.reel_standard_cents)}</b>` : '<span class="muted small">No Reel price</span>'}</span>
+      <span>${c.reel_standard_cents ? `Reel from <b>${usd(c.reel_from_cents || c.reel_standard_cents)}</b>`
+        : c.price && c.price.label ? `Reel <b>${esc(c.price.label)}</b>` : '<span class="muted small">No Reel price</span>'}${fitBadge(c.budget_fit)}</span>
       <span class="small">${c.rating ? `<i data-lucide='star' aria-hidden='true'></i> ${c.rating} (${c.reviews})` : '<span class="muted">No reviews yet</span>'}</span></div>
     <div class="row wrapx" style="gap:6px;margin-top:8px">${srcBadge(c.source)}${c.stale ? '<span class="pill failed">Data may be outdated</span>' : ""}
       <span class="pill ${c.permit.state === "ok" ? "collected" : c.permit.state === "soon" ? "waiting" : ""}">${c.permit.state === "ok" ? "Permit <i data-lucide='check' aria-hidden='true'></i>" : c.permit.state === "missing" ? "No permit" : "Permit: " + esc(c.permit.label)}</span></div>

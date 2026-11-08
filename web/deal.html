@@ -489,7 +489,9 @@ function brand(d) {
   }
   if (d.status === "offered") {
     $("#view").innerHTML = `
-      <div class="card gold"><h2>${esc(V.creator.name.split(" ")[0])}'s offer</h2><p class="small muted" style="margin-top:-4px">Priced from ${esc(V.creator.name.split(" ")[0])}'s own price list</p>${linesHtml()}${extrasHtml()}</div>
+      <div class="card gold"><h2>${esc(V.creator.name.split(" ")[0])}'s offer</h2><p class="small muted" style="margin-top:-4px">${V.price_hidden
+        ? `${esc(V.creator.name.split(" ")[0])} keeps her prices private: she confirms the price when she accepts your brief.`
+        : `Priced from ${esc(V.creator.name.split(" ")[0])}'s own price list`}</p>${linesHtml()}${extrasHtml()}</div>
       ${briefHtml(V.me.role === "brand_main")}
       <div class="banner wait" style="margin-top:12px"><i data-lucide='hourglass' aria-hidden='true'></i> Waiting for ${esc(first)} to accept</div>
       <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>

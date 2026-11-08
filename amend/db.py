@@ -47,7 +47,7 @@ EVENT_TYPES = {
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
-    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "owed.deducted", "holdback.used_for_refund",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "prices.privacy", "discover.matched", "owed.deducted", "holdback.used_for_refund",
     "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
     # cancellation, calls, conflicts (Phase 7)
     "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",
@@ -195,7 +195,8 @@ create index if not exists ix_terms_deal on terms(deal_id, version);
 # columns added after the first release: added in place on start (portable `alter table ... add column`)
 COLUMNS = {
     "parties": {"account_id": "text", "can_confirm": "integer not null default 0", "phone": "text"},
-    "creators": {"niches_json": "text not null default '[]'", "city": "text", "country": "text",
+    "creators": {"price_privacy": "text not null default 'public'",  # public | range | on_request (Discovery v2)
+                 "niches_json": "text not null default '[]'", "city": "text", "country": "text",
                  "languages_json": "text not null default '[]'", "styles_json": "text not null default '[]'",
                  "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
                  "samples_json": "text not null default '[]'", "keywords": "text", "is_demo": "integer not null default 0",

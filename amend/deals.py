@@ -441,3 +441,34 @@ def deal_view(db: Database, deal_id: str) -> dict:
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
     }
+
+
+# ---------- Discovery v2 (A): a private price list stays private in the deal room too ----------
+
+def offer_hidden(db: Database, deal: dict) -> bool:
+    """A range / on-request creator's offer shows no amounts to the brand until she accepts it (the offer is priced
+    by code from her private list the moment a brief arrives, before she has seen it)."""
+    if deal.get("status") not in ("draft", "offered"):
+        return False
+    from amend import discovery
+    c = db.one("select price_privacy from creators where id = :c", {"c": deal["creator_id"]}) or {}
+    return discovery.privacy_of(c) != "public"
+
+
+def brand_safe(db: Database, v: dict) -> dict:
+    """Strip what the brand may not see from a deal view: her min / max / standard prices unless her list is public;
+    every amount while the offer is hidden. Returns the same dict."""
+    from amend import discovery
+    c = db.one("select price_privacy from creators where id = :c", {"c": v["deal"]["creator_id"]}) or {}
+    public = discovery.privacy_of(c) == "public"
+    hidden = offer_hidden(db, v["deal"])
+    for t in v.get("terms", []):
+        if not public:
+            t.pop("min_cents", None); t.pop("max_cents", None); t.pop("standard_cents", None)
+        if hidden:
+            t.update(unit_cents=None, amount_cents=None, aed=None)
+    if hidden:
+        v["total_cents"] = v["total_aed"] = None
+        v["deal"] = dict(v["deal"], total_cents=None)
+        v["price_hidden"] = True
+    return v

@@ -227,6 +227,8 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
     opened = brief_shown = False
     deal_row = db.one("select * from deals where id = :d", {"d": deal_id})
     is_creator = bool(deal_row) and side_of(db, deal_row, viewer) == "creator"
+    from amend.deals import offer_hidden
+    hide_amounts = bool(deal_row) and not is_creator and offer_hidden(db, deal_row)
     first = ((db.one("select display_name from creators where id = :c", {"c": deal_row["creator_id"]}) or {}).get("display_name")
              or "the creator").split(" ")[0] if deal_row else "the creator"
     for e in db.events_for(deal_id):
@@ -242,9 +244,14 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
             sysl(e["at"], f"{who} opened the deal link" if who else "Deal link opened", "eye")
         elif t == "brief.submitted" and not brief_shown:  # the brief as a card: items, post date, total, the words behind each item
             brief_shown = True
-            items.append({"type": "brief", "at": e["at"], **_brief_card(db, deal_id, parties.get(e["actor"]) or {})})
+            bc = _brief_card(db, deal_id, parties.get(e["actor"]) or {})
+            if hide_amounts:  # Discovery v2 (A): no amounts for the brand until she accepts
+                bc["total_cents"] = None
+                for ln in bc.get("lines", []):
+                    ln["amount_cents"] = None
+            items.append({"type": "brief", "at": e["at"], **bc})
         elif t == "deal.drafted":
-            amt = e["payload"].get("total_cents")
+            amt = None if hide_amounts else e["payload"].get("total_cents")
             sysl(e["at"], "Offer ready" + (f" · {money.fmt_usd(amt)}" if amt else ""), "file-pen")
         elif t == "deal.accepted":
             sysl(e["at"], f"Deal accepted · version {e['payload'].get('version', 1)}", "circle-check")

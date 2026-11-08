@@ -47,7 +47,9 @@ def needs_you(db: Database, account_id: str) -> list[dict]:
         go = deal_link(db, d["id"], account_id)
         base = {"deal": d["id"], "creator": d["creator"], "go": go}
         if d["status"] == "offered":
-            out.append(base | {"kind": "draft", "icon": "file-pen", "text": f"Check the offer from {d['creator']} ({money.fmt_usd(d['total_cents'])})"})
+            from amend.deals import offer_hidden
+            amt = "" if offer_hidden(db, d) else f" ({money.fmt_usd(d['total_cents'])})"
+            out.append(base | {"kind": "draft", "icon": "file-pen", "text": f"Check the offer from {d['creator']}{amt}"})
         holds = db.all("select status from money_items where deal_id = :d and kind = 'hold'", {"d": d["id"]})
         if d["status"] == "accepted" and not any(h["status"] == "authorized" for h in holds):
             out.append(base | {"kind": "pay", "icon": "wallet", "text": f"Pay with PayPal to hold {money.fmt_usd(d['total_cents'])}: work starts once it's held"})

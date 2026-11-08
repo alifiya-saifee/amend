@@ -235,6 +235,19 @@ async function earningsTab(ledgerView = false) {
 /* ---------- Price list: packages, terms template, brand preview (Block 5) ---------- */
 async function pricesPlus() {
   await prices();
+  // Discovery v2 (A): who sees her prices on Discover, her profile and compare
+  const pv = await api("/api/studio/price-privacy");
+  const opt = (v, t, s) => `<label class="row" style="gap:10px;align-items:flex-start;color:var(--ink)"><input type="radio" name="pv" value="${v}" ${pv.mode === v ? "checked" : ""} style="width:auto;margin-top:4px">
+    <span><b>${t}</b><br><span class="small muted">${s}</span></span></label>`;
+  $("#view").insertAdjacentHTML("afterbegin", `<section class="card" style="margin-bottom:14px"><h2>Who sees your prices</h2>
+    <div class="stack" role="radiogroup" aria-label="Price privacy">
+      ${opt("public", "Everyone", "Brands see your exact prices on Discover and your profile.")}
+      ${opt("range", "A range", "Brands see your min–max per item (e.g. $350–$500), never your standard price.")}
+      ${opt("on_request", "On request", "Brands see “Price on request”. Discover still tells them if their budget fits, without showing a number.")}
+    </div><p class="hint">In a deal, the brand sees the price only after you accept the offer.</p></section>`);
+  $$("input[name=pv]").forEach(r => r.onchange = async () => {
+    try { await api("/api/studio/price-privacy", { method: "PUT", body: { mode: r.value } }); toast("Saved"); } catch (e) { toast(friendlyError(e), "bad"); }
+  });
   const t = await api("/api/studio/terms");
   const f = (k, label, unit, step = 1) => `<div><label>${label}</label><div class="row"><input type="number" min="0" step="${step}" data-t="${k}" value="${k === "date_change_fee_cents" ? t[k] / 100 : t[k]}"><span class="small muted">${unit}</span></div></div>`;
   $("#view").insertAdjacentHTML("beforeend", `
