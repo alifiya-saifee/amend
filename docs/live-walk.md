@@ -1,6 +1,6 @@
 # Live walk-through on Render (real PayPal sandbox + real Gemini)
 
-Site: https://amend-r7le.onrender.com · Database: Supabase (session pooler) · PayPal: sandbox only · Date: 8 Nov 2026
+Site: https://amend-r7le.onrender.com (Render, Oregon) · Database: Supabase West US (Oregon, us-west-2, session pooler aws-1) · PayPal: sandbox only · Date: 8 Nov 2026
 Alifiya signs in and approves PayPal; Claude prepares, checks and records. PayPal IDs show the last 4 characters only.
 
 Setup checked first:
@@ -13,12 +13,14 @@ Setup checked first:
 | Tick without the secret | PASS · 401 |
 | Webhook endpoint, fake unsigned event | PASS · 400 "signature not verified" |
 | Real PayPal webhook verified | pending (first hold in Story 1) |
+| Database (Oregon) | PASS · 29 tables, demo data seeded (24 creators, 8 deals, 36 messages, 79 events); events update refused |
+| HEAD /healthz (UptimeRobot) | PASS · 200 |
 
 ## Story 1: happy path (new deal)
 
 | # | Step | Expected | Actual | PayPal IDs (last 4) | Webhook events | Screenshot | Result |
 |---|---|---|---|---|---|---|---|
-| 1 | Brief (free text) → offer with quotes | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | Reel $450 + Story set $80 = $530 from Sara's list; quote button on each line; post Friday; "new cold brew" in Must include; #ad in done-means. Model + latency: pending DB check. Found: the brand's page said "Your offer" (it's Sara's offer) → fixed in 10fae63 with a test | n/a | n/a | Alifiya's screenshot (brand view) | PASS (wording fix pending deploy) |
+| 1 | Brief (free text) → offer with quotes (first run, on the Singapore DB; redo on Oregon) | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | Reel $450 + Story set $80 = $530 from Sara's list; quote button on each line; post Friday; "new cold brew" in Must include; #ad in done-means. Model + latency: pending DB check. Found: the brand's page said "Your offer" (it's Sara's offer) → fixed in 10fae63 with a test | n/a | n/a | Alifiya's screenshot (brand view) | PASS (wording fix pending deploy) |
 | 2 | Brand approves → hold $530 | Order approved, authorization created, status Held, expiry ~29 days; webhook received + verified | | | | | |
 | 3 | "+1 Story" in chat → change card → both confirm → second hold $80 | Card priced +$80 from the list; both confirm; second hold; held $610 | | | | | |
 | 4 | Draft upload (short mp4) → delivery check | Frames checked in the browser; check against the confirmed terms (version 2) | | | | | |
@@ -37,7 +39,7 @@ Setup checked first:
 
 | Area | Test mode (AMEND_FAKE=1) | Live | Notes |
 |---|---|---|---|
-| Database speed | SQLite on the same machine: ~1 ms per query | Render ↔ Supabase in different regions: ~150 ms per query (Find creators 177 queries ≈ 26 s; Inbox click ~84 queries) | Same region needed (Render looks like Oregon); inbox click made instant in code (ad55aa7) |
+| Database speed | SQLite on the same machine: ~1 ms per query | Render (Oregon) ↔ Supabase Singapore/Frankfurt: ~150 ms per query (Find creators 177 queries ≈ 26 s). After moving Supabase to Oregon: Sara's page 4.8 s → 0.38 s, Find creators 26 s → 0.75 s | Render's region is Oregon (render.yaml's frankfurt only applies to Blueprints); database moved to us-west-2 |
 | Uptime checks | not used | UptimeRobot checks with HEAD; `/` and `/healthz` answered 405 → shown "down" though up | Fixed: HEAD allowed (test `test_uptime_monitors_can_check_with_head`) |
 
 ## Fixes made during the walk
