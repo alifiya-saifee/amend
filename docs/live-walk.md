@@ -18,7 +18,7 @@ Setup checked first:
 
 | # | Step | Expected | Actual | PayPal IDs (last 4) | Webhook events | Screenshot | Result |
 |---|---|---|---|---|---|---|---|
-| 1 | Brief (free text) → offer with quotes | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | | | | | |
+| 1 | Brief (free text) → offer with quotes | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | Reel $450 + Story set $80 = $530 from Sara's list; quote button on each line; post Friday; "new cold brew" in Must include; #ad in done-means. Model + latency: pending DB check. Found: the brand's page said "Your offer" (it's Sara's offer) → fixed in 10fae63 with a test | n/a | n/a | Alifiya's screenshot (brand view) | PASS (wording fix pending deploy) |
 | 2 | Brand approves → hold $530 | Order approved, authorization created, status Held, expiry ~29 days; webhook received + verified | | | | | |
 | 3 | "+1 Story" in chat → change card → both confirm → second hold $80 | Card priced +$80 from the list; both confirm; second hold; held $610 | | | | | |
 | 4 | Draft upload (short mp4) → delivery check | Frames checked in the browser; check against the confirmed terms (version 2) | | | | | |
@@ -41,4 +41,4 @@ Setup checked first:
 
 ## Fixes made during the walk
 
-(none yet)
+- Story 1 step 1: brand page heading "Your offer" → "Sara's offer" + "Priced from Sara's own price list" (10fae63, test `test_brand_sees_the_creators_offer`). Needs a Manual Deploy.
