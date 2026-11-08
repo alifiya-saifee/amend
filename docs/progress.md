@@ -268,3 +268,8 @@ Full record: docs/live-walk.md. Real PayPal sandbox + real Gemini, driven in a t
 - **Tests:** 493 passed, 3 skipped.
 
 Next: Block 7.
+
+## Refund after payment + money rule S98 (8 Nov, evening)
+- **Gap found and fixed:** a price decrease after collection made a refund proposal that nobody could approve, aimed at the PayPal *order* (PayPal refunds *captures*), and could pick any money item. Now: the ripple looks only at holds (oldest first); the refund targets the capture from that hold's authorisation; Sara approves → live capture status check (rule 7) → PayPal refund with the item's own request ID (a double tap refunds once).
+- **Money rule (approved by Alifiya, 8 Nov):** a refund after payout is paid first from that deal's unreleased holdback (marked "used for refund", never released; any rest still paid on day N), the remainder becomes an `owed_by_creator` item taken from Sara's next payout (release or cancellation). The card shows the split before she approves ("$61 from your holdback + $19 from your next payout"). Decline → refund cancelled, deal paused as a conflict. Editor shares untouched. Earnings shows "Owed to Amend". The deduction happens when the next payout is planned, so the amount Sara approves is already net.
+- **Tests:** 505 passed, 3 skipped (S98: holdback covers all; part + owed; none, all owed; next payout reduced, including partial recovery; release plans the reduced payout; double tap; decline pauses).

@@ -216,6 +216,11 @@ async function earningsTab(ledgerView = false) {
       ${e.holdbacks.length ? `<div class="list">${e.holdbacks.map(h => `<div class="line"><div class="grow"><b>${esc(h.brand)}</b><div class="small muted">${esc(h.why)}</div></div>
         <div class="amt">${usd(h.amount_cents)}<div class="tiny muted">until ${h.until ? fmtDay(h.until.slice(0, 10)) : "–"}</div></div></div>`).join("")}</div>`
         : '<p class="muted small">Nothing held back right now.</p>'}</section>
+    ${e.owed_cents ? `<section class="card" style="margin-top:16px"><div class="row between"><h2>Owed to Amend</h2><b>${usd(e.owed_cents)}</b></div>
+      <p class="small muted">A refund to a brand after you were paid, more than that deal's holdback covered. It comes off your next payout.</p>
+      <div class="list">${e.owed.map(o => `<div class="line"><div class="grow"><a href="/studio/deals/${o.deal}"><b>${esc(o.brand || "Deal")}</b></a>
+        <div class="tiny muted">since ${esc(fmtDate(o.since))}${o.left_cents < o.amount_cents ? ` · ${usd(o.amount_cents - o.left_cents)} already taken` : ""}</div></div>
+        <div class="amt">${usd(o.left_cents)}</div></div>`).join("")}</div></section>` : ""}
     <p class="small muted" style="margin-top:16px">Payouts go to your PayPal email (${esc(ME.paypal_email_masked || "not set")}). Change it in <a href="/studio/settings">Settings</a>.</p>`;
   const sel = $("#e-month");
   if (sel) sel.onchange = () => { $("#e-pdf").href = "/api/studio/earnings/statement.pdf?month=" + sel.value; };

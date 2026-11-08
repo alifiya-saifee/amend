@@ -560,6 +560,8 @@ async def approve_refund(db: Database, pp, deal: dict, item_id: str, party_id: s
         raise RefundError("no such refund")
     if it["status"] == "paid":
         return it
+    if it["status"] not in ("planned", "approved", "sent"):
+        raise RefundError(f"this refund was {it['status']}: nothing to approve")
     if side_of(db, deal, party_id) != "creator":
         raise RefundError("the creator approves refunds")
     cap = db.one("select * from money_items where deal_id = :d and kind = 'capture' and paypal_id = :p",
@@ -582,8 +584,65 @@ async def approve_refund(db: Database, pp, deal: dict, item_id: str, party_id: s
                   {"d": deal["id"], "a": cap["paypal_parent_id"]})
     if hold:
         db.update("money_items", "id", hold["id"], {"refunded_cents": hold["refunded_cents"] + it["amount_cents"], "updated_at": now()})
+    fund = _fund_refund(db, deal, it, party_id)
+    split = " + ".join(x for x in (f"{money.fmt_usd(fund['holdback_cents'])} from the holdback" if fund["holdback_cents"] else "",
+                                    f"{money.fmt_usd(fund['owed_cents'])} from {_first(db, deal)}'s next payout" if fund["owed_cents"] else "") if x)
     post_message(db, deal["id"], None, f"Refund sent: {money.fmt_usd(it['amount_cents'])} back to the brand through PayPal "
-                                       "(a refund, never a cancel).", kind="system")
+                                       f"(a refund, never a cancel). Covered by {split}.", kind="system")
     db.log_event("refund.sent", actor=party_id, deal_id=deal["id"],
-                 payload={"item": it["id"], "amount_cents": it["amount_cents"], "paypal": r.get("id"), "status": r.get("status")})
+                 payload={"item": it["id"], "amount_cents": it["amount_cents"], "paypal": r.get("id"), "status": r.get("status"),
+                          "holdback_cents": fund["holdback_cents"], "owed_cents": fund["owed_cents"]})
+    return it
+
+
+def _first(db: Database, deal: dict) -> str:
+    c = db.one("select display_name from creators where id = :c", {"c": deal["creator_id"]}) or {}
+    return (c.get("display_name") or "the creator").split(" ")[0]
+
+
+def _fund_refund(db: Database, deal: dict, refund: dict, party_id: str) -> dict:
+    """S98: the refund is carried first by this deal's unreleased holdback (marked used, never released), then by a
+    balance the creator owes, taken from their next payout. Editor shares are not touched."""
+    from amend.deals import _move, get_deal
+    fund = money.refund_funding(db, deal["id"], refund["amount_cents"])
+    if fund["holdback_cents"]:
+        hb = money.get_item(db, fund["holdback_item"])
+        money._set_status(db, hb, "cancelled", party_id)
+        db.update("money_items", "id", hb["id"], {"note": f"holdback:used for refund {money.fmt_usd(fund['holdback_cents'])}"})
+        rest = hb["amount_cents"] - fund["holdback_cents"]
+        if rest > 0:  # what's left of the holdback is still paid on day N
+            new = money.plan_item(db, deal["id"], "payout", rest, json.loads(hb["depends_on_fact_ids"]), actor=party_id)
+            db.update("money_items", "id", new["id"], {"note": "holdback:creator payout on day N", "payee_email": hb.get("payee_email")})
+            money.approve(db, new["id"], party_id)
+        db.log_event("holdback.used_for_refund", actor=party_id, deal_id=deal["id"],
+                     payload={"refund": refund["id"], "amount_cents": fund["holdback_cents"], "left_cents": rest})
+    if fund["owed_cents"]:
+        ow = money.plan_item(db, deal["id"], "owed_by_creator", fund["owed_cents"], json.loads(refund["depends_on_fact_ids"]), actor=party_id)
+        db.update("money_items", "id", ow["id"], {"note": f"owed:refund {refund['id']}"})
+        money.approve(db, ow["id"], party_id)
+    d = get_deal(db, deal["id"])
+    if d["status"] == "delivered" and d.get("holdback_release_at") and not money.open_holdback(db, d["id"]):
+        db.update("deals", "id", d["id"], {"completed_at": now()})
+        _move(db, d, "completed", party_id)
+    return fund
+
+
+def decline_refund(db: Database, deal: dict, item_id: str, party_id: str, reason: str = "") -> dict:
+    """No approval, no refund. Declining pauses the deal as a conflict (rule 8) until the brand decides."""
+    it = db.one("select * from money_items where id = :i and deal_id = :d and kind = 'refund'", {"i": item_id, "d": deal["id"]})
+    if not it or it["status"] != "planned":
+        raise RefundError("there's no open refund proposal to decline")
+    if side_of(db, deal, party_id) != "creator":
+        raise RefundError("the creator approves or declines refunds")
+    money._set_status(db, it, "cancelled", party_id)
+    ch = db.one("select quote from changes where id = :c", {"c": it.get("change_id")}) or {}
+    who = lambda p: (db.one("select name from parties where id = :p", {"p": p}) or {}).get("name")
+    why = (reason or "").strip()[:300] or f"Declined the {money.fmt_usd(it['amount_cents'])} refund."
+    pause = {"a": {"party": deal["brand_party_id"], "name": who(deal["brand_party_id"]), "quote": (ch.get("quote") or "")[:300]},
+             "b": {"party": party_id, "name": who(party_id), "quote": why}, "at": now(), "kind": "refund_declined"}
+    if deal["status"] != "paused":
+        db.update("deals", "id", deal["id"], {"status": "paused", "paused_from": deal["status"], "pause_json": json.dumps(pause), "updated_at": now()})
+    post_message(db, deal["id"], None, f"Paused: {pause['b']['name']} declined the {money.fmt_usd(it['amount_cents'])} refund. "
+                                       "Nothing moves until it's resolved. The chat stays open.", kind="system")
+    db.log_event("refund.declined", actor=party_id, deal_id=deal["id"], payload={"item": it["id"], "reason": why[:120]})
     return it

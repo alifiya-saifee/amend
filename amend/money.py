@@ -32,6 +32,7 @@ MATRIX: dict[str, set[str]] = {
     MoneyKind.refund: {"creator"},
     MoneyKind.payout: {"creator"},
     MoneyKind.invoice: {"creator"},
+    MoneyKind.owed_by_creator: {"creator"},
     "split": {"brand", "creator"},
 }
 
@@ -68,6 +69,52 @@ def get_item(db: Database, item_id: str) -> dict:
 
 def items_for(db: Database, deal_id: str) -> list[dict]:
     return db.all("select * from money_items where deal_id = :d order by created_at", {"d": deal_id})
+
+
+# ---------- refunds after payout (S98): holdback first, then owed by the creator ----------
+
+def open_holdback(db: Database, deal_id: str) -> dict | None:
+    """The deal's holdback that hasn't been paid out yet."""
+    return db.one("select * from money_items where deal_id = :d and kind = 'payout' and note like 'holdback:creator%' "
+                  "and status = 'approved' order by created_at limit 1", {"d": deal_id})
+
+
+def refund_funding(db: Database, deal_id: str, amount_cents: int) -> dict:
+    """Who carries a refund to the brand: first this deal's unreleased holdback, then a balance the creator owes
+    (taken from the next payout). Worked out by code, shown to the creator before they approve."""
+    hb = open_holdback(db, deal_id)
+    from_hb = min(amount_cents, hb["amount_cents"]) if hb else 0
+    return {"holdback_cents": from_hb, "owed_cents": amount_cents - from_hb, "holdback_item": hb["id"] if hb else None}
+
+
+def owed_items(db: Database, creator_id: str) -> list[dict]:
+    return db.all("select m.* from money_items m join deals d on d.id = m.deal_id where d.creator_id = :c "
+                  "and m.kind = 'owed_by_creator' and m.status = 'approved' order by m.created_at, m.id", {"c": creator_id})
+
+
+def owed_balance(db: Database, creator_id: str) -> int:
+    return sum(i["amount_cents"] - i["captured_cents"] for i in owed_items(db, creator_id))
+
+
+def deduct_owed(db: Database, creator_id: str, gross_cents: int, *, deal_id: str, actor: str) -> int:
+    """Take what the creator owes from a payout about to be planned. Returns the net payout. Each owed item records
+    what has been recovered (captured_cents) and is settled (sent → paid) once fully recovered."""
+    left = gross_cents
+    for it in owed_items(db, creator_id):
+        if left <= 0:
+            break
+        take = min(it["amount_cents"] - it["captured_cents"], left)
+        if take <= 0:
+            continue
+        left -= take
+        recovered = it["captured_cents"] + take
+        db.update("money_items", "id", it["id"], {"captured_cents": recovered, "updated_at": now()})
+        if recovered >= it["amount_cents"]:
+            _set_status(db, get_item(db, it["id"]), "sent", actor)
+            _set_status(db, get_item(db, it["id"]), "paid", actor)
+        db.log_event("owed.deducted", actor=actor, deal_id=deal_id,
+                     payload={"owed_item": it["id"], "from_deal": it["deal_id"], "amount_cents": take, "payout_gross": gross_cents})
+    return left
 
 
 def _set_status(db: Database, item: dict, new: str, actor: str, **extra) -> dict:

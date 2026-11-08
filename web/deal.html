@@ -145,6 +145,14 @@ function render() {
     try { V = await api(url(`/refunds/${b.dataset.refund}/approve`), { body: {} }); render(); toast("Refund sent through PayPal"); }
     catch (e) { toast(e.message, "bad"); }
   }));
+  $$("[data-refund-no]").forEach(b => b.onclick = () => {
+    const reason = prompt("Why are you declining? (the deal pauses until it's resolved)");
+    if (reason === null) return;
+    busy(b, async () => {
+      try { V = await api(url(`/refunds/${b.dataset.refundNo}/decline`), { body: { reason } }); render(); toast("Declined · deal paused"); }
+      catch (e) { toast(e.message, "bad"); }
+    });
+  });
  if (Q.get("held")) { toast("Held "); history.replaceState({}, "", location.pathname); }
   if (Q.get("pay_cancelled") || Q.get("pay_error")) {
   toast(Q.get("pay_error") === "paypal" ? "PayPal didn't answer. Nothing was charged." : "Payment not finished", "bad", () => $("#pay")?.click());
@@ -218,7 +226,11 @@ function moneyCardHtml() {
       ${row("wallet", "Collected", collected, "Only after the delivery matches the deal")}${released ? row("undo-2", "Released back to the brand", released) : ""}
       ${refunded ? row("rotate-ccw", "Refunded", refunded) : ""}${paidOut ? row("send", "Paid out to you", paidOut) : ""}</div>
       ${proposals.map(p => `<div class="banner wait small" style="margin-top:8px">${icon("rotate-ccw")} Refund proposal: <b>${usd(p.amount_cents)}</b> back to the brand (a refund, never a cancel).
-        ${IS_BRAND ? `Waiting for ${esc(V.creator.name.split(" ")[0])} to approve.` : `<div class="row" style="margin-top:6px"><button class="btn small primary" data-refund="${p.id}">Approve refund ${usd(p.amount_cents)}</button></div>`}</div>`).join("")}
+        ${IS_BRAND ? `Waiting for ${esc(V.creator.name.split(" ")[0])} to approve.` : `${p.funding ? `<div style="margin-top:6px">Paid by: <b>${[
+            p.funding.holdback_cents ? `${usd(p.funding.holdback_cents)} from your holdback` : "",
+            p.funding.owed_cents ? `${usd(p.funding.owed_cents)} from your next payout` : ""].filter(Boolean).join(" + ")}</b></div>` : ""}
+          <div class="row" style="margin-top:6px;gap:6px"><button class="btn small primary" data-refund="${p.id}">Approve refund ${usd(p.amount_cents)}</button>
+          <button class="btn small" data-refund-no="${p.id}">Decline</button></div>`}</div>`).join("")}
       ${h && h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : ""}
       ${!IS_BRAND ? `<a class="small" href="/studio/ledger">See every payment with the words behind it</a>` : ""}`
       : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>`;

@@ -36,6 +36,7 @@ class MoneyKind(StrEnum):
     refund = "refund"
     invoice = "invoice"
     payout = "payout"
+    owed_by_creator = "owed_by_creator"  # a refund after payout that the holdback didn't cover; taken from the next payout
 
 
 class MoneyStatus(StrEnum):

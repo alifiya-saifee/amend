@@ -189,6 +189,10 @@ def earnings(db: Database, creator_id: str) -> dict:
                        "held_cents": tiles["held_cents"], "to_release_cents": tiles["to_release_cents"],
                        "fees_cents": sum(i["fee_cents"] or 0 for i in items if i["kind"] == "capture"), "extras_cents": tiles["extras_cents"]},
             "rows": rows, "holdbacks": holdbacks,
+            "owed_cents": money.owed_balance(db, creator_id),
+            "owed": [{"deal": i["deal_id"], "brand": (deals.get(i["deal_id"]) or {}).get("brand_org"), "amount_cents": i["amount_cents"],
+                      "left_cents": i["amount_cents"] - i["captured_cents"], "since": i["created_at"][:10]}
+                     for i in money.owed_items(db, creator_id)],
             "months": sorted({r["date"][:7] for r in rows}, reverse=True)}
 
 

@@ -168,9 +168,10 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
             money._set_status(db, money.get_item(db, vd["id"]), "sent", by_party)
             money._set_status(db, money.get_item(db, vd["id"]), "paid", by_party)
             money._set_status(db, money.get_item(db, h["id"]), "voided", by_party)
-    if s["creator_cents"] > 0 and holds:
+    net = money.deduct_owed(db, deal["creator_id"], s["creator_cents"], deal_id=deal["id"], actor="system") if s["creator_cents"] > 0 and holds else 0
+    if net > 0 and holds:
         facts = json.loads(holds[0]["depends_on_fact_ids"])
-        po = money.plan_item(db, deal["id"], "payout", s["creator_cents"], facts, actor="system")
+        po = money.plan_item(db, deal["id"], "payout", net, facts, actor="system")
         party = db.one("select paypal_email from parties where id = :p", {"p": creator_party})
         db.update("money_items", "id", po["id"], {"note": "cancel:creator payout", "payee_email": (party or {}).get("paypal_email")})
         money.approve(db, po["id"], creator_party)

@@ -436,6 +436,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
                          "change": i["change_id"]} for i in extra_holds],
         "held_cents": sum(i["amount_cents"] - i["captured_cents"] for i in items if i["kind"] == "hold" and i["status"] == "authorized"),
         "money": [{"id": i["id"], "kind": i["kind"], "status": i["status"], "amount_cents": i["amount_cents"],
-                   "note": i.get("note"), "paypal_id": i["paypal_id"]} for i in items],
+                   "note": i.get("note"), "paypal_id": i["paypal_id"],
+                   **({"funding": {k: v for k, v in money.refund_funding(db, deal_id, i["amount_cents"]).items() if k != "holdback_item"}}
+                      if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
     }

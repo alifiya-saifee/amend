@@ -1478,6 +1478,21 @@ async def creator_refund(deal_id: str, item_id: str, c: dict = Depends(require_c
     return studio_deal(deal_id, c)
 
 
+class DeclineIn(BaseModel):
+    reason: str = Field("", max_length=300)
+
+
+@app.post("/api/deals/{deal_id}/refunds/{item_id}/decline")
+def creator_refund_decline(deal_id: str, item_id: str, body: DeclineIn, c: dict = Depends(require_creator)):
+    """No approval, no refund: declining pauses the deal as a conflict (rule 8)."""
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        changes.decline_refund(get_db(), deal, item_id, pid, body.reason)
+    except changes.RefundError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
 class EditorIn(BaseModel):
     email: str = Field(max_length=120)
     pct: int
@@ -1594,6 +1609,10 @@ def _ledger_label(it: dict) -> str:
         return "New hold for a confirmed change"
     if n.startswith("refund proposal"):
         return "Refund proposal (you approve)"
+    if n.startswith("holdback:used for refund"):
+        return "Holdback used for a refund"
+    if it["kind"] == "owed_by_creator":
+        return "Owed to Amend (from your next payout)"
     return {"hold": "Hold (brand's money reserved)", "refund": "Refund", "payout": "Payout", "capture": "Collected"}.get(it["kind"], it["kind"])
 
 

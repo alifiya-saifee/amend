@@ -1043,3 +1043,4 @@ After each page: screenshots at 390 px and 1440 px, in light and dark (marketing
 | S95 | Marketing demo loop | Plays the change-card story; static with reduced motion | [ ] | [ ] |
 | S96 | No emoji icons anywhere in the UI | All icons from one set | [ ] | [ ] |
 | S97 | Every app screen | Loading, empty and error states | [ ] | [ ] |
+| S98 | Price decrease after payout (refund) | Refund card shows the split first (holdback, then next payout); Sara approves → live status check → PayPal refund once; holdback marked used, never released; remainder owed and taken from the next payout; decline pauses the deal; editor shares untouched | [x] | [ ] |

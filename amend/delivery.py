@@ -276,8 +276,12 @@ def plan_release(db: Database, deal: dict) -> dict:
     editor_cents = total * int(editor["pct"]) // 100 if editor else 0
     creator_cents = total - holdback - editor_cents
     party = db.one("select paypal_email from parties where id = (select party_id from creators where id = :c)", {"c": deal["creator_id"]})
-    po = money.plan_item(db, deal["id"], "payout", creator_cents, facts, actor="system")
-    db.update("money_items", "id", po["id"], {"note": "release:creator payout", "payee_email": (party or {}).get("paypal_email")})
+    gross = creator_cents  # S98: anything the creator owes from a past refund comes off this payout first
+    creator_cents = money.deduct_owed(db, deal["creator_id"], gross, deal_id=deal["id"], actor="system")
+    owed_cut = gross - creator_cents
+    if creator_cents > 0:
+        po = money.plan_item(db, deal["id"], "payout", creator_cents, facts, actor="system")
+        db.update("money_items", "id", po["id"], {"note": "release:creator payout", "payee_email": (party or {}).get("paypal_email")})
     if editor_cents:
         pe = money.plan_item(db, deal["id"], "payout", editor_cents, facts, actor="system")
         db.update("money_items", "id", pe["id"], {"note": f"release:editor {editor['pct']}%", "payee_email": editor["email"]})
@@ -290,7 +294,7 @@ def plan_release(db: Database, deal: dict) -> dict:
         db.update("money_items", "id", hb["id"], {"note": "holdback:creator payout on day N"})
         db.update("deals", "id", deal["id"], {"holdback_pct": deal.get("holdback_pct") or HOLDBACK_PCT, "holdback_days": days})
     db.log_event("money.collect_planned", actor="system", deal_id=deal["id"],
-                 payload={"total": total, "creator": creator_cents, "editor": editor_cents, "holdback": holdback})
+                 payload={"total": total, "creator": creator_cents, "editor": editor_cents, "holdback": holdback, "owed_deducted": owed_cut})
     return release_view(db, deal["id"])
 
 
