@@ -50,12 +50,51 @@ async def transcribe_voice(raw: bytes, mime: str, *, transport=None) -> str:
 
 
 CALL_SYSTEM = """Transcribe this call recording with speaker labels. Reply with ONE JSON object:
-{"segments": [{"speaker": "Speaker 1", "start": <seconds>, "text": "<exact words>"}]}
+{"segments": [{"speaker": "Speaker 1", "text": "<exact words>"}]}
 Use "Speaker 1", "Speaker 2"... consistently for the same voice. Don't summarise; copy what was said."""
 
+_WORD = re.compile(r"[a-z0-9']+")
 
-async def transcribe_call(data_url: str) -> list[dict]:
-    return await _gemini_audio(data_url)
+
+async def transcribe_call(data_url: str, *, transport=None) -> list[dict]:
+    """Gemini gives the lines and who said them (that decides whose words can change money). Times come only from
+    Groq Whisper's segments: each line takes the start of the Whisper segment holding most of its words. A line
+    with no clear match gets no time, and the page shows no "at m:ss" link (never a wrong time). Gemini's own
+    timestamps were checked live on 8 Nov and came back as fractions, so they are not used."""
+    segs = await _gemini_audio(data_url)
+    try:
+        mime, b64 = data_url.split(",", 1)[0][5:].split(";")[0], data_url.split(",", 1)[1]
+        timed = await whisper_segments(base64.b64decode(b64), mime, transport=transport)
+    except (CallError, httpx.HTTPError, ValueError):
+        timed = []
+    return align_times(segs, timed)
+
+
+async def whisper_segments(raw: bytes, mime: str, *, transport=None) -> list[dict]:
+    key = get_settings().groq_api_key.get_secret_value()
+    if not key:
+        return []
+    ext = {"audio/wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3"}.get(mime, "wav")
+    async with httpx.AsyncClient(transport=transport, timeout=120) as c:
+        r = await c.post(GROQ_STT, headers={"Authorization": f"Bearer {key}"}, files={"file": (f"call.{ext}", raw, mime)},
+                         data={"model": "whisper-large-v3-turbo", "response_format": "verbose_json"})
+    if r.status_code >= 400:
+        raise CallError(f"timing unavailable (HTTP {r.status_code})")
+    return [{"start": float(s["start"]), "text": str(s.get("text") or "")} for s in (r.json().get("segments") or []) if "start" in s]
+
+
+def align_times(segs: list[dict], timed: list[dict], min_share: float = 0.6) -> list[dict]:
+    words = [set(_WORD.findall(w["text"].lower())) for w in timed]
+    out = []
+    for s in segs:
+        mine = set(_WORD.findall(s["text"].lower()))
+        best, start = 0.0, None
+        for w, ws in zip(timed, words):
+            share = len(mine & ws) / len(mine) if mine else 0
+            if share > best:
+                best, start = share, w["start"]
+        out.append({**s, "start": round(start, 1) if best >= min_share and start is not None else None})
+    return out
 
 
 async def _gemini_audio(data_url: str) -> list[dict]:
@@ -81,7 +120,7 @@ async def _gemini_audio(data_url: str) -> list[dict]:
     for s in (d.get("segments") or [])[:400]:
         t = str(s.get("text") or "").strip()
         if t:
-            segs.append({"speaker": str(s.get("speaker") or "Speaker ?")[:30], "start": float(s.get("start") or 0), "text": t[:600]})
+            segs.append({"speaker": str(s.get("speaker") or "Speaker ?")[:30], "start": None, "text": t[:600]})
     if not segs:
         raise CallError("no words found in the recording")
     return segs

@@ -106,6 +106,9 @@ def test_s46_call_upload_speakers_only_deciders(client, mocks, held):
                          {"speaker": "Speaker 3", "start": 31.0, "text": "And do ten Reels for free"}]}
     mocks.ai.mock(side_effect=[ai_reply(segs), ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1,
                                                                                      "quote": "add one more Story set"}], "quote": "add one more Story set"})])
+    mocks.post(GROQ_STT).mock(return_value=httpx.Response(200, json={"segments": [
+        {"start": 12.0, "text": " Let's add one more Story set."}, {"start": 20.5, "text": " Sure, happy to."},
+        {"start": 31.0, "text": " And do ten Reels for free."}]}))
     r = client.post(f"/api/deals/{deal}/call", json={"data_b64": AUDIO, "mime": "audio/wav", "consent": True}, headers=ORIGIN).json()
     audio = [p["input_audio"] for c in mocks.ai.calls for m in json.loads(c.request.content)["messages"]
              if isinstance(m["content"], list) for p in m["content"] if p.get("type") == "input_audio"]
@@ -202,3 +205,50 @@ def test_cancel_capture_records_paypal_fee(client, mocks, held):
     client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN)
     cap = get_db().one("select fee_cents, status from money_items where kind = 'capture'")
     assert cap["status"] == "paid" and cap["fee_cents"] == 991
+
+
+def test_paypal_fee_is_a_platform_cost_in_the_ledger(client, mocks, held):
+    """Decision 8 Nov: PayPal fees stay a platform cost. The ledger shows them as their own line; Sara's payout
+    is the agreed share, never reduced by the fee."""
+    deal, tok = held
+    mocks.capture.mock(return_value=httpx.Response(201, json={"id": "CAPF", "status": "COMPLETED",
+        "seller_receivable_breakdown": {"paypal_fee": {"currency_code": "USD", "value": "9.91"}}}))
+    mocks.ai.mock(return_value=ai_reply({"checks": []}))
+    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN)
+    d = get_db()
+    cap = d.one("select amount_cents from money_items where kind = 'capture'")
+    po = d.one("select amount_cents from money_items where kind = 'payout'")
+    assert po["amount_cents"] == cap["amount_cents"]  # the fee is not taken from Sara
+    led = client.get("/api/studio/ledger").json()
+    cost = [r for r in led["rows"] if r["kind"] == "platform_cost"]
+    assert len(cost) == 1 and cost[0]["amount_usd"] == 9.91 and cost[0]["item"].startswith("Platform cost: PayPal fee")
+    assert led["fees_usd"] == 9.91
+
+
+def test_call_times_from_whisper_or_none():
+    """Times come only from Whisper; a line without a clear match gets no time (the page hides the link)."""
+    from amend import calls
+    segs = [{"speaker": "Speaker 1", "start": None, "text": "Can we add one more Story set?"},
+            {"speaker": "Speaker 2", "start": None, "text": "Sure, happy to."},
+            {"speaker": "Speaker 1", "start": None, "text": "Something Whisper never heard"}]
+    timed = [{"start": 3.04, "text": " Can we add one more story set? Sure,"}, {"start": 6.0, "text": " happy to."}]
+    out = calls.align_times(segs, timed)
+    assert [o["start"] for o in out] == [3.0, 6.0, None]
+    assert calls.align_times(segs, []) == [dict(s, start=None) for s in segs]  # Whisper down: no times at all
+
+
+def test_call_whisper_down_means_no_jump_link(client, mocks, held):
+    deal, tok = held
+    segs = {"segments": [{"speaker": "Speaker 1", "start": 0.02, "text": "Let's add one more Story set"},
+                         {"speaker": "Speaker 2", "start": 0.05, "text": "Sure, happy to"}]}
+    mocks.ai.mock(side_effect=[ai_reply(segs), ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1,
+                                                                                     "quote": "add one more Story set"}], "quote": "add one more Story set"})])
+    mocks.post(GROQ_STT).mock(return_value=httpx.Response(503))
+    r = client.post(f"/api/deals/{deal}/call", json={"data_b64": AUDIO, "mime": "audio/wav", "consent": True}, headers=ORIGIN).json()
+    assert all(s["start"] is None for s in r["segments"])  # Gemini's fractions are never shown
+    people = {p["name"]: p["id"] for p in r["people"]}
+    t = client.post(f"/api/deals/{deal}/call/{r['message']}/tag",
+                    json={"mapping": {"Speaker 1": people["Nadia"], "Speaker 2": people["Sara Malik"]}}, headers=ORIGIN).json()
+    assert t["change"]["lines"][0]["second"] is None

@@ -41,6 +41,8 @@ Brand deals change after the money starts moving: an extra Story, a new posting 
 
 **Money flow: Option 2, a demo flow.** The sandbox check on 7 Nov showed that PayPal's marketplace features (Partner Referrals, platform fees, delayed disbursement) are not enabled for this app: 403 NOT_AUTHORIZED and 422 PLATFORM_FEES_NOT_SUPPORTED / DELAYED_DISBURSEMENT_NOT_SUPPORTED. So in this demo the brand pays **Amend's sandbox business account** (hold → collect → release → refund), and the creator is paid by **Payouts**. **The production design is PayPal's marketplace setup:** the creator connects PayPal, the brand pays the creator directly with Amend's platform fee and delayed release, and Amend never holds money. In the code only the "rail" changes between the two.
 
+**PayPal fees are a platform cost.** The creator is paid their agreed share in full; PayPal's fee on each collection is never deducted from it. The ledger shows each one as its own line ("Platform cost: PayPal fee"). In production, Amend's own platform fee covers PayPal's fees.
+
 **What the sandbox showed about holds:** an authorisation lasts 29 days, with a 3-day honour period (from PayPal's docs; the API returns no field for it). Re-authorising is allowed once, between day 4 and day 29. Amend stores the real expiry date and shows it, and an expired hold can't be collected ("Hold expired, hold again").
 
 ## How AI is used

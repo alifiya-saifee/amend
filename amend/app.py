@@ -1629,7 +1629,11 @@ def ledger(c: dict = Depends(require_creator)):
                      "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
                      "version": it["deal_version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
                      "updated": it["updated_at"]})
-    return {"rows": rows, "fees_usd": sum(r["fee_usd"] for r in rows)}
+        if it["kind"] == "capture" and (it["fee_cents"] or 0) > 0:  # PayPal's fee is a platform cost: never taken from the creator
+            rows.append({**rows[-1], "item": "Platform cost: PayPal fee (Amend pays, not you)", "kind": "platform_cost",
+                         "amount_usd": it["fee_cents"] / 100, "aed": money.aed_cents(it["fee_cents"]) / 100, "status": "paid",
+                         "fee_usd": 0, "request_id": None})
+    return {"rows": rows, "fees_usd": sum(r["amount_usd"] for r in rows if r["kind"] == "platform_cost")}
 
 
 # ---------- cancellation, calls, conflicts (Phase 7) ----------

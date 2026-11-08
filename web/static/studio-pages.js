@@ -204,9 +204,9 @@ async function earningsTab(ledgerView = false) {
       <div class="tile"><span class="k">Held for you</span><span class="v">${usd(t.held_cents)}</span></div>
       <div class="tile"><span class="k">To be released</span><span class="v">${usd(t.to_release_cents)}</span></div>
     </div>
-    <p class="small muted">PayPal fees so far: <b>${usd(t.fees_cents)}</b> · Extras earned with Amend: <b>${usd(t.extras_cents)}</b></p>
+    <p class="small muted">PayPal fees so far: <b>${usd(t.fees_cents)}</b> (a platform cost Amend pays, never taken from you) · Extras earned with Amend: <b>${usd(t.extras_cents)}</b></p>
     <section style="margin-top:16px"><h2>Payout history</h2>
-      ${e.rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Brand</th><th class="n">Gross</th><th class="n">Fee</th><th class="n">Editor</th><th class="n">Net to you</th><th>PayPal ID</th><th>Status</th><th></th></tr></thead>
+      ${e.rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Brand</th><th class="n">Gross</th><th class="n" title="Paid by Amend, not deducted from you">PayPal fee (Amend pays)</th><th class="n">Editor</th><th class="n">Net to you</th><th>PayPal ID</th><th>Status</th><th></th></tr></thead>
         <tbody>${e.rows.map(r => `<tr><td>${esc(r.date)}</td><td><a href="/studio/deals/${r.deal}">${esc(r.brand)}</a></td><td class="n">${usd(r.gross_cents)}</td><td class="n">${usd(r.fee_cents)}</td>
           <td class="n">${usd(r.editor_cents)}</td><td class="n"><b>${usd(r.net_cents)}</b></td><td class="tiny">${esc(r.paypal_id || "–")}</td>
           <td>${r.status === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${esc(r.status)}</span>`}</td>
