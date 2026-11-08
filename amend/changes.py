@@ -506,8 +506,14 @@ def apply(db: Database, c: dict, actor: str) -> dict:
         for a in rip.get("affected", []):
             if a["action"] == "refund_proposal" and a["amount_cents"] > 0:
                 it = money.get_item(db, a["money_item"])
-                item = money.plan_item(db, deal["id"], "refund", a["amount_cents"], json.loads(it["depends_on_fact_ids"]), actor=actor,
-                                       parent_id=it["paypal_id"])
+                # PayPal refunds a capture, not an order: find the capture made from this hold's authorisation
+                cap = db.one("select * from money_items where deal_id = :d and kind = 'capture' and status in ('paid', 'refunded') "
+                             "and paypal_parent_id = :a order by created_at desc limit 1", {"d": deal["id"], "a": it["paypal_parent_id"]})
+                amount = min(a["amount_cents"], (cap["amount_cents"] - cap["refunded_cents"]) if cap else a["amount_cents"])
+                if amount <= 0:
+                    continue
+                item = money.plan_item(db, deal["id"], "refund", amount, json.loads(it["depends_on_fact_ids"]), actor=actor,
+                                       parent_id=cap["paypal_id"] if cap else None)
                 db.update("money_items", "id", item["id"], {"change_id": c["id"], "note": "refund proposal (creator approves)"})
         db.update("changes", "id", c["id"], {"status": "applied"})
         db.log_event("change.applied", actor=actor, deal_id=deal["id"],
@@ -540,3 +546,44 @@ def tick(db: Database, at: datetime | None = None) -> dict:
 def open_new_holds(db: Database, deal_id: str) -> list[dict]:
     return db.all("select * from money_items where deal_id = :d and kind = 'hold' and change_id is not null "
                   "and status in ('planned', 'approved', 'sent') order by created_at", {"d": deal_id})
+
+
+class RefundError(ValueError):
+    pass
+
+
+async def approve_refund(db: Database, pp, deal: dict, item_id: str, party_id: str) -> dict:
+    """A refund proposal after collection: the creator approves, Amend checks PayPal's live capture status, then refunds
+    (never a cancel). Same PayPal-Request-Id on a retry, so a double tap can't refund twice."""
+    it = db.one("select * from money_items where id = :i and deal_id = :d and kind = 'refund'", {"i": item_id, "d": deal["id"]})
+    if not it:
+        raise RefundError("no such refund")
+    if it["status"] == "paid":
+        return it
+    if side_of(db, deal, party_id) != "creator":
+        raise RefundError("the creator approves refunds")
+    cap = db.one("select * from money_items where deal_id = :d and kind = 'capture' and paypal_id = :p",
+                 {"d": deal["id"], "p": it["paypal_parent_id"]}) if it.get("paypal_parent_id") else None
+    if not cap:
+        raise RefundError("there's no collected payment to refund")
+    if it["status"] == "planned":
+        money.approve(db, it["id"], party_id)
+    live = (await pp.get_capture(cap["paypal_id"])).get("status")  # rule 7: check the live status before acting
+    if live not in ("COMPLETED", "PARTIALLY_REFUNDED"):
+        raise RefundError(f"PayPal says this payment is {str(live).lower().replace('_', ' ')}, so it can't be refunded")
+    it = money.get_item(db, it["id"])
+    if it["status"] == "approved":
+        it = money._set_status(db, it, "sent", party_id)
+    r = await pp.refund(cap["paypal_id"], amount_cents=it["amount_cents"], request_id=it["request_id"],
+                        approval=money.approval_record(db, it))
+    it = money._set_status(db, money.get_item(db, it["id"]), "paid", party_id, paypal_id=r.get("id"))
+    db.update("money_items", "id", cap["id"], {"refunded_cents": cap["refunded_cents"] + it["amount_cents"], "updated_at": now()})
+    hold = db.one("select * from money_items where deal_id = :d and kind = 'hold' and paypal_parent_id = :a",
+                  {"d": deal["id"], "a": cap["paypal_parent_id"]})
+    if hold:
+        db.update("money_items", "id", hold["id"], {"refunded_cents": hold["refunded_cents"] + it["amount_cents"], "updated_at": now()})
+    post_message(db, deal["id"], None, f"Refund sent: {money.fmt_usd(it['amount_cents'])} back to the brand through PayPal "
+                                       "(a refund, never a cancel).", kind="system")
+    db.log_event("refund.sent", actor=party_id, deal_id=deal["id"],
+                 payload={"item": it["id"], "amount_cents": it["amount_cents"], "paypal": r.get("id"), "status": r.get("status")})
+    return it

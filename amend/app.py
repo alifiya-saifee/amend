@@ -1465,6 +1465,19 @@ async def creator_release(deal_id: str, c: dict = Depends(require_creator)):
     return await _release(*_creator_ctx(deal_id, c))
 
 
+@app.post("/api/deals/{deal_id}/refunds/{item_id}/approve")
+async def creator_refund(deal_id: str, item_id: str, c: dict = Depends(require_creator)):
+    """A refund proposal after collection: only the creator approves; Amend checks PayPal's live status, then refunds."""
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        await changes.approve_refund(get_db(), rail().pp, deal, item_id, pid)
+    except (changes.RefundError, money.ApprovalError) as e:
+        raise HTTPException(400, str(e))
+    except PayPalError as e:
+        raise HTTPException(502, f"PayPal didn't accept the refund ({e.name}). Nothing was refunded twice; try again.")
+    return studio_deal(deal_id, c)
+
+
 class EditorIn(BaseModel):
     email: str = Field(max_length=120)
     pct: int

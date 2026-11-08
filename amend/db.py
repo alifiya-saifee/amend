@@ -47,7 +47,7 @@ EVENT_TYPES = {
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
-    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent",
     "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
     # cancellation, calls, conflicts (Phase 7)
     "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",

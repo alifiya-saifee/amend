@@ -146,7 +146,9 @@ def ripple(db: Database, deal_id: str, changes: list[dict]) -> Ripple:
       planned/approved → update · authorized → collect_less (decrease) / release (all removed)
       paid → refund_proposal (a decrease; never a cancel) · sent → wait (check PayPal's live status first)
       voided/refunded/expired/cancelled → none · any increase → one new hold for the difference."""
-    items = db.all("select * from money_items where deal_id = :d", {"d": deal_id})
+    # Only the brand's holds carry the deal's money; captures, payouts and refunds follow from them. Fixed order so the
+    # decrease always lands on the oldest open hold.
+    items = db.all("select * from money_items where deal_id = :d and kind = 'hold' order by created_at, id", {"d": deal_id})
     terms = db.all("select * from terms where deal_id = :d and version = (select max(version) from terms where deal_id = :d)",
                    {"d": deal_id})
     changed_facts = {c["fact_id"] for c in changes if c.get("fact_id")}
