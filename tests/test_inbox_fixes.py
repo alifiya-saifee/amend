@@ -133,3 +133,9 @@ def test_brief_card_labels_prices_as_the_creators():
     chat = (ROOT / "web/static/chat.js").read_text()
     assert '"Priced from your list"' in chat and "\"Priced from the creator's list\"" in chat
     assert "the brand's words are on the Quote chips" in chat
+
+
+# Live walk, Story 1 step 1: the brand sees the creator's offer, not "Your offer"
+def test_brand_sees_the_creators_offer():
+    deal = (ROOT / "web/deal.html").read_text()
+    assert "<h2>Your offer</h2>" not in deal and "'s offer</h2>" in deal
