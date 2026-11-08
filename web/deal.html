@@ -55,7 +55,9 @@ function header() {
  $("#ttl").textContent = IS_BRAND ? `Deal with ${V.creator.name}` : `${d.brand_org}`;
   if (IS_BRAND && !document.body.classList.contains("app")) {  // the link's person is shown once
   $("#me").hidden = false; $("#me").textContent = `${V.me.name} · ${V.me.org}`;
-    $$(".auth-slot").forEach(s => s.hidden = true);
+    // the link already says who this is: offer to keep it as an account, not a second sign-in
+    $$(".auth-slot").forEach(s => { s.dataset.fixed = "1";
+      s.innerHTML = `<a class="btn small save-acct" href="/signup?kind=brand&next=${encodeURIComponent(location.pathname)}"><span class="lbl-long">Save your account</span><span class="lbl-short">Save account</span></a>`; });
   }
   const strip = $("#strip");
   strip.removeAttribute("aria-busy");

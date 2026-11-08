@@ -204,6 +204,20 @@ def open_gaps(db: Database, deal_id: str) -> list[dict]:
     return [g for g in (p["result"].get("gaps") if p else []) if g["status"] == "open"]
 
 
+def resolution_text(db: Database, g: dict) -> str:
+    """Who decided what, in plain words ("Nadia accepted the earlier post date"), never the internal choice key."""
+    who = ((db.one("select name from parties where id = :p", {"p": g.get("by")}) or {}).get("name") or "Someone").split(" ")[0]
+    r = g.get("resolution")
+    if g.get("kind") == "date" and r == "accept":
+        when = "the post date"
+        if g.get("posted_on") and g.get("agreed_date"):
+            when = "the earlier post date" if g["posted_on"] < g["agreed_date"] else "the later post date"
+        return f"{who} accepted {when}"
+    return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
+            "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
+            "will_deliver": f"{who} will deliver it"}.get(r, f"Resolved by {who}")
+
+
 def resolve_gap(db: Database, deal: dict, party_id: str, gap_id: str, resolution: str) -> dict:
     """extra: add (brand pays, a new hold) | free | remove · missing: drop (collect less) | will_deliver · date: accept."""
     from amend.changes import side_of
@@ -298,15 +312,61 @@ def plan_release(db: Database, deal: dict) -> dict:
     return release_view(db, deal["id"])
 
 
+def holdback_date(deal: dict) -> date | None:
+    """The real day the holdback is paid: set at release, or (before release) the post date + the days it stays live."""
+    if deal.get("holdback_release_at"):
+        return datetime.fromisoformat(deal["holdback_release_at"]).date()
+    try:
+        return date.fromisoformat(str(deal.get("posted_at"))[:10]) + timedelta(days=deal.get("holdback_days") or 30)
+    except ValueError:
+        return None
+
+
+def release_label(db: Database, deal: dict, it: dict, first: str) -> str:
+    """Plain words for a release line. Internal note keys and item ids are never shown."""
+    note, amt = it.get("note") or "", money.fmt_usd(it["amount_cents"])
+    if it["kind"] == "capture":
+        hid = note.split("release:capture of ", 1)[1] if note.startswith("release:capture of ") else None
+        hold = db.one("select amount_cents, change_id from money_items where id = :i", {"i": hid}) if hid else None
+        if hold:
+            return f"Collect the {'extra ' if hold['change_id'] else ''}{money.fmt_usd(hold['amount_cents'])} hold"
+        return f"Collect {amt} from the hold"
+    if note.startswith("holdback:"):
+        if note.startswith("holdback:used for refund"):
+            return f"Holdback {amt} · used for a refund"
+        if note.startswith("holdback:returned"):
+            return f"Holdback {amt} · returned to the brand"
+        d = holdback_date(deal)
+        return f"Holdback {amt} · paid on {engine.day_label(d)} if the post is still live" if d else f"Holdback {amt} · paid if the post stays live"
+    if note.startswith("release:editor"):
+        return f"Editor's share ({note.split('release:editor', 1)[1].strip()})"
+    if note.startswith("release:creator payout"):
+        return f"Paid to {first}"
+    return amt
+
+
 def release_view(db: Database, deal_id: str) -> dict:
     items = db.all("select * from money_items where deal_id = :d and (note like 'release:%' or note like 'holdback:%') order by created_at",
                    {"d": deal_id})
+    deal = db.one("select * from deals where id = :d", {"d": deal_id}) or {}
+    first = ((db.one("select display_name from creators where id = :c", {"c": deal.get("creator_id")}) or {}).get("display_name")
+             or "the creator").split(" ")[0]
+    brand_first = ((db.one("select name from parties where id = :p", {"p": deal.get("brand_party_id")}) or {}).get("name")
+                   or "the brand").split(" ")[0]
     out = []
     for it in items:
         sides = sorted({money._side(db, deal_id, a["by_party"]) for a in money.approvals_for(db, it)})
-        out.append({"id": it["id"], "kind": it["kind"], "note": it["note"], "amount_cents": it["amount_cents"], "status": it["status"],
-                    "approved_by": sides, "needs": sorted(money.MATRIX[it["kind"]]), "paypal_id": it["paypal_id"]})
-    return {"items": out, "gaps_open": len(open_gaps(db, deal_id))}
+        needs = sorted(money.MATRIX[it["kind"]])
+        missing = [s for s in needs if s not in sides]
+        approval = ("Both approved ✓" if len(needs) > 1 else "Approved ✓") if not missing else \
+            "Waiting for " + " and ".join(brand_first if s == "brand" else first for s in missing)
+        if it["status"] in ("paid", "voided", "refunded", "sent", "cancelled"):
+            approval = ""
+        out.append({"id": it["id"], "kind": it["kind"], "note": it["note"], "label": release_label(db, deal, it, first),
+                    "approval": approval, "amount_cents": it["amount_cents"], "status": it["status"],
+                    "approved_by": sides, "needs": needs, "paypal_id": it["paypal_id"]})
+    hb = holdback_date(deal)
+    return {"items": out, "gaps_open": len(open_gaps(db, deal_id)), "holdback_date": hb.isoformat() if hb else None}
 
 
 def approve_release(db: Database, deal: dict, party_id: str) -> dict:

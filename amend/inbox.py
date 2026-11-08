@@ -79,18 +79,18 @@ def needs_me_brands(db: Database, creator: dict) -> set[str]:
     """THE definition of "needs me" for the Inbox: brands (conversations) with something for the creator to do now.
     Used for the "Needs me" chip, its filter and the nav badge, so they always agree."""
     from amend import studio
-    by_deal = {d["id"]: d["brand_org"] for d in db.all("select id, brand_org from deals where creator_id = :c", {"c": creator["id"]})}
+    by_deal = {d["id"]: d["brand_org"] for d in db.all("select id, brand_org from deals where creator_id = :c and is_test = 0", {"c": creator["id"]})}
     return {by_deal[n["deal"]] for n in studio.needs_you(db, creator) if n["deal"] in by_deal}
 
 
 def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", page: int = 0, needs: set[str] | None = None) -> dict:
-    deals = {d["id"]: d for d in db.all("select * from deals where creator_id = :c", {"c": creator_id})}
+    deals = {d["id"]: d for d in db.all("select * from deals where creator_id = :c and is_test = 0", {"c": creator_id})}
     needs = needs or set()
     if not deals:
         return {"items": [], "unread": 0, "more": False, "threads": [], "needs_threads": 0, "counts": {"all": 0, "needs_me": 0, "messages": 0, "money": 0}}
     brands = {p["id"]: p for p in db.all("select id, name, org from parties where role like 'brand%'")}
     read = {r["event_id"] for r in db.all("select event_id from inbox_reads where party_id = :p", {"p": party_id})}
-    rows = db.all("select * from events where deal_id in (select id from deals where creator_id = :c) "
+    rows = db.all("select * from events where deal_id in (select id from deals where creator_id = :c and is_test = 0) "
                   "and actor <> :me order by id desc", {"c": creator_id, "me": party_id})
     out = []
     for r in rows:

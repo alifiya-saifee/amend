@@ -89,7 +89,7 @@ def refund_funding(db: Database, deal_id: str, amount_cents: int) -> dict:
 
 def owed_items(db: Database, creator_id: str) -> list[dict]:
     return db.all("select m.* from money_items m join deals d on d.id = m.deal_id where d.creator_id = :c "
-                  "and m.kind = 'owed_by_creator' and m.status = 'approved' order by m.created_at, m.id", {"c": creator_id})
+                  "and d.is_test = 0 and m.kind = 'owed_by_creator' and m.status = 'approved' order by m.created_at, m.id", {"c": creator_id})
 
 
 def owed_balance(db: Database, creator_id: str) -> int:

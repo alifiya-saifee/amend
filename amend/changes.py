@@ -225,12 +225,17 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
                 "refunded": ("{amt} refunded", "rotate-ccw"), "expired": ("A hold expired · hold again", "hourglass")}
     sysl = lambda at, body, icon: items.append({"type": "system", "at": at, "body": body, "icon": icon})
     opened = brief_shown = False
+    deal_row = db.one("select * from deals where id = :d", {"d": deal_id})
+    is_creator = bool(deal_row) and side_of(db, deal_row, viewer) == "creator"
+    first = ((db.one("select display_name from creators where id = :c", {"c": deal_row["creator_id"]}) or {}).get("display_name")
+             or "the creator").split(" ")[0] if deal_row else "the creator"
     for e in db.events_for(deal_id):
         t = e["type"]
         if t == "money.status" and e["payload"].get("to") in sys_text:
-            it = db.one("select amount_cents from money_items where id = :i", {"i": e["payload"]["item"]})
-            text, icon = sys_text[e["payload"]["to"]]
-            sysl(e["at"], text.format(amt=money.fmt_usd(it["amount_cents"]) if it else ""), icon)
+            it = db.one("select kind, note, amount_cents from money_items where id = :i", {"i": e["payload"]["item"]})
+            line = money_line(it, e["payload"]["to"], sys_text, is_creator=is_creator, first=first)
+            if line:
+                sysl(e["at"], *line)
         elif t == "link.opened" and not opened:  # once: the first time the brand opened the link
             opened = True
             who = (parties.get(e["actor"]) or {}).get("name")
@@ -251,6 +256,42 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
     unread = sum(1 for x in items if x["type"] != "system" and (not last or x["at"] > last["last_at"])
                  and not x.get("mine") and x.get("from_id") != viewer)
     return {"items": items, "unread": unread}
+
+
+def _creator_first(db: Database, deal: dict) -> str:
+    return ((db.one("select display_name from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("display_name")
+            or "the creator").split(" ")[0]
+
+
+def money_line(it: dict | None, to: str, sys_text: dict, *, is_creator: bool, first: str) -> tuple[str, str] | None:
+    """One chat line per money move. A collection marks both the capture and its hold "paid", and a release marks both
+    the release item and the hold: only one of each pair speaks, so "$530 collected" shows once."""
+    if not it:
+        return None
+    amt, kind, note = money.fmt_usd(it["amount_cents"]), it["kind"], it.get("note") or ""
+    if to == "paid":
+        if kind == "capture":
+            return f"{amt} collected", "wallet"
+        if kind == "payout":
+            if note.startswith(("release:editor", "cancel:editor")):
+                return (f"Editor paid {amt}", "send") if is_creator else None
+            hold = note.startswith("holdback:")
+            if is_creator:
+                return (f"Holdback paid to you {amt}" if hold else f"Paid to you {amt}"), "send"
+            return (f"Holdback paid to {first} {amt}" if hold else f"Paid to {first} {amt}"), "send"
+        if kind == "refund":
+            return f"{amt} refunded to the brand", "rotate-ccw"
+        if kind == "owed_by_creator":
+            return ("Owed balance settled from your payout", "check") if is_creator else None
+        return None  # hold (its capture speaks), release (the hold's "released" speaks), invoice
+    if to == "voided" and kind != "hold":
+        return None
+    if to == "refunded" and kind != "refund":  # the refund item's own "paid" line already says it
+        return None
+    if to == "authorized" and kind != "hold":
+        return None
+    text, icon = sys_text[to]
+    return text.format(amt=amt), icon
 
 
 def _brief_card(db: Database, deal_id: str, who: dict) -> dict:
@@ -322,7 +363,7 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
             continue
         amt = unit * qd
         lines.append({"label": f"{'+' if qd > 0 else '−'} {abs(qd)} {p['name']}", "item_code": l.item_code, "qty_delta": qd,
-                      "amount_cents": amt, "quote": l.quote, "source": f"{'kept price' if l.item_code in cur else 'price list'}"})
+                      "amount_cents": amt, "quote": l.quote, "source": f"Price from {_creator_first(db, deal)}'s list"})
         delta += amt
         fact = cur.get(l.item_code, {}).get("fact_id")
         # a decrease touches the money that rests on this line; an increase only changes the line (it gets its own hold)

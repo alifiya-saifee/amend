@@ -548,3 +548,8 @@ body.inbox-full .topsearch { display: none !important; }            /* one searc
 .needs-pill svg { width: 13px; height: 13px; }
 /* Block 7: on phones the brand's name chip needs the header's space; the strip below already names the deal */
 @media (max-width: 600px) { .top .title:has(+ .chip-me:not([hidden])) { display: none; } }
+.save-acct { white-space: nowrap; } .save-acct .lbl-short { display: none; }
+@media (max-width: 600px) { .save-acct .lbl-long { display: none; } .save-acct .lbl-short { display: inline; } }
+/* chips inside the ledger grid sit on the row's centre line */
+.ag-cell .pill { vertical-align: middle; line-height: 1.5; padding-top: 2px; padding-bottom: 2px; }
+.ag-cell { display: flex; align-items: center; }

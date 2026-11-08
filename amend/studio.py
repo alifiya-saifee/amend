@@ -12,11 +12,11 @@ CREATOR_PAYOUT_NOTES = ("release:creator payout", "holdback:creator payout on da
 
 
 def _deals(db: Database, creator_id: str) -> list[dict]:
-    return db.all("select * from deals where creator_id = :c order by updated_at desc", {"c": creator_id})
+    return db.all("select * from deals where creator_id = :c and is_test = 0 order by updated_at desc", {"c": creator_id})
 
 
 def _items(db: Database, creator_id: str) -> list[dict]:
-    return db.all("select m.* from money_items m join deals d on d.id = m.deal_id where d.creator_id = :c", {"c": creator_id})
+    return db.all("select m.* from money_items m join deals d on d.id = m.deal_id where d.creator_id = :c and d.is_test = 0", {"c": creator_id})
 
 
 def _month(iso: str | None) -> str:

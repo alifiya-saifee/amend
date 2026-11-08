@@ -64,14 +64,21 @@ async function ledger() {
   if (!r.rows.length) return;
   await loadGrid();
   const money = p => p.value == null ? "" : "$" + Number(p.value).toFixed(2);
+  // same chips as Earnings; "paid" means different things per kind (collected, paid out, refunded, settled)
+  const ledgerPill = r => r.status === "approved" && r.kind === "payout" && /^Holdback/.test(r.item || "") ? `<span class="pill held">Scheduled</span>`
+    : r.status !== "paid" ? moneyPill(r.status)
+    : `<span class="pill collected">${{ payout: "Paid", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" }[r.kind] || "Collected"}</span>`;
+  const KIND_LABEL = { hold: "Hold", capture: "Collected", release: "Release", refund: "Refund", payout: "Payout", invoice: "Invoice",
+    owed_by_creator: "Owed", platform_cost: "Platform cost" };
   const grid = agGrid.createGrid($("#grid"), {
     rowData: r.rows, pagination: true, paginationPageSize: 50, paginationPageSizeSelector: [20, 50, 100],
     defaultColDef: { sortable: true, filter: true, resizable: true },
     columnDefs: [
-      { field: "date", width: 110 }, { field: "brand", width: 150 }, { field: "item", flex: 1, minWidth: 160 }, { field: "kind", width: 100 },
+      { field: "date", width: 120, valueFormatter: p => fmtDate(p.value) }, { field: "brand", width: 150 }, { field: "item", flex: 2, minWidth: 300, tooltipField: "item" },
+      { field: "kind", width: 120, valueFormatter: p => KIND_LABEL[p.value] || p.value },
       { field: "amount_usd", headerName: "Amount", valueFormatter: money, width: 110 }, { field: "aed", headerName: "AED", width: 100 },
-      { field: "status", width: 110 }, { field: "paypal_id", headerName: "PayPal ID", width: 160 },
-      { field: "quote", headerName: "<i data-lucide='quote' aria-hidden='true'></i> Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
+      { field: "status", width: 130, cellRenderer: p => ledgerPill(p.data) }, { field: "paypal_id", headerName: "PayPal ID", width: 160 },
+      { field: "quote", headerName: "Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
       { field: "request_id", headerName: "Request ID", hide: true },
       { field: "updated", width: 170, hide: true }],
     onRowClicked: e => { location.href = `/story/${e.data.deal}`; },

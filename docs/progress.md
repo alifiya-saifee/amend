@@ -294,3 +294,13 @@ Next: Block 7.
 - Judge/video path polished (no layout shift, loading and error states), /try fixed (Start made no deal), `docs/judging.md`, accessibility (axe 0 violations, keyboard sheets), clean video account `@sara.video`, final screenshots in `docs/screenshots/final/`.
 - **Tests:** 534 passed, 3 skipped.
 - **Open for Alifiya:** paste the demo password + sandbox buyer into `docs/judging.md` (Devpost copy); OK to correct one live demo row (Sahara Sips payout $551 → $549); redeploy.
+
+## Screenshot review fixes (8 Nov, late)
+1. Chat: one line per money move ("$530 collected" once; captures speak, their holds don't); payouts read "Paid to you $549" (creator) / "Paid to Sara $549" (brand).
+2. Release card: plain labels ("Collect the $530 hold", "Collect the extra $80 hold", "Paid to Sara", "Holdback $61 · paid on Tue 8 Dec if the post is still live"), "Both approved ✓" / "Waiting for Sara"; chips Paid / Scheduled; no ids.
+3. No "day N" on screen: real holdback date everywhere (ledger, release card, helper text); internal note keys kept, never shown.
+4. Ledger: "Quote" header, chips by kind (Collected / Paid / Refunded / Paid by Amend / Scheduled), readable dates and kinds, wider item column.
+5. `deals.is_test`: test runs kept but out of Earnings, Ledger, Inbox, Home, Deals and owed balances. `scripts/mark_test_deals.py` flags the 5 live-walk deals (…fe0a, …d858, …144e, …50a7, …eecc), **run after deploy**. Sahara Sips demo row corrected on live ($549 + $61).
+6. Wording: "Posted Sun 8 Nov"; "Nadia accepted the earlier post date"; "Price from Sara's list".
+7. Brand link header: "Save your account" (phones: "Save account") instead of "Sign in".
+- Tests: 541 passed, 3 skipped (`tests/test_review_fixes.py`). Final screenshots re-shot, no problems, no JS errors.

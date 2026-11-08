@@ -487,7 +487,7 @@ NEEDS_ME = ("offered",)
 @app.get("/api/studio/deals")
 def my_deals(filter: str = "all", q: str = "", page: int = 0, c: dict = Depends(require_creator)):
     d = get_db()
-    rows = d.all("select * from deals where creator_id = :c order by updated_at desc", {"c": c["id"]})
+    rows = d.all("select * from deals where creator_id = :c and is_test = 0 order by updated_at desc", {"c": c["id"]})
     out = []
     for r in rows:
         hold = deals.open_hold(d, r["id"])
@@ -1349,6 +1349,11 @@ def _work(deal_id: str) -> dict:
             x.pop("frames", None) if x is post else None
     if draft:
         draft["frames"] = [{"url": f"/api/media/{f['media']}", "t": f["t"]} for f in draft["frames"]]
+    if post:
+        for g in post["result"].get("gaps", []):
+            if g.get("resolution"):
+                g["resolution_text"] = delivery.resolution_text(d, g)
+        post["posted_label"] = engine.day_label(date.fromisoformat(str(post["posted_at"])[:10])) if post.get("posted_at") else ""
     review = d.one("select rating, text, at from reviews where deal_id = :d", {"d": deal_id})
     return {"status": deal["status"], "draft": draft, "post": post, "gaps_open": len(delivery.open_gaps(d, deal_id)),
             "release": delivery.release_view(d, deal_id), "requirements": delivery.requirements(deal),
@@ -1639,7 +1644,10 @@ def _ledger_label(it: dict) -> str:
     if n.startswith("release:editor"):
         return "Editor's share " + n.split("editor", 1)[1].strip()
     if n.startswith("holdback:creator"):
-        return "Holdback (paid on day N if still live)"
+        if it.get("status") == "paid":
+            return "Holdback paid (the post stayed live)"
+        d = delivery.holdback_date(it)
+        return f"Holdback (paid on {engine.day_label(d)} if the post is still live)" if d else "Holdback (paid if the post stays live)"
     if n.startswith("holdback:returned"):
         return "Holdback returned to the brand"
     if n.startswith("cancel:creator share"):
@@ -1663,8 +1671,9 @@ def _ledger_label(it: dict) -> str:
 def ledger(c: dict = Depends(require_creator)):
     d = get_db()
     rows = []
-    for it in d.all("select m.*, d.brand_org, d.version as deal_version from money_items m join deals d on d.id = m.deal_id "
-                    "where d.creator_id = :c order by m.created_at desc", {"c": c["id"]}):
+    for it in d.all("select m.*, d.brand_org, d.version as deal_version, d.holdback_release_at, d.posted_at, d.holdback_days "
+                    "from money_items m join deals d on d.id = m.deal_id "
+                    "where d.creator_id = :c and d.is_test = 0 order by m.created_at desc", {"c": c["id"]}):
         facts = json.loads(it["depends_on_fact_ids"] or "[]")
         q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
         rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "brand": it["brand_org"], "item": _ledger_label(it),

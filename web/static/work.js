@@ -54,7 +54,7 @@ const Work = (() => {
     }
     if (p) {
       const gaps = p.result.gaps || [];
-      parts.push(`<div class="card"><h3>Delivery check</h3><p class="small">Posted ${esc(p.posted_at || "")} · <a href="${esc(p.post_url)}" target="_blank" rel="noopener">open post</a>
+      parts.push(`<div class="card"><h3>Delivery check</h3><p class="small">Posted ${esc(p.posted_label || fmtDate(p.posted_at) || "")} · <a href="${esc(p.post_url)}" target="_blank" rel="noopener">open post</a>
         ${p.result.disclosure_ok === false ? ' · <span class="pill failed">no #ad in caption</span>' : p.result.disclosure_ok ? ' · <span class="pill collected">#ad found</span>' : ""}</p>
         ${gaps.length ? gaps.map(g => gapCard(g)).join("") : `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> The delivery matches the latest confirmed deal (version ${ctx.V.deal.version}).</div>`}
         ${w.gaps_open ? `<div class="banner bad small" style="margin-top:8px">No money is released until every gap is resolved.</div>` : ""}</div>`);
@@ -65,10 +65,10 @@ const Work = (() => {
       const mine = ctx.IS_BRAND ? "brand" : "creator";
       const waitingMe = R.some(i => i.status === "planned" && i.needs.includes(mine) && !i.approved_by.includes(mine));
       parts.push(`<div class="card"><h3>Release</h3>
-        ${R.length ? `<div class="list">${R.map(i => `<div class="line"><div class="grow">${esc(niceNote(i.note))}<div class="tiny muted">needs ${i.needs.join(" + ")} · approved by ${i.approved_by.join(", ") || "nobody yet"}</div></div>
-          <div class="amt">${usd(i.amount_cents)}</div>${moneyPill(i.status)}</div>`).join("")}</div>` : `<p class="small muted">Both sides approve, then PayPal collects the held money and pays ${esc(first())} (minus a 10% holdback paid on day N if the post stays live).</p>`}
+        ${R.length ? `<div class="list">${R.map(i => `<div class="line"><div class="grow">${esc(i.label)}${i.approval ? `<div class="tiny muted">${esc(i.approval)}</div>` : ""}</div>
+          <div class="amt">${usd(i.amount_cents)}</div>${releasePill(i)}</div>`).join("")}</div>` : `<p class="small muted">Both sides approve, then PayPal collects the held money and pays ${esc(first())} (minus a 10% holdback, paid ${w.release.holdback_date ? "on " + fmtDate(w.release.holdback_date) : "30 days after the post"} if the post is still live).</p>`}
         ${(w.status === "delivered" && (R.length === 0 || waitingMe) && (!ctx.IS_BRAND || main)) ? `<button class="btn primary block" id="w-release" ${w.gaps_open ? "disabled" : ""}>Approve release</button>` : ""}
-        ${w.holdback_release_at ? `<p class="small">Holdback is paid on ${dateStr(w.holdback_release_at)} if the post is still live.${w.post_removed_at ? ` <b>Reported removed ${ago(w.post_removed_at)}: 48 hours to restore.</b>` : ""}</p>` : ""}
+        ${w.post_removed_at ? `<p class="small"><b>Reported removed ${ago(w.post_removed_at)}: 48 hours to restore, or the holdback returns to the brand.</b></p>` : ""}
         ${main && w.holdback_release_at && !w.post_removed_at ? `<button class="btn small danger" id="w-removed">Report the post removed</button>` : ""}
         ${!ctx.IS_BRAND && w.post_removed_at ? `<button class="btn small primary" id="w-restored">It's live again</button>` : ""}</div>`);
     }
@@ -86,8 +86,13 @@ const Work = (() => {
     parts.push(`<p class="small"><a href="/story/${encodeURIComponent(location.pathname.split("/").pop())}${ctx.IS_BRAND ? "?b=1" : ""}">Open the money story →</a></p>`);
     return `<div class="stack">${parts.join("")}</div>`;
   }
+  // a release line's chip in words for what it is: a collection, a payout, or a holdback still waiting for its day
+  function releasePill(i) {
+    if (i.kind === "payout" && i.status === "paid") return `<span class="pill collected">Paid</span>`;
+    if ((i.note || "").startsWith("holdback:creator") && i.status === "approved") return `<span class="pill held">Scheduled</span>`;
+    return moneyPill(i.status);
+  }
   function draftPill(d) { return d.result.status === "approved" ? `<span class="pill collected">Approved${d.result.silent ? " (silent)" : ""}</span>` : `<span class="pill waiting">Waiting for review</span>`; }
-  function niceNote(n) { return (n || "").replace("release:capture of", "Collect from hold").replace("release:", "").replace("holdback:", "Holdback: "); }
   function gapCard(g) {
     const btn = (r, t, who) => (who === (ctx.IS_BRAND ? "brand" : "creator")) && (!ctx.IS_BRAND || ctx.V.me.role === "brand_main") ? `<button class="btn small" data-gap="${g.id}" data-res="${r}">${t}</button>` : "";
     const done = g.status === "resolved";
@@ -95,7 +100,7 @@ const Work = (() => {
       : g.kind === "missing" ? btn("drop", `Remove from the deal (collect ${usd(g.amount_cents)} less)`, "brand") + btn("will_deliver", "I'll deliver it", "creator")
       : btn("accept", "Accept the new date", "brand");
     return `<div class="changecard ${done ? "applied" : ""}" style="margin-top:8px"><div>${esc(g.text)}</div>
-      ${done ? `<div class="small">Resolved: ${esc(g.resolution)}</div>` : `<div class="row wrapx" style="gap:8px;margin-top:8px">${choices || '<span class="small muted">Waiting for the other side</span>'}</div>`}
+      ${done ? `<div class="small"><i data-lucide='circle-check' aria-hidden='true'></i> ${esc(g.resolution_text || "Resolved")}</div>` : `<div class="row wrapx" style="gap:8px;margin-top:8px">${choices || '<span class="small muted">Waiting for the other side</span>'}</div>`}
       ${g.note ? `<div class="tiny muted">${esc(g.note)}</div>` : ""}</div>`;
   }
 

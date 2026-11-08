@@ -47,7 +47,7 @@ EVENT_TYPES = {
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
-    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "owed.deducted", "holdback.used_for_refund",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "owed.deducted", "holdback.used_for_refund",
     "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
     # cancellation, calls, conflicts (Phase 7)
     "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",
@@ -204,6 +204,7 @@ COLUMNS = {
               "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
               "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",
               "post_removed_at": "text", "is_try": "integer not null default 0",
+              "is_test": "integer not null default 0",  # our own live test runs: kept, but out of Earnings/Ledger/Inbox
               "is_demo": "integer not null default 0"},
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",

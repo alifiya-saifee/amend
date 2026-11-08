@@ -150,6 +150,7 @@ async function fillAuthSlots() {
   window.WHO = w;
   const next = encodeURIComponent(location.pathname + location.search);
   slots.forEach(s => {
+    if (s.dataset.fixed) return;  // a page set this slot itself (the brand deal link: "Save your account")
     const mk = document.body.classList.contains("marketing");
     s.innerHTML = w.signed_in
       ? (mk ? `<a class="btn primary small" href="${w.home}">${w.kind === "brand" ? "Go to my workspace" : "Go to my studio"}</a>`
