@@ -71,3 +71,20 @@ Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
 - Deals board: "Needs you" was plain text; now a gold pill and a gold-edged card.
 - Seed bug (mine, from the "never in the future" change): ALL seed dates were pulled back to now, including future deadlines, so on the fresh Oregon database the 3 demo holds were born expiring today and the 08:30 tick marked them expired; a demo holdback ($75, Oud & Ember) was also due at once (the tick's holdback job would pay it via sandbox Payouts). No payout happened. Fix: only today's dates are pulled back; deadlines stay in the future (test `test_seed_deadlines_stay_in_the_future`). Live DB reset (Amend's 29 tables dropped, with Alifiya's OK) and reseeded with the app's own start-up code: demo holds now expire in 23–27 days, holdback releases in 24 days; events still append-only.
 - Inbox clicks waited for a full reload over a slow database link: opening a conversation is now instant (ad55aa7).
+
+## Story 3: correction after payment (deal …d858, the Story 1 deal, already paid out) — 8 Nov evening
+
+**Part 1: voice note → refund (PASS)**
+- Nadia's voice note (made with macOS `say`, sent through the same endpoint the record button uses; headless Chrome has no microphone): Groq Whisper transcribed it correctly in 3.7 s ("Hi Sarah, it's Nadia from Dune Roast. We don't need the story set after all. Please drop the story set. The reel is perfect.").
+- The AI made a change card **"− 2 Story set"** (−$160). The deal had 2 Story sets after Story 1, and "drop the story set" is ambiguous; the AI removed both. ⚠️ My script confirmed both sides without looking at the card (my error); a person sees "− 2" before confirming. Possible improvement: when a line has qty > 1 and the words are singular, propose −1 or ask.
+- Refund card (Sara, before approving): *"Refund proposal: $160 back to the brand (a refund, never a cancel). Paid by: $61 from your holdback + $99 from your next payout"*, buttons Approve / Decline. Matches rule S98.
+- Sara approved → live capture status checked → **PayPal refund $160 (…021G)** on capture …105C. PayPal now reports the capture **PARTIALLY_REFUNDED**.
+- Holdback $61 → `cancelled`, note "holdback:used for refund $61"; **owed_by_creator $99** (approved, to come off Sara's next payout). Deal → **completed** (nothing left to wait for).
+- **Webhook `PAYMENT.CAPTURE.REFUNDED` arrived and was verified** (first non-order event; the event subscriptions work).
+- Chat: "Refund sent: $160 … Covered by $61 from the holdback + $99 from Sara's next payout." JS errors: none.
+
+**Part 2: call upload — found broken, fixed (b9549e3), live re-test pending redeploy**
+- Live upload of an .m4a call → HTTP 400. Cause: Gemini's `input_audio` accepts only **wav or mp3** ("Invalid audio format mp4"). Tests used a fake AI, so this never showed.
+- Fix: the page decodes the recording in the browser and sends 16 kHz mono WAV (≈1.9 MB/min, 10-minute cap); the server refuses other formats with a clear message before calling Gemini.
+- Checked: real Gemini with the WAV → 4 lines, 2 speakers correctly separated. Real Chrome locally: .m4a (82 KB) → WAV 16 kHz mono 12.4 s (397 KB), tag sheet shows 2 speakers, no JS errors.
+- Small: Gemini's `start` times come back as fractions (0.02, 0.056) rather than seconds; only affects the "jump to second" link.
