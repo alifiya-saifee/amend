@@ -179,13 +179,52 @@ def act(db: Database, deal: dict, side: str, key: str, action: str, *, value: st
     else:
         raise ValueError("only the brand's main contact and the creator can change the brief")
     b["fields"][key] = f
+    _save_with_flags(db, deal, b)
+    db.log_event("brief.field_countered" if action == "counter" else "brief.field_agreed", actor=side, deal_id=deal["id"],
+                 payload={"field": key, "action": action})
+    return b
+
+
+def _save_with_flags(db: Database, deal: dict, b: dict) -> None:
     from amend.deals import deal_terms
     lines = [{"item_code": t["code"]} for t in deal_terms(db, deal["id"], 0)]
     b["flags"] = conflicts(db, deal, b["fields"], deal.get("brief") or "", {l["item_code"] for l in lines},
                            {p["code"]: p for p in engine.price_items(db, deal["creator_id"])})
     save(db, deal["id"], b)
-    db.log_event("brief.field_countered" if action == "counter" else "brief.field_agreed", actor=side, deal_id=deal["id"],
-                 payload={"field": key, "action": action})
+
+
+def acceptable(brief: dict, side: str) -> list[str]:
+    """Fields one tap can accept. Brand: Amend's suggested defaults. Creator: anything with a value that isn't agreed
+    yet, except the creator's own open counters (those wait for the brand)."""
+    out = []
+    for k in ORDER:
+        f = brief["fields"].get(k) or {}
+        if not f.get("value"):
+            continue
+        if side == "brand" and f.get("status") == "needs_brand":
+            out.append(k)
+        elif side == "creator" and f.get("status") in ("pending", "needs_brand"):
+            out.append(k)
+    return out
+
+
+def accept_all(db: Database, deal: dict, side: str) -> dict:
+    """"Accept all suggested": the same as tapping Accept on each field, in one save and one event."""
+    if deal["status"] not in ("draft", "offered"):
+        raise ValueError("the brief is locked once the deal is accepted")
+    if side not in ("brand", "creator"):
+        raise ValueError("only the brand's main contact and the creator can change the brief")
+    b = load(deal)
+    keys = acceptable(b, side)
+    if not keys:
+        raise ValueError("nothing to accept")
+    for k in keys:
+        if side == "brand":
+            b["fields"][k].update(status="pending", source="default")
+        else:
+            b["fields"][k]["status"] = "agreed"
+    _save_with_flags(db, deal, b)
+    db.log_event("brief.accepted_all", actor=side, deal_id=deal["id"], payload={"fields": keys})
     return b
 
 

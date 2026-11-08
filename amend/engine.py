@@ -23,6 +23,11 @@ class QuoteNotFound(ValueError):
     pass
 
 
+def day_label(d) -> str:
+    """One date shape for messages, matching the front end's fmtDate: "Thu 5 Nov" (no leading zero)."""
+    return f"{d:%a} {d.day} {d:%b}"
+
+
 def norm(s: str) -> str:
     s = unicodedata.normalize("NFKC", s).replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
     return re.sub(r"\s+", " ", s).strip().casefold()
@@ -207,7 +212,7 @@ def limit_conflicts(db: Database, deal_id: str, changes: list[dict]) -> list[str
         if c.get("field") == "post_date" and days and c.get("value"):
             d = c["value"] if isinstance(c["value"], date) else datetime.fromisoformat(str(c["value"])).date()
             if WEEKDAYS[d.weekday()] not in days:
-                out.append(f"{d.strftime('%a %d %b')} conflicts with the creator's rule: posting only on "
+                out.append(f"{day_label(d)} conflicts with the creator's rule: posting only on "
                            f"{', '.join(x.title() for x in days)}")
         if c.get("field") == "reel_price" and lim.get("min_reel_cents") and c.get("value") is not None:
             if int(c["value"]) < lim["min_reel_cents"]:

@@ -139,3 +139,43 @@ def test_s74_not_received_nudge_once(client, mocks, held_product):
     assert shipping.tick(d, later) == {"product_nudges": 0}
     msgs = client.get(f"/api/d/{tok}/chat").json()["items"]
     assert any("isn't marked as received" in (m.get("body") or "") for m in msgs)
+
+
+def test_brand_accepts_all_suggested_defaults_in_one_tap(client, mocks):
+    deal, tok, v = draft_with(client, mocks, BASE)
+    n = v["brief_fields"]["acceptable"]["brand"]
+    suggested = [k for k, f in fields(v).items() if f["status"] == "needs_brand" and f["value"]]
+    assert n == len(suggested) and n > 1
+    b = client.post(f"/api/d/{tok}/brief/accept-all", headers=ORIGIN).json()
+    f = fields(b)
+    assert all(f[k]["status"] == "pending" and f[k]["source"] == "default" for k in suggested)
+    assert f["objective"]["source"] == "brief"  # fields from the brief itself are untouched
+    assert b["brief_fields"]["acceptable"]["brand"] == 0
+    ev = get_db().all("select payload_json from events where deal_id = :d and type = 'brief.accepted_all'", {"d": deal})
+    assert len(ev) == 1 and sorted(json.loads(ev[0]["payload_json"])["fields"]) == sorted(suggested)
+    # nothing left: a second tap is refused, not a silent no-op event
+    assert client.post(f"/api/d/{tok}/brief/accept-all", headers=ORIGIN).status_code == 400
+
+
+def test_brand_accepts_one_suggested_default(client, mocks):
+    deal, tok, v = draft_with(client, mocks, BASE)
+    b = client.post(f"/api/d/{tok}/brief/fields/posting_window", json={"action": "accept_default"}, headers=ORIGIN).json()
+    assert fields(b)["posting_window"]["status"] == "pending"
+
+
+def test_creator_accept_all_skips_own_counters(client, mocks):
+    deal, tok, v = draft_with(client, mocks, BASE)
+    client.post(f"/api/deals/{deal}/brief/fields/usage_rights", json={"action": "counter", "value": "Organic only, 14 days"}, headers=ORIGIN)
+    r = client.post(f"/api/deals/{deal}/brief/accept-all", headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    f = fields(r.json())
+    assert f["usage_rights"]["status"] == "countered"  # still waiting for the brand
+    assert all(x["status"] == "agreed" for k, x in f.items() if x["value"] and k != "usage_rights")
+    assert r.json()["brief_fields"]["acceptable"]["creator"] == 0
+
+
+def test_accept_all_locked_after_acceptance_and_main_contact_only(client, mocks):
+    deal, tok, v = draft_with(client, mocks, BASE)
+    assert client.post(f"/api/deals/{deal}/accept", headers=ORIGIN).status_code == 200
+    assert client.post(f"/api/d/{tok}/brief/accept-all", headers=ORIGIN).status_code == 400
+    assert client.post(f"/api/deals/{deal}/brief/accept-all", headers=ORIGIN).status_code == 400

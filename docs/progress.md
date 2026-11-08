@@ -260,3 +260,11 @@ Full record: docs/live-walk.md. Real PayPal sandbox + real Gemini, driven in a t
 - Bugs found and fixed (all with tests): "Your offer" on brand page; same-date change charged $50; draft check failed post-only items; post check named the wrong Friday; cancel capture didn't record PayPal's fee; seed made future deadlines expire today; AI time not logged; Inbox click slow; "Needs you" not emphasised.
 - Open for Alifiya: (1) Manual Deploy fe10d42; (2) set NVIDIA_MODEL in Render (second opinion shows "not set up"); (3) PayPal webhook only sends CHECKOUT.ORDER.APPROVED — tick Payment authorization created / Payment capture completed / Payouts events; (4) money rule: PayPal fees are taken from the platform's share (Sara got her full 90%) — confirm or change; (5) delete the old Frankfurt + Singapore Supabase projects; (6) failed first attempt deal …fe0a (duplicate change from my script) left as is.
 - Next: "Accept all suggested" button on long briefs; Block 7.
+
+## Dates + "Accept all suggested" (8 Nov, afternoon)
+- **One date shape everywhere ("Thu 12 Nov"):** deal page post date, brand Deals table, cancellation evidence times (now "Sun 8 Nov · 3:03 PM"), and server messages (posting-date change line, post-check gap, weekday conflict) via `engine.day_label` (no leading zero). Tests: `tests/test_date_format.py`.
+- **Accept all suggested:** the brand sees "Accept all N suggested" on the brief card (Amend's defaults, in one tap) plus a single "Accept" per suggested field (the server supported it; the screen didn't). The creator sees "Accept all N" (skips their own open counters). One save, one `brief.accepted_all` event listing the fields; refused when nothing is left or after the deal is accepted. Tests in `tests/test_briefs.py`; checked in a test browser at 390 and 1280 px, both roles, no JS errors.
+- **Webhooks:** PayPal's own API confirms the webhook (ID matches) subscribes to authorization, capture, refund and Payouts events. PayPal hasn't generated any since they were ticked (no money moved since 15:07); confirm on the next live payment.
+- **Tests:** 493 passed, 3 skipped.
+
+Next: Block 7.

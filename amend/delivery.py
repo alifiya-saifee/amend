@@ -183,7 +183,7 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
     want_d = to_date(deal.get("deadline"), agreed_base)
     if want_d and want_d.isoformat() != posted_on:
         gaps.append({"id": new_id("gp"), "kind": "date", "posted_on": posted_on, "agreed_date": want_d.isoformat(), "status": "open",
-                     "text": f"Posted on {date.fromisoformat(posted_on).strftime('%a %d %b')}, the deal says {want_d.strftime('%a %d %b')} "
+                     "text": f"Posted on {engine.day_label(date.fromisoformat(posted_on))}, the deal says {engine.day_label(want_d)} "
                              "(no confirmed change)."})
     disclosure_ok = "#ad" in caption.lower() if caption else None
     row = {"id": new_id("dv"), "deal_id": deal["id"], "kind": "post", "post_url": post_url[:500], "posted_at": posted_on,

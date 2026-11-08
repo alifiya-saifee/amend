@@ -75,10 +75,14 @@ function briefHtml(editable) {
   const B = V.brief_fields || { fields: [] };
   if (!B.fields.length) return "";
   const side = IS_BRAND ? "brand" : "creator";
+  const n = (B.acceptable || {})[side] || 0;
   const st = f => ({ agreed: '<span class="pill collected">Agreed</span>', countered: '<span class="pill waiting">Countered</span>',
     needs_brand: f.value ? '<span class="pill held">Suggested default</span>' : '<span class="pill failed">Not set</span>', pending: "" })[f.status] || "";
   return `<details class="card" style="margin-top:12px" ${editable ? "open" : ""}><summary><b>The brief</b> <span class="muted small">(${B.fields.length} fields)</span></summary>
     ${B.flags.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
+    ${editable && n > 1 ? `<div class="row" style="justify-content:space-between;gap:8px;margin:8px 0">
+      <span class="small muted">${side === "brand" ? `${n} fields use a suggested default` : `${n} fields to agree`}</span>
+      <button class="btn small primary" id="brief-all" style="white-space:nowrap">${side === "brand" ? `Accept all ${n} suggested` : `Accept all ${n}`}</button></div>` : ""}
     <div class="list">${B.fields.map(f => `<div class="line" style="flex-wrap:wrap">
       <div class="grow" style="min-width:60%"><div class="small muted">${esc(f.label)} ${st(f)}</div>
         <div>${f.value ? esc(f.value) : '<span class="muted">—</span>'}</div>
@@ -87,6 +91,7 @@ function briefHtml(editable) {
       ${f.quote ? `<button class="q" data-quote="${esc(f.quote)}"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
       ${editable ? `<div class="row" style="gap:6px;width:100%;justify-content:flex-end">${side === "brand"
         ? `${f.status === "countered" ? `<button class="btn small primary" data-fa="accept_counter" data-k="${f.key}">Accept counter</button>` : ""}
+           ${f.status === "needs_brand" && f.value ? `<button class="btn small" data-fa="accept_default" data-k="${f.key}">Accept</button>` : ""}
            <button class="btn small" data-fa="edit" data-k="${f.key}">${f.value ? "Change" : "Fill in"}</button>`
         : `${f.status !== "agreed" && f.value ? `<button class="btn small" data-fa="accept" data-k="${f.key}">Accept</button>` : ""}
            <button class="btn small" data-fa="counter" data-k="${f.key}">Counter</button>`}</div>` : ""}
@@ -94,6 +99,11 @@ function briefHtml(editable) {
     ${!IS_BRAND && B.blockers.length ? `<div class="banner wait small" style="margin-top:8px">${B.blockers.map(esc).join("<br>")}</div>` : ""}</details>`;
 }
 function bindBrief() {
+  const all = $("#brief-all");
+  if (all) all.onclick = () => busy(all, async () => {
+    try { V = await api(url("/brief/accept-all"), { body: {} }); render(); toast("All accepted"); }
+    catch (e) { toast(e.message, "bad"); }
+  });
   $$("[data-fa]").forEach(b => b.onclick = () => {
     const action = b.dataset.fa, key = b.dataset.k;
     let value = null, reason = null;
@@ -111,7 +121,7 @@ function bindBrief() {
 
 function extrasHtml() {
   const d = V.deal; let h = "";
-  if (d.deadline) h += `<p class="small"><i data-lucide='calendar' aria-hidden='true'></i> Post: <b>${esc(d.deadline)}</b></p>`;
+  if (d.deadline) h += `<p class="small"><i data-lucide='calendar' aria-hidden='true'></i> Post: <b>${esc(fmtDate(d.deadline))}</b></p>`;
   if (d.done_means && d.done_means.length) h += `<p class="small muted" style="margin-bottom:4px">What done means</p><ul class="small" style="margin-top:0">${d.done_means.map(x => `<li>${esc(x.value)}</li>`).join("")}</ul>`;
   if (d.not_on_list && d.not_on_list.length) h += `<div class="banner wait small" style="margin-top:8px"><b>Not on ${esc(V.creator.name.split(" ")[0])}'s price list</b> (not priced):
     ${d.not_on_list.map(x => `<div>• ${esc(x.what)} <span class="muted">“${esc(x.quote)}”</span></div>`).join("")}</div>`;
@@ -248,7 +258,7 @@ async function cancelBox() {
   const s = p.split, o = p.second_opinion || {};
   const mine = IS_BRAND ? p.brand_ok : p.creator_ok;
   $("#cancelbox").innerHTML = `<div class="changecard" style="margin-top:12px"><b>Cancellation proposed</b> <span class="muted small">“${esc(p.reason || "")}”</span>
-    <ul class="events" style="margin-top:8px">${s.evidence.map(e => `<li><span><i data-lucide='check' aria-hidden='true'></i></span><span class="grow">${esc(e.label)}</span><span class="tiny muted">${new Date(e.at).toLocaleString()}</span></li>`).join("")}</ul>
+    <ul class="events" style="margin-top:8px">${s.evidence.map(e => `<li><span><i data-lucide='check' aria-hidden='true'></i></span><span class="grow">${esc(e.label)}</span><span class="tiny muted">${esc(fmtDate(e.at) + " · " + fmtTime(e.at))}</span></li>`).join("")}</ul>
     <p class="small"><b>Work done: ${s.pct}%</b> (${esc(s.why)}${s.minimum_applied ? `, raised to the creator's ${s.minimum_pct}% minimum` : ""})</p>
     <div class="banner gold small">${esc(s.maths)}</div>
     <p class="small muted">Second opinion: ${o.available ? `${o.pct}% · ${esc(o.reason || "")} ${o.agrees ? "<i data-lucide='circle-check' aria-hidden='true'></i> agrees" : "<i data-lucide='triangle-alert' aria-hidden='true'></i> differs: both views are shown, you decide"}` : esc(o.note || "not available")}</p>

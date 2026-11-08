@@ -401,7 +401,8 @@ def _brief_view(db: Database, deal_id: str) -> dict:
     from amend import briefs
     raw = db.one("select brief_json from deals where id = :id", {"id": deal_id})
     b = briefs.load(raw)
-    return {"fields": briefs.view(b), "flags": b.get("flags", []), "blockers": briefs.blockers(b)}
+    return {"fields": briefs.view(b), "flags": b.get("flags", []), "blockers": briefs.blockers(b),
+            "acceptable": {s: len(briefs.acceptable(b, s)) for s in ("brand", "creator")}}
 
 
 def deal_view(db: Database, deal_id: str) -> dict:

@@ -59,7 +59,7 @@ async function brandDeals() {
   } else {
     body.innerHTML = `<div class="table-wrap"><table class="data"><thead><tr><th>Creator</th><th class="n">Value</th><th>Status</th><th>Money</th><th>Post date</th><th>Last activity</th><th></th></tr></thead>
       <tbody>${rows.map(d => `<tr data-go="${href(d)}" style="cursor:pointer"><td><b>${esc(d.creator)}</b> <span class="tiny muted">@${esc(d.handle)}</span></td><td class="n">${usd(d.total_cents)}</td>
-        <td>${esc(B_STAGE[d.stage] || DEAL_LABEL[d.status] || d.status)}</td><td>${moneyPill(d.money) || '<span class="muted small">–</span>'}</td><td>${esc(d.deadline || "–")}</td><td>${ago(d.updated_at)}</td>
+        <td>${esc(B_STAGE[d.stage] || DEAL_LABEL[d.status] || d.status)}</td><td>${moneyPill(d.money) || '<span class="muted small">–</span>'}</td><td>${esc(fmtDate(d.deadline) || "–")}</td><td>${ago(d.updated_at)}</td>
         <td><a class="btn small" href="/api/brand/deals/${d.id}/receipt.pdf" aria-label="Receipt PDF">${bI("file-down")}</a></td></tr>`).join("")}</tbody></table></div>`;
     $$("tr[data-go]").forEach(tr => tr.onclick = e => { if (!e.target.closest("a")) location.href = tr.dataset.go; });
   }

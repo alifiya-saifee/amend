@@ -43,7 +43,7 @@ EVENT_TYPES = {
     "message.sent", "message.imported", "change.previewed", "change.discussed", "change.reminded", "change.override",
     "feedback.classified", "teammate.invited", "change.suggested",
     # discovery and briefs (Phase 4–5)
-    "profile.saved", "metrics.saved", "metrics.read_from_screenshot", "brief.field_countered", "brief.field_agreed",
+    "profile.saved", "metrics.saved", "metrics.read_from_screenshot", "brief.field_countered", "brief.field_agreed", "brief.accepted_all",
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",

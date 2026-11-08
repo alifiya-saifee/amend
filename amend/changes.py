@@ -324,7 +324,7 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         notice_h = (datetime.combine(new_d, datetime.min.time(), timezone.utc) - datetime.now(timezone.utc)).total_seconds() / 3600
         rule = plist.get("date_change")
         fee = engine.price(rule, notice_hours=notice_h) if rule else 0
-        lines.append({"label": f"Posting date {old.strftime('%a %d %b') if old else 'not set'} → {new_d.strftime('%a %d %b')}",
+        lines.append({"label": f"Posting date {engine.day_label(old) if old else 'not set'} → {engine.day_label(new_d)}",
                       "item_code": "date_change" if fee else None, "qty_delta": 1 if fee else 0, "field": "post_date",
                       "value": new_d.isoformat(), "amount_cents": fee, "quote": f.quote,
                       "source": "free with 48 h notice" if not fee else f"price list (under {int((rule or {}).get('rules', {}).get('free_notice_hours', 48))} h notice)"})

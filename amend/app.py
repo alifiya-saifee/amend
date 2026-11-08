@@ -1258,6 +1258,30 @@ def brand_field(token: str, key: str, body: FieldActIn):
     return _brand_view(token)
 
 
+@app.post("/api/d/{token}/brief/accept-all")
+def brand_accept_all(token: str):
+    deal, pid = _brand_ctx(token)
+    if pid != deal["brand_party_id"]:
+        raise HTTPException(400, "Only the brand's main contact can fill or accept brief fields.")
+    try:
+        briefs.accept_all(get_db(), deals.get_deal(get_db(), deal["id"]) | {"brief_json": get_db().one(
+            "select brief_json from deals where id = :d", {"d": deal["id"]})["brief_json"]}, "brand")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _brand_view(token)
+
+
+@app.post("/api/deals/{deal_id}/brief/accept-all")
+def creator_accept_all(deal_id: str, c: dict = Depends(require_creator)):
+    deal, _ = _creator_ctx(deal_id, c)
+    try:
+        briefs.accept_all(get_db(), deal | {"brief_json": get_db().one("select brief_json from deals where id = :d", {"d": deal_id})["brief_json"]},
+                          "creator")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
 @app.post("/api/deals/{deal_id}/brief/fields/{key}")
 def creator_field(deal_id: str, key: str, body: FieldActIn, c: dict = Depends(require_creator)):
     deal, _ = _creator_ctx(deal_id, c)
