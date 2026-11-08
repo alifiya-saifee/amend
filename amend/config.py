@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     sandbox_brand_email: str = ""
     sandbox_creator_email: str = ""
     sandbox_editor_email: str = ""
+    # Local browser tests only (never needed on Render): the sandbox buyer's password, so a test browser can approve sandbox payments.
+    sandbox_brand_password: SecretStr = SecretStr("")
 
     @field_validator("paypal_env")
     @classmethod
