@@ -64,7 +64,10 @@ async def _gemini_audio(data_url: str) -> list[dict]:
     if not p.available():
         raise CallError("call transcription needs GEMINI_API_KEY")
     mime, b64 = data_url.split(",", 1)[0][5:].split(";")[0], data_url.split(",", 1)[1]
-    fmt = {"audio/mp4": "mp4", "audio/x-m4a": "mp4", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/webm": "webm"}.get(mime, "mp4")
+    # Gemini's input_audio takes only wav or mp3 (checked live 8 Nov: "mp4" → 400). The browser converts calls to WAV.
+    fmt = {"audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav"}.get(mime)
+    if not fmt:
+        raise CallError("send the call as WAV or MP3 (the page converts it for you; reload and try again)")
     body = {"model": p.model(), "temperature": 0, "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": CALL_SYSTEM},
                          {"role": "user", "content": [{"type": "text", "text": "Transcribe this call."},

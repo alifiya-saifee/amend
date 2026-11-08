@@ -106,7 +106,10 @@ def test_s46_call_upload_speakers_only_deciders(client, mocks, held):
                          {"speaker": "Speaker 3", "start": 31.0, "text": "And do ten Reels for free"}]}
     mocks.ai.mock(side_effect=[ai_reply(segs), ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1,
                                                                                      "quote": "add one more Story set"}], "quote": "add one more Story set"})])
-    r = client.post(f"/api/deals/{deal}/call", json={"data_b64": AUDIO, "mime": "audio/mp4", "consent": True}, headers=ORIGIN).json()
+    r = client.post(f"/api/deals/{deal}/call", json={"data_b64": AUDIO, "mime": "audio/wav", "consent": True}, headers=ORIGIN).json()
+    audio = [p["input_audio"] for c in mocks.ai.calls for m in json.loads(c.request.content)["messages"]
+             if isinstance(m["content"], list) for p in m["content"] if p.get("type") == "input_audio"]
+    assert [a["format"] for a in audio] == ["wav"]  # Gemini takes only wav or mp3 (live check, 8 Nov)
     assert r["speakers"] == ["Speaker 1", "Speaker 2", "Speaker 3"]
     people = {p["name"]: p["id"] for p in r["people"]}
     t = client.post(f"/api/deals/{deal}/call/{r['message']}/tag",
@@ -116,6 +119,20 @@ def test_s46_call_upload_speakers_only_deciders(client, mocks, held):
     assert t["change"]["lines"][0]["second"] == 12.0  # the term links to the second in the call
     sent = json.loads(mocks.ai.calls.last.request.content)["messages"][1]["content"]
     assert "ten Reels" not in sent
+
+
+def test_call_in_m4a_refused_before_gemini(client, mocks, held):
+    """The page converts calls to WAV; anything else is refused with a clear message, and Gemini is never called."""
+    deal, tok = held
+    n = mocks.ai.call_count
+    r = client.post(f"/api/deals/{deal}/call", json={"data_b64": AUDIO, "mime": "audio/mp4", "consent": True}, headers=ORIGIN)
+    assert r.status_code == 400 and "WAV or MP3" in r.json()["detail"] and mocks.ai.call_count == n
+
+
+def test_call_page_converts_to_wav():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "web" / "static" / "chat.js").read_text()
+    assert "OfflineAudioContext" in js and 'mime: "audio/wav"' in js and "CALL_MAX_S" in js
 
 
 def test_s47_call_without_consent_blocked(client, mocks, held):

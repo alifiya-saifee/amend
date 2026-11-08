@@ -179,6 +179,27 @@ const Chat = (() => {
   }
 
   // ---- call upload (S46, S47): consent tick, then tag who is who ----
+  // The AI reads only WAV or MP3, and the server never processes audio (512 MB plan), so the browser decodes any
+  // recording (m4a, webm, mp3…) and sends 16 kHz mono 16-bit WAV: about 1.9 MB a minute.
+  const CALL_MAX_S = 600;
+  async function toWav(file, rate = 16000) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC();
+    const decoded = await ac.decodeAudioData(await file.arrayBuffer());
+    if (ac.close) ac.close();
+    if (decoded.duration > CALL_MAX_S) return { seconds: decoded.duration };
+    const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * rate), rate);
+    const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+    const pcm = (await off.startRendering()).getChannelData(0);
+    const v = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+    const str = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE"); str(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, pcm.length * 2, true);
+    for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+    const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(new Blob([v], { type: "audio/wav" })); });
+    return { b64, seconds: decoded.duration };
+  }
   function callSheet() {
     sheet(`<h3>Upload a call recording</h3><p class="small muted">Zoom's audio-only .m4a, a phone voice memo or a WhatsApp voice note (25 MB max).
       Only your and ${isBrand ? "the creator's" : "the brand's"} words can change money. The audio isn't kept; only the transcript.</p>
@@ -187,9 +208,12 @@ const Chat = (() => {
     $("#call-go").onclick = e => busy(e.currentTarget, async () => {
       const f = $("#call-file").files[0];
    if (!f) { toast("Choose the recording", "bad"); return; }
-      const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1]); fr.readAsDataURL(f); });
+      let wav;
+      try { wav = await toWav(f); }
+      catch (er) { toast("That file couldn't be read as audio. Try the .m4a or .mp3 export.", "bad"); return; }
+      if (wav.seconds > CALL_MAX_S) { toast(`Calls up to ${CALL_MAX_S / 60} minutes for now (this one is ${Math.round(wav.seconds / 60)}). Trim it or upload it in parts.`, "bad"); return; }
       try {
-        const r = await api(`${base}/call`, { body: { data_b64: data, mime: f.type || "audio/mp4", name: f.name, consent: $("#call-consent").checked } });
+        const r = await api(`${base}/call`, { body: { data_b64: wav.b64, mime: "audio/wav", name: f.name, consent: $("#call-consent").checked } });
         tagSheet(r);
    } catch (er) { toast(er.message, "bad"); }
     });
