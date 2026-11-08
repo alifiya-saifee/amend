@@ -15,7 +15,7 @@ For each screen, at **390 and 1440**, in **light and dark**:
 Screens: `/` · `/d/{token}` brand (brief → offer → hold) · PayPal return · deal room with a change card · delivery check (draft, post, gaps) · release · `/studio/earnings` · refund-after-payout card (Sara)
 
 ## 2. Judge path
-- [x] `/try` works with zero setup on the live site (only the demo password)
+- [ ] `/try` works with zero setup on the live site (only the demo password): fixed and checked locally; **live re-walk after the redeploy**
 - [x] `docs/judging.md`: demo creator login, brand flow steps, PayPal sandbox buyer account (sandbox test credentials: **Alifiya pastes them**, never from `.env` by Claude)
 
 ## 3. Other screens, then accessibility
