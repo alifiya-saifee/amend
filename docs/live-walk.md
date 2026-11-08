@@ -38,6 +38,17 @@ Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
 | 3 | Brand cancels with a reason | Split shown with the maths and a second opinion | "Our iced latte launch moved to next quarter". Evidence: Deal accepted, Draft uploaded → **60%** ("Draft uploaded"); maths "$450 × 60% = $270 to the creator; $180 returns to the brand"; Sara's 20% minimum not needed. **Second opinion not available on Render: `NVIDIA_MODEL` not set** (the key alone isn't enough) | n/a | n/a | s2-3-cancel-proposed.png | PASS (second opinion missing: config) |
 | 4 | Both approve | Partial capture of the creator's share + release of the rest | Brand's proposal = brand approval; Sara approved. **Capture $270 with `final_capture`** → PayPal reports the authorization **CAPTURED** (the remaining $180 released); **payout $270 to Sara**; deal **cancelled**. Bug: the capture saved PayPal's fee as $0 (the release path saves it) → fixed + test `test_cancel_capture_records_paypal_fee` | capture …7150 · payout …D4SG | none (capture/payout webhooks not arriving) | s2-4-sara-sees-split.png, s2-4-after.png | PASS (fee record fixed) |
 
+### Story 2 rerun after setting NVIDIA_MODEL and AMEND_SESSION_SECRET (deal …50a7)
+
+| Check | Result |
+|---|---|
+| Hold | $450 authorized (…835V) |
+| Draft check | Correctly flagged that the reused video shows "new cold brew at home", not "iced latte at a cafe" (AI caught a real mismatch) |
+| Split | 60% ("Draft uploaded"): $450 × 60% = $270 to Sara, $180 back |
+| **Second opinion** | **available** (nvidia/nemotron-3.5-bolt-e4b): 100% — "differs: both views are shown, you decide" on the card. PASS |
+| Money | capture $270 final (…324C) with **PayPal fee $9.91 recorded** (fix confirmed live); payout $270 (…WPQQ); deal cancelled. PASS |
+| Small UI items seen | deal panel shows raw "2026-11-12" (should be "Thu 12 Nov"); cancellation evidence times use the browser's "11/8/2026, 3:03:50 PM" format, not the app formatter |
+
 ## Test mode vs live: differences found
 
 | Area | Test mode (AMEND_FAKE=1) | Live | Notes |
