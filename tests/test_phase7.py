@@ -172,3 +172,16 @@ def test_s50_delete_my_recordings(client, mocks, held):
     assert d.one("select count(*) as n from media where kind = 'voice' and data_b64 is not null")["n"] == 0
     e = [x for x in d.events_for(deal) if x["type"] == "media.deleted"][0]
     assert e["payload"]["deleted_by"] and e["payload"]["files"] == 1
+
+
+def test_cancel_capture_records_paypal_fee(client, mocks, held):
+    """Live walk: the cancellation capture saved fee $0; the release path saved PayPal's fee. Now both do."""
+    deal, tok = held
+    mocks.capture.mock(return_value=httpx.Response(201, json={"id": "CAPF", "status": "COMPLETED",
+        "seller_receivable_breakdown": {"paypal_fee": {"currency_code": "USD", "value": "9.91"}}}))
+    mocks.ai.mock(return_value=ai_reply({"checks": []}))
+    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN)
+    cap = get_db().one("select fee_cents, status from money_items where kind = 'capture'")
+    assert cap["status"] == "paid" and cap["fee_cents"] == 991

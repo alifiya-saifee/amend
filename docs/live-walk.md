@@ -29,11 +29,14 @@ Setup checked first:
 
 ## Story 2: cancellation with a fair split
 
+Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
+
 | # | Step | Expected | Actual | PayPal IDs (last 4) | Webhook events | Screenshot | Result |
 |---|---|---|---|---|---|---|---|
-| 1 | New deal → hold | Hold placed | | | | | |
-| 2 | Cancellation with evidence | Split shown with the maths and a second opinion | | | | | |
-| 3 | Both approve | Partial capture of the creator's share + void (or refund) of the rest | | | | | |
+| 1 | New deal → hold | Hold placed | Brief "1 Reel … iced latte … next Thursday … #ad" → offer $450 (Gemini); Sara accepted; brand paid; approved on PayPal sandbox; **$450 authorized**, expiry 7 Dec | auth …7440 | CHECKOUT.ORDER.APPROVED verified | s2-1-held.png | PASS |
+| 2 | Evidence | Work done is recorded | Sara uploaded the 6 s draft video (7 frames) and it was checked | n/a | n/a | — | PASS |
+| 3 | Brand cancels with a reason | Split shown with the maths and a second opinion | "Our iced latte launch moved to next quarter". Evidence: Deal accepted, Draft uploaded → **60%** ("Draft uploaded"); maths "$450 × 60% = $270 to the creator; $180 returns to the brand"; Sara's 20% minimum not needed. **Second opinion not available on Render: `NVIDIA_MODEL` not set** (the key alone isn't enough) | n/a | n/a | s2-3-cancel-proposed.png | PASS (second opinion missing: config) |
+| 4 | Both approve | Partial capture of the creator's share + release of the rest | Brand's proposal = brand approval; Sara approved. **Capture $270 with `final_capture`** → PayPal reports the authorization **CAPTURED** (the remaining $180 released); **payout $270 to Sara**; deal **cancelled**. Bug: the capture saved PayPal's fee as $0 (the release path saves it) → fixed + test `test_cancel_capture_records_paypal_fee` | capture …7150 · payout …D4SG | none (capture/payout webhooks not arriving) | s2-4-sara-sees-split.png, s2-4-after.png | PASS (fee record fixed) |
 
 ## Test mode vs live: differences found
 
@@ -41,12 +44,15 @@ Setup checked first:
 |---|---|---|---|
 | Database speed | SQLite on the same machine: ~1 ms per query | Render (Oregon) ↔ Supabase Singapore/Frankfurt: ~150 ms per query (Find creators 177 queries ≈ 26 s). After moving Supabase to Oregon: Sara's page 4.8 s → 0.38 s, Find creators 26 s → 0.75 s | Render's region is Oregon (render.yaml's frankfurt only applies to Blueprints); database moved to us-west-2 |
 | Cron tick on demo data | tick never runs in tests against seeded history | the real tick acts on whatever is in the database, demo deals included | demo dates must be realistic (see seed bug) |
+| Second opinion (NVIDIA) | mocked in tests | not configured on Render (`NVIDIA_MODEL` missing) → "not set up" shown | set `NVIDIA_MODEL` in Render (e.g. a Llama/Nemotron model id from build.nvidia.com) |
+| PayPal webhooks | simulated | only CHECKOUT.ORDER.APPROVED arrives; no authorization/capture/payout events | check the webhook's event list |
 | Uptime checks | not used | UptimeRobot checks with HEAD; `/` and `/healthz` answered 405 → shown "down" though up | Fixed: HEAD allowed (test `test_uptime_monitors_can_check_with_head`) |
 
 ## Fixes made during the walk
 
 - Story 1 step 1: brand page heading "Your offer" → "Sara's offer" + "Priced from Sara's own price list" (10fae63, test `test_brand_sees_the_creators_offer`). Needs a Manual Deploy.
 - UptimeRobot showed the site down: HEAD requests got 405. `/` and `/healthz` now accept HEAD (+ test).
+- Cancellation capture didn't record PayPal's fee → recorded now, like release.
 - Post check named the wrong Friday (counted from a week before the post, not from the deal) → fixed (tests `test_weekday_deadline_*`).
 - Draft check failed post-only items (posting date, matches approved draft, days live): a draft is now checked for content only.
 - Same-date change charged a fee ("Mon 09 Nov → Mon 09 Nov", +$50): a date equal to the current one is now no line and no fee (test `test_same_posting_date_is_not_a_change`).

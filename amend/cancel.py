@@ -153,7 +153,9 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
             money._set_status(db, cap, "sent", by_party)
             r = await pp.capture(h["paypal_parent_id"], amount_cents=take, final=True, request_id=cap["request_id"],
                                  approval=money.approval_record(db, money.get_item(db, cap["id"])))
-            money._set_status(db, money.get_item(db, cap["id"]), "paid", by_party, paypal_id=r.get("id"))
+            fee = ((r.get("seller_receivable_breakdown") or {}).get("paypal_fee") or {}).get("value")  # record PayPal's fee, as at release
+            money._set_status(db, money.get_item(db, cap["id"]), "paid", by_party, paypal_id=r.get("id"),
+                              fee_cents=round(float(fee) * 100) if fee else 0)
             db.update("money_items", "id", h["id"], {"captured_cents": h["captured_cents"] + take})
             money._set_status(db, money.get_item(db, h["id"]), "paid", by_party)  # final capture released the rest
             left -= take
