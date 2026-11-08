@@ -208,7 +208,7 @@ blockquote { margin: 8px 0; padding: 10px 14px; border-left: 3px solid var(--gol
 .banner { border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
 .banner.ok { background: var(--ok-bg); color: var(--ok); } .banner.wait { background: var(--held-bg); color: var(--held); }
 .banner.gold { background: var(--gold-soft); color: var(--ink); } .banner.bad { background: var(--bad-bg); color: var(--bad); }
-.strip { position: sticky; top: var(--topbar); z-index: 15; background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; gap: 8px; align-items: center; justify-content: space-between; cursor: pointer; font-size: 15px; }
+.strip { min-height: 44px; position: sticky; top: var(--topbar); z-index: 15; background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; gap: 8px; align-items: center; justify-content: space-between; cursor: pointer; font-size: 15px; }
 .pick { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--border-2); border-radius: 12px; cursor: pointer; background: var(--surface); }
 .pick.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
 button.pick { width: 100%; font: inherit; color: var(--ink); }
@@ -371,7 +371,7 @@ table.data tr:hover td { background: var(--surface-2); }
 .events li { display: flex; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); align-items: flex-start; }
 .events li:first-child { border-top: 0; }
 .chat { display: flex; flex-direction: column; gap: 10px; }
-.chat-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.chat-list { height: min(60vh, 520px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
 .bubble { max-width: 86%; align-self: flex-start; background: var(--surface-2); border-radius: 16px 16px 16px 4px; padding: 9px 13px; overflow-wrap: anywhere; font-size: 15px; }
 .bubble.mine { align-self: flex-end; background: var(--gold-soft); border-radius: 16px 16px 4px 16px; }
 .sysline { align-self: center; font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; padding: 2px 10px; text-align: center; }
@@ -546,3 +546,5 @@ body.inbox-full .topsearch { display: none !important; }            /* one searc
 .needs-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; background: var(--gold); color: #15171A;
   font-size: 12px; font-weight: 700; margin-right: 4px; }
 .needs-pill svg { width: 13px; height: 13px; }
+/* Block 7: on phones the brand's name chip needs the header's space; the strip below already names the deal */
+@media (max-width: 600px) { .top .title:has(+ .chip-me:not([hidden])) { display: none; } }

@@ -38,7 +38,7 @@ async function route() {
     await page();
   } catch (e) {
     if (e.status === 401) { location.href = "/login"; return; }
-    $("#view").innerHTML = `<div class="empty">${icon("triangle-alert", "big")}<p>${esc(e.message)}</p><button class="btn" onclick="route()">${icon("rotate-cw")} Try again</button></div>`;
+    $("#view").innerHTML = `<div class="empty" role="alert">${icon("triangle-alert", "big")}<h2>Couldn't load this page</h2><p>${esc(friendlyError(e))}</p><button class="btn" onclick="route()">${icon("rotate-cw")} Try again</button></div>`;
   }
 }
 function soon(name) { $("#view").innerHTML = `<div class="empty">${icon("hammer", "big")}<h2>${esc(name)} is coming soon</h2><p class="muted">It's being built.</p><a class="btn" href="/studio">Back to Home</a></div>`; }

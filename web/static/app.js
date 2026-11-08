@@ -16,6 +16,12 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// One plain sentence for "the server or the network failed"; a 4xx keeps its own message (it says what to fix).
+function friendlyError(e) {
+  if (!e || e.status === 0) return (e && e.message) || "Can't reach Amend. Check your connection and try again.";
+  return e.status >= 500 ? "Amend didn't answer just now. Nothing has changed; try again in a moment." : e.message;
+}
+
 function usd(cents) {
   if (cents == null) return "–";
   const d = Math.floor(cents / 100), c = cents % 100;

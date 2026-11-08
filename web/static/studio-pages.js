@@ -5,7 +5,7 @@ const STAGE_LABEL = { brief: "Brief", accepted: "Accepted", held: "Held", produc
 const EV_LABEL = { draft: "Draft due", post: "Posting date", product: "Product", review: "Brand review due", holdback: "Holdback release", expiry: "Hold expires" };
 const fmtDay = fmtDate;  // one formatter (app.js)
 function emptyState(icon, title, text, action = "") { return `<div class="empty">${I(icon)}<h2>${esc(title)}</h2><p>${esc(text)}</p>${action}</div>`; }
-function errorState(e, retry) { return `<div class="empty">${I("triangle-alert")}<h2>Something went wrong</h2><p>${esc(e.message)}</p><button class="btn" onclick="${retry}">${I("rotate-cw")} Try again</button></div>`; }
+function errorState(e, retry) { return `<div class="empty">${I("triangle-alert")}<h2>Something went wrong</h2><p>${esc(friendlyError(e))}</p><button class="btn" onclick="${retry}">${I("rotate-cw")} Try again</button></div>`; }
 
 /* ---------- Home ---------- */
 async function homeTab() {

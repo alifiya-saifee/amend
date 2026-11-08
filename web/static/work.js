@@ -3,9 +3,20 @@
 const Work = (() => {
   let ctx = null;
   async function mount(el, c) {
-    ctx = c; el.innerHTML = `<div class="skeleton"></div>`;
+    ctx = c;
+    if (!el.firstElementChild) {  // first load: two card-sized placeholders (draft, post) so nothing below jumps
+      const card = `<div class="card" style="margin-bottom:12px"><div class="skeleton" style="width:30%;height:18px;margin:4px 0 12px"></div>
+        <div class="skeleton" style="height:120px;margin:0"></div></div>`;
+      el.innerHTML = `<div aria-busy="true" aria-label="Loading delivery">${card}${card}</div>`;
+    }
     let w;
-    try { w = await api(c.url("/work")); } catch (e) { el.innerHTML = ""; return; }
+    try { w = await api(c.url("/work")); }
+    catch (e) {
+      el.innerHTML = `<div class="card" role="alert"><p class="small">Couldn't load the draft and post. ${esc(friendlyError(e))}</p>
+        <button class="btn small" id="w-retry">Try again</button></div>`;
+      el.querySelector("#w-retry").onclick = () => mount(el, c);
+      return;
+    }
     el.innerHTML = render(w);
     bind(el, w);
   }

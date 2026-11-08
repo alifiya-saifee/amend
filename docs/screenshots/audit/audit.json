@@ -1,0 +1,322 @@
+[
+ {
+  "screen": "01-marketing-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Get started FOR CREATORS AND BRANDS \u00b7 PAYMENTS BY PAYPAL (SANDBOX DEMO) Brand deals change. Now the money does too. Send one link. The brand's payment is",
+  "error_text": "Amend Get started FOR CREATORS AND BRANDS \u00b7 PAYMENTS BY PAYPAL (SANDBOX DEMO) Brand deals change. Now the money does too. Send one link. The brand's payment is held by PayPal. Every change in the cha"
+ },
+ {
+  "screen": "02-brand-offer-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal Loading the deal\u2026 PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "03-brand-held-chat-390-light",
+  "cls": 0.003,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal Loading the deal\u2026 PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "04-creator-deal-chat-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Account Loading the deal\u2026 Home Inbox Deals Earnings More PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Account Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Earnings More PayPal sandbox. No rea"
+ },
+ {
+  "screen": "05-brand-delivery-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal Loading the deal\u2026 PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "06-creator-delivery-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Account Loading the deal\u2026 Home Inbox Deals Earnings More PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Account Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Earnings More PayPal sandbox. No rea"
+ },
+ {
+  "screen": "07-creator-completed-money-390-light",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Account Loading the deal\u2026 Home Inbox Deals Earnings More PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Account Loading the deal\u2026 Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Earnings More PayPal sandbox. No rea"
+ },
+ {
+  "screen": "08-creator-earnings-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Earnings Account Home Inbox Deals Earnings More PayPal sandbox. No real money.",
+  "error_text": "Amend Earnings Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Earnings More PayPal sandbox. No real money."
+ },
+ {
+  "screen": "09-creator-ledger-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Ledger Account Home Inbox Deals Earnings More PayPal sandbox. No real money.",
+  "error_text": "Amend Ledger Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Earnings More PayPal sandbox. No real money."
+ },
+ {
+  "screen": "10-try-390-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Try it yourself Try Amend in 2 minutes You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal",
+  "error_text": "Amend Try it yourself Sign in Try Amend in 2 minutes You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal changes. 1 Hold Open the bran"
+ },
+ {
+  "screen": "01-marketing-1440-light",
+  "cls": 0.004,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Product For creators For brands Pricing FAQ FOR CREATORS AND BRANDS \u00b7 PAYMENTS BY PAYPAL (SANDBOX DEMO) Brand deals change. Now the money does too. Send",
+  "error_text": "Amend Product For creators For brands Pricing FAQ Sign in Get started FOR CREATORS AND BRANDS \u00b7 PAYMENTS BY PAYPAL (SANDBOX DEMO) Brand deals change. Now the money does too. Send one link. The brand'"
+ },
+ {
+  "screen": "02-brand-offer-1440-light",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "03-brand-held-chat-1440-light",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "04-creator-deal-chat-1440-light",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Search Account Home Inbox Deals Calendar Earnings Price list Profile & media kit Brands Settings Sign out PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Search Account Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Calendar Earnings Price list Profile & media ki"
+ },
+ {
+  "screen": "05-brand-delivery-1440-light",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "\u2190 Amend Deal PayPal sandbox. No real money.",
+  "error_text": "\u2190 Amend Deal Sign in Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
+ },
+ {
+  "screen": "06-creator-delivery-1440-light",
+  "cls": 0.005,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Search Account Home Inbox Deals Calendar Earnings Price list Profile & media kit Brands Settings Sign out PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Search Account Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Calendar Earnings Price list Profile & media ki"
+ },
+ {
+  "screen": "07-creator-completed-money-1440-light",
+  "cls": 0.01,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Deal Search Account Home Inbox Deals Calendar Earnings Price list Profile & media kit Brands Settings Sign out PayPal sandbox. No real money.",
+  "error_text": "Amend Deal Search Account Couldn't load this deal Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Calendar Earnings Price list Profile & media ki"
+ },
+ {
+  "screen": "08-creator-earnings-1440-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Earnings Search Account Home Inbox Deals Calendar Earnings Price list Profile & media kit Brands Settings Sign out PayPal sandbox. No real money.",
+  "error_text": "Amend Earnings Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Calendar Earnings Price list Profile & medi"
+ },
+ {
+  "screen": "09-creator-ledger-1440-light",
+  "cls": 0.009,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Ledger Search Account Home Inbox Deals Calendar Earnings Price list Profile & media kit Brands Settings Sign out PayPal sandbox. No real money.",
+  "error_text": "Amend Ledger Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Inbox Deals Calendar Earnings Price list Profile & media"
+ },
+ {
+  "screen": "10-try-1440-light",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": [],
+  "loading_text": "Amend Try it yourself Try Amend in 2 minutes You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal",
+  "error_text": "Amend Try it yourself Sign in Try Amend in 2 minutes You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal changes. 1 Hold Open the bran"
+ },
+ {
+  "screen": "01-marketing-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "02-brand-offer-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "03-brand-held-chat-390-dark",
+  "cls": 0.003,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "04-creator-deal-chat-390-dark",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "05-brand-delivery-390-dark",
+  "cls": 0.003,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "06-creator-delivery-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "07-creator-completed-money-390-dark",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "08-creator-earnings-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "09-creator-ledger-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "10-try-390-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "01-marketing-1440-dark",
+  "cls": 0.003,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "02-brand-offer-1440-dark",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "03-brand-held-chat-1440-dark",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "04-creator-deal-chat-1440-dark",
+  "cls": 0.001,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "05-brand-delivery-1440-dark",
+  "cls": 0.002,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "06-creator-delivery-1440-dark",
+  "cls": 0.005,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "07-creator-completed-money-1440-dark",
+  "cls": 0.01,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "08-creator-earnings-1440-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "09-creator-ledger-1440-dark",
+  "cls": 0.009,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ },
+ {
+  "screen": "10-try-1440-dark",
+  "cls": 0,
+  "shifted": [],
+  "sideways": false,
+  "js_errors": []
+ }
+]

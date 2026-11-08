@@ -9,9 +9,9 @@
   <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
   <span class="title" id="ttl">Deal</span><span class="chip-me" id="me" hidden></span><span class="auth-slot"></span>
 </header>
-<div class="strip" id="strip" hidden></div>
+<div class="strip" id="strip" aria-busy="true"><span class="muted">Loading the deal…</span></div>
 <div class="deal-grid wrap">
-  <main id="view"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></main>
+  <main id="view"><div aria-busy="true" aria-label="Loading the deal"><div class="card"><div class="skeleton" style="width:40%;height:18px;margin:8px 0"></div><div class="skeleton" style="width:90%;height:14px;margin:8px 0"></div><div class="skeleton" style="width:75%;height:14px;margin:8px 0"></div></div></div></main>
  <aside id="panel" class="panel-only" aria-label="Deal and money"></aside>
 </div>
 <script>
@@ -24,16 +24,30 @@ let V = null, lastBrief = "";
 const url = (p = "") => IS_BRAND ? `/api/d/${KEY}${p}` : `/api/deals/${KEY}${p}`;
 
 async function load() {
+  if (!V) $("#view").innerHTML = skeletonHtml();  // first load: the page's shape, so nothing jumps when data arrives
   try { V = await api(url()); }
   catch (e) {
     if (!IS_BRAND && e.status === 401) { location.href = "/login"; return; }
     const kind = e.data && e.data.kind;
-    $("#view").innerHTML = `<div class="empty"><div class="ic">${kind === "expired" || kind === "revoked" ? "<i data-lucide='hourglass' aria-hidden='true'></i>" : "<i data-lucide='search' aria-hidden='true'></i>"}</div>
-      <h2>${kind === "expired" ? "This deal link expired" : kind === "revoked" ? "This link was switched off" : "Link not found"}</h2>
-      <p>${kind ? "Ask the creator for a new one." : esc(e.message)}</p></div>`;
+    if (kind || e.status === 404) {  // the link itself is the problem
+      $("#view").innerHTML = `<div class="empty"><div class="ic">${kind === "expired" || kind === "revoked" ? "<i data-lucide='hourglass' aria-hidden='true'></i>" : "<i data-lucide='search' aria-hidden='true'></i>"}</div>
+        <h2>${kind === "expired" ? "This deal link expired" : kind === "revoked" ? "This link was switched off" : "Link not found"}</h2>
+        <p>Ask ${IS_BRAND ? "the creator" : "the brand"} for a new one.</p></div>`;
+      return;
+    }
+    if (V) { toast(e.message, "bad"); return; }  // a refresh failed: keep what's on screen
+    $("#view").innerHTML = `<div class="empty" role="alert"><div class="ic"><i data-lucide='wifi-off' aria-hidden='true'></i></div>
+      <h2>Couldn't load this deal</h2><p>${esc(friendlyError(e))}</p>
+      <button class="btn primary" id="retry-load">Try again</button></div>`;
+    $("#retry-load").onclick = () => load();
     return;
   }
   render();
+}
+function skeletonHtml() {
+  const bar = (w, h = 14) => `<div class="skeleton" style="width:${w};height:${h}px;margin:8px 0"></div>`;
+  return `<div aria-busy="true" aria-label="Loading the deal"><div class="card">${bar("40%", 18)}${bar("90%")}${bar("75%")}${bar("60%")}</div>
+    <div class="card" style="margin-top:12px">${bar("30%", 18)}${bar("100%", 64)}${bar("100%", 64)}</div></div>`;
 }
 
 function header() {
@@ -44,7 +58,11 @@ function header() {
     $$(".auth-slot").forEach(s => s.hidden = true);
   }
   const strip = $("#strip");
-  if (d.status !== "draft") {
+  strip.removeAttribute("aria-busy");
+  if (d.status === "draft") {  // keep the strip (no jump), say where the deal is
+    strip.hidden = false; strip.onclick = null;
+    strip.innerHTML = `<span>New deal · <b>waiting for the brief</b></span>`;
+  } else {
     strip.hidden = false;
     strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Offer"} · <b>${usd(V.total_cents)}</b></span>
       <span>${V.hold ? moneyPill(V.hold.status) : dealPill(d.status)} <span class="muted">▾</span></span>`;
