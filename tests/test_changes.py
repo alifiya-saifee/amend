@@ -231,3 +231,16 @@ def test_media_private(client, mocks, held):
     client.cookies.clear()
     assert client.get(url).status_code == 404
     assert client.get(f"{url}?t={tok}").content == b"hello"
+
+
+def test_same_posting_date_is_not_a_change(client, mocks, held):
+    """Live walk: asking for the date the deal already has produced "Mon 09 Nov → Mon 09 Nov" with a $50 fee."""
+    deal, tok = held
+    get_db().update("deals", "id", deal, {"deadline": MON})
+    says(mocks, {"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "add one more Story set"}],
+                 "fields": [{"field": "post_date", "value": MON, "quote": "post Monday 14 Dec"}], "quote": "add one more Story set"})
+    c = brand_says(client, tok, "Can we add one more Story set and post Monday 14 Dec?")["change"]
+    assert [l.get("field") for l in c["lines"]] == [None]  # only the Story set line; no date line
+    assert c["delta_cents"] == 8000
+    says(mocks, {"kind": "change", "fields": [{"field": "post_date", "value": MON, "quote": "post Monday 14 Dec"}], "quote": "post Monday 14 Dec"})
+    assert brand_says(client, tok, "So we post Monday 14 Dec, right?").get("change") is None  # nothing changes, no card

@@ -319,6 +319,8 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         if not new_d:
             continue
         old = to_date(deal.get("deadline"), today)
+        if old and new_d == old:  # "post Monday" when the deal already says Monday: nothing changes, so no line and no fee
+            continue
         notice_h = (datetime.combine(new_d, datetime.min.time(), timezone.utc) - datetime.now(timezone.utc)).total_seconds() / 3600
         rule = plist.get("date_change")
         fee = engine.price(rule, notice_hours=notice_h) if rule else 0
