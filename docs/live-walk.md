@@ -88,3 +88,11 @@ Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
 - Fix: the page decodes the recording in the browser and sends 16 kHz mono WAV (≈1.9 MB/min, 10-minute cap); the server refuses other formats with a clear message before calling Gemini.
 - Checked: real Gemini with the WAV → 4 lines, 2 speakers correctly separated. Real Chrome locally: .m4a (82 KB) → WAV 16 kHz mono 12.4 s (397 KB), tag sheet shows 2 speakers, no JS errors.
 - Small: Gemini's `start` times come back as fractions (0.02, 0.056) rather than seconds; only affects the "jump to second" link.
+
+**Part 2 re-test after redeploy (PASS), deal …fe0a, real Chrome**
+- Call sheet → consent ticked → `call.m4a` chosen → the page converted it to WAV 16 kHz mono (12.4 s, 397 KB) and uploaded `audio/wav`.
+- Real Gemini: 3 lines, **2 speakers**. Tagged Speaker 1 → Nadia, Speaker 2 → Sara.
+- Result: **"No deal changes found in the call"**: correct, "a longer Reel for the next campaign" is not a change to this deal.
+- Audio not stored (`data_b64` null); only the transcript message. JS errors: none.
+
+**Live coverage now:** booking + hold, change + extra hold, draft check, post check, release + payout + holdback, cancellation split + second opinion, refund after payout (S98), voice note, call upload, webhooks (order approved, capture refunded). Not live: WhatsApp (waiting on Meta template approval).
