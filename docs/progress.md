@@ -226,3 +226,10 @@ Next: Block 7.
 - Send is primary and disabled while the box is empty.
 - Tests: tests/browser/inbox_layout.py at 1440, 1280, 1100, 390, light + dark: all pass (docs/screenshots/inbox/test-results.txt). Full walk passes. Suite: 466 passed, 3 skipped.
 - Local amend.db still has ~36 old test deals for Dune Roast; asked Alifiya before touching it.
+
+## Live on Render (8 Nov, morning)
+- URL: https://amend-r7le.onrender.com. Database: Supabase Postgres via the Session pooler (aws-0-ap-southeast-1, IPv4); 29 tables created, demo data seeded, events table append-only on Postgres (update/delete refused) — checked from here.
+- Deploy fixes on the way: PAYPAL_ENV=sandbox set in Render (the app refuses to start otherwise); DATABASE_URL switched from the direct (IPv6-only) host to the pooler, with "@" in the password written as %40; BASE_URL set to the Render address (sign-in was refused by the origin check).
+- Smoke test: /healthz, /, /pricing, /creators, /login, /try, /c/sara.eats all 200; sign-in from the site's own origin reaches the password check (401 on a wrong password), a foreign origin is refused (403).
+- To do (Alifiya): reset the Supabase DB password (it was typed in chat) and update DATABASE_URL in Render; PayPal webhook + cron-job.org tick pointing at the Render URL.
+- Next: S30 and the live walk-through with real sandbox + Gemini; log test-mode vs real differences here.
