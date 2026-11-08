@@ -139,3 +139,18 @@ def test_brief_card_labels_prices_as_the_creators():
 def test_brand_sees_the_creators_offer():
     deal = (ROOT / "web/deal.html").read_text()
     assert "<h2>Your offer</h2>" not in deal and "'s offer</h2>" in deal
+
+
+def test_seed_deadlines_stay_in_the_future(client, history):
+    """Live-walk bug: pulling all seed dates back to 'now' made demo holds expire and a demo holdback fall due at once,
+    so the cron tick expired holds (and could have paid a holdback) on made-up deals."""
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    d = get_db()
+    holds = d.all("select expires_at from money_items m join deals x on x.id = m.deal_id where m.kind = 'hold' and m.status = 'authorized'")
+    assert holds and all(datetime.fromisoformat(h["expires_at"]) > now for h in holds)
+    hb = d.all("select holdback_release_at from deals where holdback_release_at is not null and status = 'delivered'")
+    assert hb and all(datetime.fromisoformat(h["holdback_release_at"]) > now for h in hb)
+    # and the tick does nothing to fresh demo data
+    from amend import money
+    assert not any(money.mark_expired_if_due(d, m)["status"] == "expired" for m in d.all("select * from money_items where kind = 'hold' and status = 'authorized'"))

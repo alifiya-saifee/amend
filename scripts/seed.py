@@ -212,10 +212,14 @@ def seed_history(db: Database) -> int:
     prices = {p["code"]: p for p in db.all("select * from price_items where creator_id = :c", {"c": sara["id"]})}
     now_dt = datetime.now(timezone.utc)
     today = now_dt.date()
-    def iso(d):  # 10:00 UTC (2:00 PM Dubai) on that day, but never in the future: today's demo events land 2 hours ago at the latest
+    def iso(d):
+        """10:00 UTC (2:00 PM Dubai) on that day. Only TODAY is pulled back (to 2 hours ago at the latest), so today's demo
+        events never sit in the future. Days after today stay in the future: hold expiry, holdback release and post dates
+        are deadlines, and pulling them back would make the tick expire holds and pay holdbacks on made-up deals."""
         dt = datetime.combine(d, datetime.min.time(), timezone.utc) + timedelta(hours=10)
-        latest = (now_dt - timedelta(hours=2)).replace(second=0, microsecond=0)
-        return min(dt, latest).isoformat()
+        if d == today:
+            dt = min(dt, (now_dt - timedelta(hours=2)).replace(second=0, microsecond=0))
+        return dt.isoformat()
     brands = {}
     for name, org, email in HISTORY_BRANDS:
         acc = db.one("select party_id from accounts where email = :e", {"e": email}) if email else None
