@@ -84,7 +84,7 @@ Until a template is approved, Amend shows notifications in the app only and logs
    | `GEMINI_API_KEY` | |
    | `GROQ_API_KEY` | |
    | `NVIDIA_API_KEY` | |
-   | `NVIDIA_MODEL` | e.g. the model name you pick on build.nvidia.com |
+   | `NVIDIA_MODEL` | `nvidia/nemotron-3.5-bolt-e4b` (tested 8 Nov: answers in ~0.6 s with clean JSON; several listed models return 404 or time out) |
    | `AMEND_DEMO_PASSWORD` | **a different one from your local password** (it goes in Devpost's private field) |
    | `AMEND_SESSION_SECRET` | a long random string |
    | `AMEND_TICK_SECRET` | a long random string, also used in step 4 |
