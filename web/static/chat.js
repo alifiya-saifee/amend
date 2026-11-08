@@ -61,6 +61,7 @@ const Chat = (() => {
   function item(i) {
     if (i.type === "system") return `<div class="sysline">${i.icon ? `<i data-lucide='${i.icon}' aria-hidden='true'></i>` : ""}${esc(i.body)} · ${time(i.at)}</div>`;
     if (i.type === "change") return changeCard(i);
+    if (i.type === "brief") return briefCard(i);
     const media = i.media_url ? (i.kind === "image"
       ? `<a href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><img class="chat-img" src="${mediaUrl(i.media_url)}" alt="${esc(i.meta.name || "image")}"></a>`
       : `<a class="filechip" href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><i data-lucide='file-text' aria-hidden='true'></i> ${esc(i.meta.name || "file")}</a>`) : "";
@@ -75,14 +76,23 @@ const Chat = (() => {
     const d = new Date(iso), t = new Date(); const k = x => x.toDateString();
     if (k(d) === k(t)) return "Today";
     const y = new Date(t); y.setDate(t.getDate() - 1); if (k(d) === k(y)) return "Yesterday";
-    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" });
+    return fmtDate(iso);  // one formatter (app.js): "Sat 21 Nov"
+  }
+  // the brief as a card: what was asked for, priced from the creator's list, with the words behind each line
+  function briefCard(b) {
+    return `<div class="briefcard"><div class="bc-head"><span class="bc-ic"><i data-lucide='file-text' aria-hidden='true'></i></span>
+        <b>Brief from ${esc(b.from)}</b><span class="tiny muted">${time(b.at)}</span></div>
+      <div class="bc-lines">${(b.lines || []).map(l => `<div class="bc-line"><span class="grow">${esc(l.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}</span>
+        ${l.quote ? `<button class="q-chip" data-quote="${esc(l.quote)}" data-who="${esc(b.from)}" data-where="the brief" title="The words this came from"><i data-lucide='quote' aria-hidden='true'></i> Quote</button>` : ""}
+        <b>${usd(l.amount_cents)}</b></div>`).join("") || '<p class="small muted">No priced lines yet.</p>'}</div>
+      <div class="bc-foot">${b.post_date ? `<span><i data-lucide='calendar' aria-hidden='true'></i> Post ${esc(fmtDate(b.post_date))}</span>` : "<span></span>"}<span>Total <b>${usd(b.total_cents)}</b></span></div></div>`;
   }
   function withDays(items) {
     let last = "";
     return items.map(i => { const lbl = dayLabel(i.at); const head = lbl !== last ? `<div class="dayline"><span>${esc(lbl)}</span></div>` : ""; last = lbl; return head + item(i); }).join("");
   }
   function mediaUrl(u) { return isBrand ? `${u}?t=${encodeURIComponent(token)}` : u; }
-  function time(iso) { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function time(iso) { return fmtTime(iso); }  // one formatter (app.js): "2:00 PM"
 
   function changeCard(c) {
     const open = c.status === "previewed" || c.status === "detected";

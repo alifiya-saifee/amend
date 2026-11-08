@@ -1,5 +1,5 @@
 // One shared app layout for every studio and brand page: sidebar (desktop, collapsible), top bar with a search
-// placeholder, a notifications bell (unread count from the Inbox) and a name chip menu; bottom tabs + More on mobile.
+// placeholder and a name chip menu (the Inbox count lives in the nav: conversations that need me); bottom tabs + More on mobile.
 // Pages that aren't built yet are greyed "soon" (never a link, so never a 404). Icons: Lucide (see app.js).
 const NAV = {
   creator: {
@@ -57,7 +57,7 @@ const Shell = (() => {
       <a class="logo" href="${cfg.home}"><span class="mark">${ic("repeat-2")}</span>Amend</a><span class="title" id="ttl">${esc(title)}</span>
       <form class="topsearch" id="topsearch" role="search"><label class="sr-only" for="topq">Search</label>${ic("search")}
     <input id="topq" placeholder="${kind === "creator" ? "Search deals and brands" : "Search creators"}"></form>
-   <a class="iconbtn bell" href="${cfg.inbox}" aria-label="Notifications">${ic("bell")}<span class="badge" data-badge hidden></span></a>
+
       <button class="chip-me" id="me" aria-haspopup="menu" aria-expanded="false">${esc(name || "Account")} ${ic("chevron-down")}</button>
       <div class="menu" id="mm" role="menu">
         ${cfg.menu.map(m => `<a role="menuitem" href="${m.href}">${ic(m.icon)} ${esc(m.label)}</a>`).join("")}
@@ -101,7 +101,7 @@ const Shell = (() => {
     });
   }
   async function refreshBadge() {
-    try { const r = await api(cfg.unread); setBadge(r.unread || 0); } catch {}
+    try { const r = await api(cfg.unread); setBadge(r.needs_threads ?? 0); } catch {}  // conversations that need me, not events
   }
   function setActive(key, title) {
     $$(".appnav a[data-nav]").forEach(a => { a.classList.toggle("on", a.dataset.nav === key); a.toggleAttribute("aria-current", a.dataset.nav === key); });

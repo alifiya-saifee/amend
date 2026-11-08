@@ -39,6 +39,16 @@ function ago(iso) {
   if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + " min ago";
   if (s < 86400) return Math.floor(s / 3600) + " h ago"; return Math.floor(s / 86400) + " d ago";
 }
+// One formatter for the app: dates "Sat 21 Nov" (year added only when it isn't this year), times "2:00 PM" (no leading zero).
+function fmtDate(v) {
+  if (!v) return "";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + "T12:00:00") : new Date(v);
+  if (isNaN(d)) return String(v);
+  const o = { weekday: "short", day: "numeric", month: "short" };
+  if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
+  return d.toLocaleDateString("en-GB", o).replace(",", "");
+}
+function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""; }
 function dateStr(iso) { return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""; }
 
 const MONEY_PILL = {
@@ -47,7 +57,7 @@ const MONEY_PILL = {
   refunded: ["Refunded", "refunded"], failed: ["Failed", "failed"], expired: ["Hold expired", "expired"], cancelled: ["Cancelled", "planned"],
 };
 function moneyPill(status) { if (!status) return ""; const [t, c] = MONEY_PILL[status] || [status, ""]; return `<span class="pill ${c}">${t}</span>`; }
-const DEAL_LABEL = { draft: "Waiting for brief", offered: "Draft to accept", accepted: "Accepted", in_progress: "In progress",
+const DEAL_LABEL = { draft: "Waiting for brief", offered: "Offer to accept", accepted: "Accepted", in_progress: "In progress",
   delivered: "Delivered", completed: "Done", paused: "Paused", cancelled: "Cancelled" };
 function dealPill(s) { return `<span class="pill status">${DEAL_LABEL[s] || s}</span>`; }
 

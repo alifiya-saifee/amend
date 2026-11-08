@@ -465,7 +465,11 @@ def permit_check(creator_id: str):
 def my_inbox(filter: str = "all", page: int = 0, c: dict = Depends(require_creator)):
     if filter not in ("all", "needs_me", "messages", "money"):
         raise HTTPException(400, "unknown filter")
-    return inbox.entries(get_db(), c["id"], c["party_id"], flt=filter, page=max(page, 0))
+    r = inbox.entries(get_db(), c["id"], c["party_id"], flt=filter, page=max(page, 0))
+    # badge = how many conversations (brands) have something for me to do, not how many events
+    by_deal = {d["id"]: d["brand_org"] for d in get_db().all("select id, brand_org from deals where creator_id = :c", {"c": c["id"]})}
+    r["needs_threads"] = len({by_deal.get(n["deal"]) for n in studio.needs_you(get_db(), c)})
+    return r
 
 
 class ReadIn(BaseModel):
@@ -774,10 +778,10 @@ def brand_inbox(acc: dict = Depends(require_brand)):
     d = get_db()
     ids = _brand_deal_ids(acc)
     if not ids:
-        return {"items": [], "unread": 0}
+        return {"items": [], "unread": 0, "needs_threads": 0}
     mine = {r["id"] for r in d.all("select id from parties where account_id = :a", {"a": acc["id"]})}
     read = {r["event_id"] for r in d.all("select event_id from inbox_reads where party_id = :p", {"p": acc["id"]})}
-    text = {"deal.drafted": "Draft ready: priced from the creator's list", "deal.accepted": "The creator accepted the deal",
+    text = {"deal.drafted": "Offer ready · priced from their list", "deal.accepted": "The creator accepted the deal",
             "deal.declined": "The creator declined", "money.status": None, "term.price_edited": "The creator edited a price",
             "message.sent": "New message", "change.detected": "A change card needs you", "change.applied": "A change was applied"}
     items = []
@@ -789,14 +793,15 @@ def brand_inbox(acc: dict = Depends(require_brand)):
                 continue
             line = text[e["type"]]
             if e["type"] == "money.status":
-                line = {"authorized": "Money held by PayPal", "paid": "Payment collected", "refunded": "Refund sent",
+                line = {"authorized": "PayPal is holding your payment", "paid": "Payment collected", "refunded": "Refund sent",
                         "expired": "A hold expired: hold again"}.get(e["payload"].get("to"))
             if not line:
                 continue
-            items.append({"event_id": e["id"], "deal": did, "creator": c["display_name"], "line": line, "at": e["at"],
+            items.append({"event_id": e["id"], "deal": did, "creator": c["display_name"], "line": inbox.short(line), "at": e["at"],
                           "unread": e["id"] not in read})
     items.sort(key=lambda x: x["event_id"], reverse=True)
-    return {"items": items[:60], "unread": sum(i["unread"] for i in items)}
+    needs = {n["creator"] for n in brandspace.needs_you(d, acc["id"])}  # conversations with something for me to do
+    return {"items": items[:60], "unread": sum(i["unread"] for i in items), "needs_threads": len(needs)}
 
 
 @app.post("/api/brand/inbox/read")
@@ -1489,7 +1494,7 @@ def _story(deal_id: str) -> dict:
     d = get_db()
     nice = {"deal.accepted": "Accepted", "change.applied": "Change applied", "money.planned": "Money planned",
             "approval.recorded": "Approved", "paypal.called": "PayPal", "money.status": "Money status", "fact.added": "Words recorded",
-            "brief.submitted": "Brief sent", "deal.drafted": "Draft priced", "post.submitted": "Posted", "delivery.checked": "Delivery checked",
+            "brief.submitted": "Brief sent", "deal.drafted": "Offer priced", "post.submitted": "Posted", "delivery.checked": "Delivery checked",
             "gap.resolved": "Gap resolved", "draft.approved": "Draft approved", "draft.silently_approved": "Draft approved (silent)",
             "holdback.released": "Holdback paid", "holdback.returned": "Holdback returned", "change.detected": "Change proposed",
             "change.confirmed": "Change confirmed", "review.left": "Review", "money.collect_planned": "Release planned"}

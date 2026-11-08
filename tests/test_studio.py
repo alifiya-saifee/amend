@@ -33,7 +33,7 @@ def test_s85_home_tiles_and_needs_you(client, history):
     assert t["held_cents"] == 106000 and t["to_release_cents"] == 7500 and t["extras_cents"] == 18000
     assert t["paid_month_cents"] > 0
     texts = [n["text"] for n in h["needs_you"]]
-    assert any("accept the draft" in x for x in texts) and any("mark it received" in x for x in texts)
+    assert any("accept the offer" in x for x in texts) and any("mark it received" in x for x in texts)
     assert {p["key"]: p["count"] for p in h["pipeline"]} == {"brief": 1, "accepted": 0, "held": 1, "production": 1, "delivered": 1, "paid": 3}
     assert h["setup"]["done"] == 3
 

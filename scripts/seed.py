@@ -212,7 +212,10 @@ def seed_history(db: Database) -> int:
     prices = {p["code"]: p for p in db.all("select * from price_items where creator_id = :c", {"c": sara["id"]})}
     now_dt = datetime.now(timezone.utc)
     today = now_dt.date()
-    iso = lambda d: (datetime.combine(d, datetime.min.time(), timezone.utc) + timedelta(hours=10)).isoformat()
+    def iso(d):  # 10:00 UTC (2:00 PM Dubai) on that day, but never in the future: today's demo events land 2 hours ago at the latest
+        dt = datetime.combine(d, datetime.min.time(), timezone.utc) + timedelta(hours=10)
+        latest = (now_dt - timedelta(hours=2)).replace(second=0, microsecond=0)
+        return min(dt, latest).isoformat()
     brands = {}
     for name, org, email in HISTORY_BRANDS:
         acc = db.one("select party_id from accounts where email = :e", {"e": email}) if email else None
@@ -239,7 +242,9 @@ def seed_history(db: Database) -> int:
         ev = lambda t, p=None, at=t0, actor=bp: db.execute(
             "insert into events (at, type, actor, deal_id, payload_json) values (:at, :t, :a, :d, :p)",
             {"at": at, "t": t, "a": actor, "d": did, "p": json.dumps(p or {})})
-        ev("deal.created", {"brand": org}, t0, sara["party_id"]); ev("link.opened"); ev("brief.submitted", {"brief": "Demo brief"})
+        at = lambda minutes: (datetime.fromisoformat(t0) + timedelta(minutes=minutes)).isoformat()
+        # believable order: link sent, opened (2:00 PM Dubai), brief (2:04), the brand's message, offer priced (2:05)
+        ev("deal.created", {"brand": org}, at(-45), sara["party_id"]); ev("link.opened", None, at(0)); ev("brief.submitted", {"brief": "Demo brief"}, at(4))
         facts = []
         for k, (code, qty) in enumerate(lines):
             fid = new_id("f")
@@ -249,16 +254,16 @@ def seed_history(db: Database) -> int:
             db.insert("terms", {"id": new_id("t"), "deal_id": did, "version": 0 if offered_only else 1, "price_item_id": prices[code]["id"],
                                 "fact_id": fid, "qty": qty, "unit_price_cents": prices[code]["standard_cents"],
                                 "amount_cents": prices[code]["standard_cents"] * qty, "rules_json": "{}", "pos": k})
-        ev("deal.drafted", {"total_cents": total}, t0, "ai")
+        ev("deal.drafted", {"total_cents": total}, at(5), "ai")
         contact = next(n for n, o, _ in HISTORY_BRANDS if o == org)
         def say(who, text, at):  # a short, believable chat so the thread isn't empty (made-up people)
             db.insert("messages", {"id": new_id("m"), "deal_id": did, "party_id": bp if who == "brand" else sara["party_id"], "kind": "text",
                                    "body": text, "at": at})
-        at = lambda hours: (datetime.fromisoformat(t0) + timedelta(hours=hours)).isoformat()
-        say("brand", f"Hi Sara, {contact} from {org}. Brief is in, could you do it by {deadline.strftime('%a %d %b') if deadline else 'next week'}?", at(0.5))
+        when = f"{deadline:%a} {deadline.day} {deadline:%b}" if deadline else "next week"  # "Sat 21 Nov", the app's date format
+        say("brand", f"Hi Sara, {contact} from {org}. Brief is in, could you do it by {when}?", at(4.5))
         if offered_only:
             return did
-        say("sara", f"Hi {contact}! Yes, that works. I've accepted; the PayPal hold link is on the deal.", at(1.5))
+        say("sara", f"Hi {contact}! Yes, that works. I've accepted; the PayPal hold link is on the deal.", at(110))
         ev("deal.accepted", {"version": 1, "total_cents": total}, iso(created + timedelta(hours=2)), sara["party_id"])
         base_total = total - sum(c[1] for c in changes_)
         def mi(kind, amt, st, note=None, paypal=None, at=None, parent=None, fee=0, cap=0, change=None):

@@ -38,7 +38,7 @@ function soon(name) { $("#view").innerHTML = `<div class="empty">${icon("hammer"
 function badge(n) { Shell.setBadge(n); }
 
 async function inbox() {
-  const r = await api("/api/brand/inbox"); badge(r.unread);
+  const r = await api("/api/brand/inbox"); badge(r.needs_threads);
   // one row per deal: the newest update, how many updates, and all its unread ones (items are newest first)
   const T = []; const by = {};
   r.items.forEach(x => { let t = by[x.deal]; if (!t) { t = by[x.deal] = { ...x, count: 0, unread_ids: [] }; T.push(t); }

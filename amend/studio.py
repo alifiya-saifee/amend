@@ -53,7 +53,7 @@ def needs_you(db: Database, creator: dict) -> list[dict]:
     for d in _deals(db, creator["id"]):
         brand = d["brand_org"] or "A brand"
         if d["status"] == "offered":
-            out.append({"deal": d["id"], "brand": brand, "kind": "draft", "icon": "file-pen", "text": f"Check and accept the draft ({money.fmt_usd(d['total_cents'])})"})
+            out.append({"deal": d["id"], "brand": brand, "kind": "draft", "icon": "file-pen", "text": f"Check and accept the offer ({money.fmt_usd(d['total_cents'])})"})
         for c in db.all("select * from changes where deal_id = :d and status = 'previewed' and confirmed_creator_at is null", {"d": d["id"]}):
             what = "cancellation" if c["kind"] == "cancel" else "change card"
             out.append({"deal": d["id"], "brand": brand, "kind": "change", "icon": "lightbulb", "change": c["id"] if c["kind"] != "cancel" else None,

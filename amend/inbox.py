@@ -29,36 +29,48 @@ KINDS = {
 PAGE = 30
 
 
+PREVIEW_MAX = 40
+
+
+def short(text: str, n: int = PREVIEW_MAX) -> str:
+    """Inbox previews stay one short line; the full text is in the thread."""
+    text = " ".join((text or "").split())
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
 def _line(e: dict, deal: dict, brand: str) -> str | None:
+    """One short line per update (the brand's name is already on the row, so it isn't repeated here)."""
     p = e["payload"]
     t = e["type"]
+    amt = lambda k="amount_cents": fmt_usd(p.get(k, 0) or 0)
     if t == "link.opened":
-        return f"{brand} opened your deal link"
+        return "Opened your deal link"
     if t == "brief.submitted":
-        return f"{brand} sent a brief"
+        return "Sent a brief"
     if t == "brief.edited":
-        return f"{brand} edited the brief"
+        return "Edited the brief"
     if t == "deal.drafted":
-        return f"Draft ready: {fmt_usd(p.get('total_cents', 0))}" + (" · check and accept" if deal["status"] == "offered" else "")
+        return f"Offer ready · {amt('total_cents')}" + (" · accept it" if deal["status"] == "offered" else "")
     if t == "approval.recorded":
-        return f"{brand} approved holding {fmt_usd(p.get('amount_cents', 0))}"
+        return f"Approved holding {amt()}"
     if t == "message.sent":
-        return f"{brand}: {p.get('preview', '')}" if p.get("preview") else f"{brand} sent a file"
+        return short(p["preview"]) if p.get("preview") else "Sent a file"
     if t == "change.detected":
-        return f"Change card from {brand}: {fmt_usd(abs(p.get('delta_cents', 0)))} · confirm or discuss"
+        d = p.get("delta_cents", 0) or 0
+        return f"Change card · {'+' if d >= 0 else '−'}{fmt_usd(abs(d))} · confirm it"
     if t == "change.suggested":
-        return "A teammate suggested a change (suggestion only)"
+        return "A teammate suggested a change"
     if t == "change.applied":
-        return f"Change applied · version {p.get('version')}"
+        return f"Change confirmed · version {p.get('version')}"
     if t == "change.expired":
-        return "A change card expired · the last confirmed version stays"
+        return "A change card expired"
     if t == "money.status":
         if p.get("to") == "authorized":
-            return "Money held by PayPal · you can start work"
+            return f"PayPal is holding {amt()}"
         if p.get("to") == "expired":
-            return "A hold expired · the brand needs to hold again"
+            return "Hold expired · brand must hold again"
         if p.get("to") == "failed":
-            return "A PayPal step failed · nothing was charged"
+            return "A PayPal step failed · nothing charged"
         return None
     return None
 
@@ -76,11 +88,15 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
         if r["type"] not in KINDS:
             continue
         e = dict(r, payload=json.loads(r["payload_json"] or "{}"))
+        if e["type"] == "money.status" and e["payload"].get("item"):
+            it = db.one("select amount_cents from money_items where id = :i", {"i": e["payload"]["item"]})
+            e["payload"]["amount_cents"] = it["amount_cents"] if it else 0
         deal = deals.get(e["deal_id"])
         if not deal:
             continue
         b = brands.get(deal["brand_party_id"]) or {}
         line = _line(e, deal, b.get("name") or deal["brand_org"] or "The brand")
+        line = short(line) if line else line
         if not line:
             continue
         icon, cat = KINDS[e["type"]]

@@ -13,8 +13,8 @@ def test_inbox_empty_then_fills_newest_first(client, mocks):
     deal, tok, _ = to_offered(client, mocks)
     items = client.get("/api/studio/inbox").json()["items"]
     lines = [i["line"] for i in items]
-    assert lines[0].startswith("Draft ready: $530") and "check and accept" in lines[0]
-    assert "Nadia sent a brief" in lines and "Nadia opened your deal link" in lines
+    assert lines[0] == "Offer ready · $530 · accept it"           # deal terms are an "offer"; content drafts stay "draft"
+    assert "Sent a brief" in lines and "Opened your deal link" in lines
     assert [i["event_id"] for i in items] == sorted([i["event_id"] for i in items], reverse=True)
     assert all(i["unread"] for i in items) and items[0]["category"] == "needs_me"
 
@@ -32,10 +32,10 @@ def test_hold_shows_as_money_and_filters_work(client, mocks):
     client.post(f"/api/d/{tok}/pay", headers=ORIGIN)
     client.get(f"/paypal/return?t={tok}&token=ORDER1", follow_redirects=False)
     money = client.get("/api/studio/inbox?filter=money").json()["items"]
-    assert any(i["line"].startswith("Money held by PayPal") for i in money)
-    assert any("approved holding $530" in i["line"] for i in money)
+    assert any(i["line"] == "PayPal is holding $530" for i in money)
+    assert any(i["line"] == "Approved holding $530" for i in money)
     assert all(i["category"] == "money" for i in money)
-    # once accepted, the draft is no longer "needs me"
+    # once accepted, the offer is no longer "needs me"
     assert client.get("/api/studio/inbox?filter=needs_me").json()["items"] == []
     assert client.get("/api/studio/inbox?filter=bogus").status_code == 400
 

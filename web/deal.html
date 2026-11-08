@@ -46,7 +46,7 @@ function header() {
   const strip = $("#strip");
   if (d.status !== "draft") {
     strip.hidden = false;
-    strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Draft"} · <b>${usd(V.total_cents)}</b></span>
+    strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Offer"} · <b>${usd(V.total_cents)}</b></span>
       <span>${V.hold ? moneyPill(V.hold.status) : dealPill(d.status)} <span class="muted">▾</span></span>`;
     strip.onclick = dealSheet;
   }
@@ -319,7 +319,7 @@ function inviteSheet() {
 
 /* ---------- desktop money panel (D5) ---------- */
 const EVENT_TEXT = { "deal.created": "Deal link made", "link.created": "Link made", "link.opened": "Brand opened the link",
-  "brief.submitted": "Brief sent", "brief.edited": "Brief edited", "deal.drafted": "Draft priced from the price list",
+  "brief.submitted": "Brief sent", "brief.edited": "Brief edited", "deal.drafted": "Offer priced from the price list",
   "deal.accepted": "Accepted · version 1", "approval.recorded": "Hold approved by the brand", "money.approved": "Hold ready for PayPal",
   "paypal.called": "PayPal updated", "paypal.returned": "Back from PayPal", "money.status": "Money status changed",
   "term.price_edited": "Price edited", "deal.declined": "Declined", "deal.status": "Deal status changed", "money.planned": "Hold planned" };
@@ -328,7 +328,7 @@ function panel() {
   const ev = (V.events || []).filter(e => EVENT_TEXT[e.type] && e.type !== "fact.added").slice(-12).reverse();
   $("#panel").innerHTML = `
     <div class="card"><div class="row between"><h3>The deal</h3>${dealPill(V.deal.status)}</div>
-      ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is drafted.</p>`}</div>
+      ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is priced.</p>`}</div>
     <div style="margin-top:14px">${moneyCardHtml()}</div>
     ${["accepted", "in_progress", "delivered", "completed", "paused"].includes(V.deal.status) ? `<div style="margin-top:14px">${checklistHtml(V.deal)}</div>` : ""}
     <div class="card" style="margin-top:14px"><h3>History</h3>
@@ -391,7 +391,7 @@ function brand(d) {
      .map(([l, k, ph]) => `<div><label>${l}</label><input data-k="${k}" data-l="${l}" maxlength="200" placeholder="${esc(ph)}"></div>`).join("")}
       </form>
       <div id="ai-state"></div>
-      <button class="btn primary block" id="draft" style="margin-top:12px">Draft my deal</button>
+      <button class="btn primary block" id="draft" style="margin-top:12px">Price my offer</button>
       <p class="hint">Anything you leave out that a deal needs (posting window, usage rights, disclosure…) is flagged with a sensible default you can change.</p>`;
   const cnt = () => $("#cnt").textContent = `${$("#brief").value.length} / 2000`; cnt();
     $("#brief").oninput = cnt;
@@ -408,7 +408,7 @@ function brand(d) {
   }
   if (d.status === "offered") {
     $("#view").innerHTML = `
-      <div class="card gold"><h2>Your draft deal</h2>${linesHtml()}${extrasHtml()}</div>
+      <div class="card gold"><h2>Your offer</h2>${linesHtml()}${extrasHtml()}</div>
       ${briefHtml(V.me.role === "brand_main")}
       <div class="banner wait" style="margin-top:12px"><i data-lucide='hourglass' aria-hidden='true'></i> Waiting for ${esc(first)} to accept</div>
       <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>
@@ -447,9 +447,9 @@ function brand(d) {
 
 function editBrief() {
   lastBrief = V.deal.brief || "";
-  const sh = sheet(`<h2>Edit brief</h2><p class="small muted">A new draft is made. The old one is kept in the history.</p>
+  const sh = sheet(`<h2>Edit brief</h2><p class="small muted">A new offer is made. The old one is kept in the history.</p>
     <textarea id="brief2" maxlength="2000">${esc(lastBrief)}</textarea><div id="ai-state2"></div>
-    <button class="btn primary block" id="redraft" style="margin-top:12px">Make a new draft</button>`);
+    <button class="btn primary block" id="redraft" style="margin-top:12px">Make a new offer</button>`);
   $("#redraft").onclick = e => sendBrief(e.currentTarget, "PUT", "#brief2", "#ai-state2");
 }
 
@@ -462,11 +462,11 @@ async function sendBrief(btn, method, sel = "#brief", stateSel = "#ai-state") {
     try {
       const r = await api(url("/brief"), { method, body: { brief } });
       closeSheet(); V = r;
-   if (r.ai && r.ai.fell_back) toast("Drafted with the backup model");
+   if (r.ai && r.ai.fell_back) toast("Priced with the backup model");
       render();
     } catch (e) {
       if (e.data && e.data.draft_failed) {
-        $(stateSel).innerHTML = `<div class="banner bad" style="margin-top:12px">Couldn't draft it right now.</div>
+        $(stateSel).innerHTML = `<div class="banner bad" style="margin-top:12px">Couldn't price it right now.</div>
           <div class="row" style="margin-top:8px"><button class="btn grow" id="again">Try again</button><button class="btn grow" id="manual">Write the items myself</button></div>`;
         $("#again").onclick = () => sendBrief(btn, method, sel, stateSel);
         $("#manual").onclick = () => manualPicker(brief);
@@ -482,7 +482,7 @@ function manualPicker(brief) {
     ${items.map(p => `<div class="card" style="margin-top:8px"><div class="row between"><b>${esc(p.name)}</b><span>${usd(p.standard_cents)}</span></div>
       <div class="row" style="margin-top:6px"><input type="number" min="0" max="10" value="0" data-qty="${esc(p.code)}" style="max-width:80px">
    <input placeholder="exact words from your brief" data-quote="${esc(p.code)}" class="grow"></div></div>`).join("")}
-    <div class="err" id="mp-err" hidden></div><button class="btn primary block" id="mp-go" style="margin-top:12px">Make the draft</button>`);
+    <div class="err" id="mp-err" hidden></div><button class="btn primary block" id="mp-go" style="margin-top:12px">Make the offer</button>`);
   $("#mp-go").onclick = e => busy(e.currentTarget, async () => {
     const lines = items.map(p => ({ item_code: p.code, qty: +$(`[data-qty="${p.code}"]`, sh).value, quote: $(`[data-quote="${p.code}"]`, sh).value.trim() }))
       .filter(l => l.qty > 0);
@@ -509,9 +509,9 @@ function creator(d) {
   }
   if (d.status === "offered") {
     $("#view").innerHTML = `
-      <div class="banner gold"><i data-lucide='pen-line' aria-hidden='true'></i> ${esc(brandName)} sent a brief. Check the draft and accept.</div>
+      <div class="banner gold"><i data-lucide='pen-line' aria-hidden='true'></i> ${esc(brandName)} sent a brief. Check the offer and accept.</div>
       <div class="card" style="margin-top:12px"><p class="small muted">The brief</p><blockquote class="small">${esc(d.brief || "")}</blockquote></div>
-      <div class="card gold" style="margin-top:12px"><h2>Draft deal</h2>${linesHtml(true)}${extrasHtml()}</div>
+      <div class="card gold" style="margin-top:12px"><h2>Offer</h2>${linesHtml(true)}${extrasHtml()}</div>
       ${briefHtml(true)}
       <div class="stack" style="margin-top:14px">
         <button class="btn primary block" id="acc">Accept deal: version 1</button>

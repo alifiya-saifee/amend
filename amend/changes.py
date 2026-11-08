@@ -224,7 +224,7 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
     sys_text = {"authorized": ("{amt} held by PayPal", "lock"), "paid": ("{amt} collected", "wallet"), "voided": ("Hold released", "unlock"),
                 "refunded": ("{amt} refunded", "rotate-ccw"), "expired": ("A hold expired · hold again", "hourglass")}
     sysl = lambda at, body, icon: items.append({"type": "system", "at": at, "body": body, "icon": icon})
-    opened = False
+    opened = brief_shown = False
     for e in db.events_for(deal_id):
         t = e["type"]
         if t == "money.status" and e["payload"].get("to") in sys_text:
@@ -235,11 +235,12 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
             opened = True
             who = (parties.get(e["actor"]) or {}).get("name")
             sysl(e["at"], f"{who} opened the deal link" if who else "Deal link opened", "eye")
-        elif t == "brief.submitted":
-            sysl(e["at"], "Brief received", "file-text")
+        elif t == "brief.submitted" and not brief_shown:  # the brief as a card: items, post date, total, the words behind each item
+            brief_shown = True
+            items.append({"type": "brief", "at": e["at"], **_brief_card(db, deal_id, parties.get(e["actor"]) or {})})
         elif t == "deal.drafted":
             amt = e["payload"].get("total_cents")
-            sysl(e["at"], "Draft ready" + (f" · {money.fmt_usd(amt)}" if amt else ""), "file-pen")
+            sysl(e["at"], "Offer ready" + (f" · {money.fmt_usd(amt)}" if amt else ""), "file-pen")
         elif t == "deal.accepted":
             sysl(e["at"], f"Deal accepted · version {e['payload'].get('version', 1)}", "circle-check")
         elif t == "draft.uploaded":
@@ -250,6 +251,17 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
     unread = sum(1 for x in items if x["type"] != "system" and (not last or x["at"] > last["last_at"])
                  and not x.get("mine") and x.get("from_id") != viewer)
     return {"items": items, "unread": unread}
+
+
+def _brief_card(db: Database, deal_id: str, who: dict) -> dict:
+    """What the brand asked for, as first priced (the earliest version of the terms), with each line's quote."""
+    from amend.deals import deal_terms
+    row = db.one("select min(version) as v from terms where deal_id = :d", {"d": deal_id})
+    lines = deal_terms(db, deal_id, row["v"]) if row and row["v"] is not None else []
+    deal = db.one("select deadline, brief from deals where id = :d", {"d": deal_id}) or {}
+    return {"from": who.get("name") or "The brand", "post_date": deal.get("deadline"),
+            "lines": [{"name": t["name"], "qty": t["qty"], "amount_cents": t["amount_cents"], "quote": t.get("quote")} for t in lines],
+            "total_cents": sum(t["amount_cents"] for t in lines)}
 
 
 # ---------- change cards ----------

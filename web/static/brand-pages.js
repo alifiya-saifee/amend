@@ -24,7 +24,7 @@ async function brandHome() {
       <section class="card"><h2>Approvals needed</h2>
         ${h.needs_you.length ? `<div class="list">${h.needs_you.map(n => `<a class="inbox-row" ${goto(n.go, n.text)}>
           <span class="ic">${bI(n.icon)}</span><div class="grow"><b>${esc(n.creator)}</b><div class="small">${esc(n.text)}</div></div>${bI("chevron-right")}</a>`).join("")}</div>`
-          : bEmpty("circle-check", "All caught up", "Drafts to check, payments to hold, change cards and drafts to review show up here.")}</section>
+          : bEmpty("circle-check", "All caught up", "Offers to check, payments to hold, change cards and drafts to review show up here.")}</section>
       <section class="card"><h2>Upcoming posts</h2>
         ${h.upcoming.length ? `<ul class="events" style="margin-top:8px">${h.upcoming.map(e => `<li><span class="ev post" style="margin:0">Post</span>
           <a class="grow" ${goto(e.go, e.label)} style="color:var(--ink);text-decoration:none">${esc(e.creator)}</a><span class="small muted">${bDay(e.date)}</span></li>`).join("")}</ul>`

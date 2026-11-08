@@ -233,3 +233,15 @@ Next: Block 7.
 - Smoke test: /healthz, /, /pricing, /creators, /login, /try, /c/sara.eats all 200; sign-in from the site's own origin reaches the password check (401 on a wrong password), a foreign origin is refused (403).
 - To do (Alifiya): reset the Supabase DB password (it was typed in chat) and update DATABASE_URL in Render; PayPal webhook + cron-job.org tick pointing at the Render URL.
 - Next: S30 and the live walk-through with real sandbox + Gemini; log test-mode vs real differences here.
+
+## Inbox fixes, creator + brand (8 Nov)
+1. Wording: deal terms are an "offer" everywhere in the UI (status "Offer to accept", system line "Offer ready · $X", next step "Check and accept the offer", button "Review the offer", deal page "Your offer", "Price my offer"…). Content drafts keep "draft" (upload/approve draft, draft due).
+2. Badges: one count = conversations that need me (actionable), from `needs_threads` on /api/studio/inbox and /api/brand/inbox; the bell is gone (no non-Inbox alerts exist yet).
+3. Thread: the brief arrives as an inline card (items, quote chips that open the source words, post date, total); replaces the "Brief received" line.
+4. Phone (< 768px): "Next: <action> →" bar just above the composer; panel toggle labelled "Deal".
+5. Demo seed: link opened 2:00 PM, brief 2:04, the brand's message, offer ready 2:05 (Dubai); and demo history is never dated in the future (it was, before 2 PM Dubai, which made the browser walk accept the wrong deal).
+6. One formatter (app.js fmtDate / fmtTime): dates "Sat 21 Nov", times "2:00 PM"; chat, day headers, panel, calendar and seed messages use it.
+7. Panel without the duplicate Status row; four filter chips fit on one line at 320px; only the list's own search on this page; previews ≤ 40 characters, written short in code ("PayPal is holding $610", "Offer ready · $530 · accept it", "Opened your deal link").
+8. Deal dropdown only when a brand has more than one deal, styled like the other inputs.
+- Tests: tests/test_inbox_fixes.py (9 checks); tests/browser/inbox_layout.py now 180 checks at 1440 / 1280 / 1100 / 390, light + dark, incl. a one-deal brand → no dropdown. Results: docs/screenshots/inbox/test-results.txt. Hero layout tests and the full browser walk still pass. Suite: 475 passed, 3 skipped.
+- Brand inbox is still the simpler one-column list (wording, badge, short previews and dates applied); the 3-pane layout is creator-side.

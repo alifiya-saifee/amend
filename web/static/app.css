@@ -506,3 +506,36 @@ body.inbox-full #view { padding: 0; max-width: none; margin-right: 0; }
   .ibx-convhead { padding: 10px 12px; gap: 8px; }
   .ibx-convhead .avatar.sm { display: none; }
 }
+
+/* ---------- Inbox fixes (8 Nov) ---------- */
+body.inbox-full .topsearch { display: none !important; }            /* one search on this page: the list's own */
+.ibx-tools .chips { flex-wrap: nowrap; gap: 6px; overflow: visible; }  /* all four filters on one line at 320px */
+.ibx-tools .chips button { min-height: 30px; padding: 0 10px; font-size: 13px; }
+.ibx-tools .chips .dot { margin-left: 4px; }
+.ibx-switch { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.ibx-switch select { width: auto; max-width: 260px; min-height: 36px; padding: 6px 32px 6px 12px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.ibx-paneltoggle .lbl-short { display: none; }
+.ibx-nextbar { display: none; }
+@media (max-width: 767px) {
+  .ibx-paneltoggle .lbl-long { display: none; } .ibx-paneltoggle .lbl-short { display: inline; }
+  .ibx-nextbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; text-decoration: none;
+    background: var(--gold-soft); color: var(--ink); border-top: 1px solid var(--border); font-size: 15px; }
+  .ibx-nextbar b { color: var(--gold-ink); }
+}
+.briefcard { align-self: stretch; max-width: 520px; width: 100%; margin: 4px auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 12px 14px; }
+.bc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bc-head b { flex: 1; font-size: 14px; }
+.bc-ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold-ink); }
+.bc-ic svg { width: 15px; height: 15px; }
+.bc-line { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.bc-line b { font-variant-numeric: tabular-nums; }
+.q-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-2); background: var(--surface-2); color: var(--gold-ink); border-radius: 99px;
+  padding: 2px 8px; font: 600 12px var(--font); cursor: pointer; }
+.q-chip svg { width: 12px; height: 12px; }
+.bc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 14px; color: var(--muted); }
+.bc-foot span { display: inline-flex; align-items: center; gap: 6px; } .bc-foot svg { width: 14px; height: 14px; }
+.bc-foot b { color: var(--ink); font-size: 16px; }
+.ibx-tools { padding-left: 12px; padding-right: 12px; }
+.ibx-tools .chips { gap: 4px; }
+.ibx-tools .chips button { padding: 0 8px; }
+.ibx-tools .chips .dot { margin-left: 3px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }

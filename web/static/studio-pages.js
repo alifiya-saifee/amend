@@ -3,7 +3,7 @@
 const I = (n, cls = "") => `<i data-lucide="${n}" class="${cls}" aria-hidden="true"></i>`;
 const STAGE_LABEL = { brief: "Brief", accepted: "Accepted", held: "Held", production: "In production", delivered: "Delivered", paid: "Paid" };
 const EV_LABEL = { draft: "Draft due", post: "Posting date", product: "Product", review: "Brand review due", holdback: "Holdback release", expiry: "Hold expires" };
-const fmtDay = iso => new Date(iso + (iso.length === 10 ? "T12:00:00" : "")).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const fmtDay = fmtDate;  // one formatter (app.js)
 function emptyState(icon, title, text, action = "") { return `<div class="empty">${I(icon)}<h2>${esc(title)}</h2><p>${esc(text)}</p>${action}</div>`; }
 function errorState(e, retry) { return `<div class="empty">${I("triangle-alert")}<h2>Something went wrong</h2><p>${esc(e.message)}</p><button class="btn" onclick="${retry}">${I("rotate-cw")} Try again</button></div>`; }
 
@@ -31,7 +31,7 @@ async function homeTab() {
       <section class="card"><h2>Needs you</h2>
         ${h.needs_you.length ? `<div class="list">${h.needs_you.map(n => `<a class="inbox-row" href="/studio/deals/${n.deal}">
           <span class="ic">${I(n.icon)}</span><div class="grow"><b>${esc(n.brand)}</b><div class="small">${esc(n.text)}</div></div>${I("chevron-right")}</a>`).join("")}</div>`
-          : emptyState("circle-check", "All caught up", "Drafts to accept, change cards, delivery gaps and releases show up here.")}</section>
+          : emptyState("circle-check", "All caught up", "Offers to accept, change cards, delivery gaps and releases show up here.")}</section>
       <section class="card"><div class="row between"><h2 style="margin:0">Upcoming</h2><a class="small" href="/studio/calendar">Calendar</a></div>
         ${h.upcoming.length ? `<ul class="events" style="margin-top:8px">${h.upcoming.map(e => `<li><span class="ev ${e.kind}" style="margin:0">${esc(EV_LABEL[e.kind])}</span>
           <a class="grow" href="/studio/deals/${e.deal}" style="color:var(--ink);text-decoration:none">${esc(e.brand)}</a><span class="small muted">${fmtDay(e.date)}</span></li>`).join("")}</ul>`
@@ -47,10 +47,10 @@ let IBF = { filter: "all", q: "", sel: null };
 /* ---------- Inbox: list | conversation | deal panel (full height; each pane scrolls on its own) ---------- */
 const IB_TYPE_ICON = { message: "message-circle", eye: "eye", "file-pen": "file-pen", "pen-line": "file-pen", pencil: "pencil", wallet: "wallet",
   handshake: "handshake", lightbulb: "lightbulb", "circle-check": "circle-check", hourglass: "hourglass" };
-const ibDealLabel = d => d.title || `${d.total_cents ? usd(d.total_cents) + " deal" : "New deal"} · ${dateStr(d.created_at)}`;
+const ibDealLabel = d => d.title || `${d.total_cents ? usd(d.total_cents) + " deal" : "New deal"} · ${fmtDate(d.created_at)}`;
 async function inboxSplit() {
   const r = await api(`/api/studio/inbox?filter=${IBF.filter}&page=0`);
-  badge(r.unread);
+  badge(r.needs_threads);  // conversations that need me, not events
   const items = (r.threads || []).filter(x => !IBF.q || (x.brand + " " + x.line).toLowerCase().includes(IBF.q.toLowerCase()));
   IBF.threads = Object.fromEntries((r.threads || []).map(x => [x.brand, x]));
   if (IBF.selBrand && !IBF.threads[IBF.selBrand]) { IBF.selBrand = null; IBF.sel = null; }
@@ -91,8 +91,8 @@ const IB_ACT = (d, V) => {  // the next step on this deal, worked out from its s
   const pend = (V.extra_holds || []).some(h => ["planned", "approved", "sent", "failed"].includes(h.status));
   const draftSent = (V.events || []).some(e => e.type === "draft.uploaded");
   switch (d.status) {
-    case "draft": return ["Waiting for the brand's brief", "They write it from your deal link; you'll see the priced draft here.", "Open the deal", href()];
-    case "offered": return ["Check and accept the draft", `Priced from your list: ${usd(V.total_cents)}.`, "Review the draft", href()];
+    case "draft": return ["Waiting for the brand's brief", "They write it from your deal link; you'll see the priced offer here.", "Open the deal", href()];
+    case "offered": return ["Check and accept the offer", `Priced from your list: ${usd(V.total_cents)}.`, "Review the offer", href()];
     case "accepted": return V.money_held ? ["Start the work", "The money is held by PayPal.", "Open the deal", href()] : ["Waiting for the brand to pay", "Work starts once PayPal holds the money.", "Open the deal", href()];
     case "paused": return ["Paused", "Two people at the brand gave different instructions. Money waits until they pick one.", "See both", href()];
     case "in_progress": return pend ? ["Waiting for the extra hold", "A confirmed change needs more money held.", "Open the deal", href("#money")]
@@ -111,9 +111,9 @@ async function openPane(dealId) {
       <span class="avatar sm">${initials(IBF.selBrand || "")}</span>
       <div class="grow" style="min-width:0"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="ibx-brand">${esc(IBF.selBrand || "")}</b>
         <span class="pill status" id="ib-status">${esc(DEAL_LABEL[cur.status] || "")}</span></div>
-        ${t.deals.length > 1 ? `<label class="ibx-switch">Deal: <select id="pane-deal">${t.deals.map(d => `<option value="${d.id}" ${d.id === dealId ? "selected" : ""}>${esc(ibDealLabel(d))}</option>`).join("")}</select></label>`
+        ${t.deals.length > 1 ? `<label class="ibx-switch"><span>Deal:</span> <select id="pane-deal">${t.deals.map(d => `<option value="${d.id}" ${d.id === dealId ? "selected" : ""}>${esc(ibDealLabel(d))}</option>`).join("")}</select></label>`
           : `<div class="tiny muted">${esc(ibDealLabel(cur))}</div>`}</div>
-      <button class="btn small ibx-paneltoggle" id="ib-panel" aria-label="Deal details">${I("panel-right")}<span class="lbl-text"> Deal details</span></button>
+      <button class="btn small ibx-paneltoggle" id="ib-panel" aria-label="Deal details">${I("panel-right")}<span class="lbl-long"> Deal details</span><span class="lbl-short"> Deal</span></button>
     </header>
     <div class="ibx-chat" id="pane-chat"><div class="skeleton"></div></div>`;
   $("#ib-back").onclick = () => { IBF.mobileConv = false; $("#ibx").classList.remove("conv-open"); };
@@ -130,13 +130,15 @@ async function openPane(dealId) {
     <dl class="ibx-facts">
       <div><dt>Deal amount</dt><dd><b>${usd(V.total_cents)}</b> <span class="aed">${aed(V.total_cents)}</span></dd></div>
       <div><dt>Money</dt><dd>${V.hold ? moneyPill(V.hold.status) : '<span class="pill">Nothing held yet</span>'}${V.held_cents ? ` <span class="small">${usd(V.held_cents)} held</span>` : ""}</dd></div>
-      <div><dt>Status</dt><dd>${dealPill(d.status)}</dd></div>
-      ${d.deadline ? `<div><dt>Post date</dt><dd>${esc(d.deadline)}</dd></div>` : ""}
+      ${d.deadline ? `<div><dt>Post date</dt><dd>${esc(fmtDate(d.deadline))}</dd></div>` : ""}
     </dl>
     <div class="ibx-next"><div class="tiny muted">Next step</div><b>${esc(title)}</b><p class="small muted">${esc(why)}</p>
       <a class="btn primary block" href="${href}">${esc(act)}</a></div>
     <a class="small" href="/studio/deals/${d.id}">${I("external-link")} Open the deal</a>`;
   $("#ib-close").onclick = () => $("#ibx").classList.remove("panel-open");
+  // phones: the next step sits in a bar just above the composer
+  const chat = $("#pane-chat .chat"), form = $("#chat-form");
+  if (chat && form && !$("#ibx-nextbar")) form.insertAdjacentHTML("beforebegin", `<a class="ibx-nextbar" id="ibx-nextbar" href="${href}"><span>Next: <b>${esc(act)}</b></span><span aria-hidden="true">→</span></a>`);
 }
 
 /* ---------- Deals: board (kanban) and list (sortable) ---------- */
