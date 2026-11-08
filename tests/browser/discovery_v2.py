@@ -88,6 +88,25 @@ def main() -> None:
                 pg.goto(BASE + f"/d/{link}"); pg.wait_for_timeout(1500); shot(pg, "04-brand-offer-hidden", w, scheme)
                 ctx.close()
         s.goto(BASE + "/studio/prices"); s.wait_for_timeout(1200); s.screenshot(path=str(OUT / "05-sara-price-privacy-1280-light.png"))
+        # the judge setup (same as live): Sara Everyone, Layla On request, Yusuf A range
+        for handle, mode in (("sara.eats", "public"), ("layla.fits", "on_request"), ("yusuf.wanders", "range")):
+            pg = b.new_context().new_page()
+            pg.goto(BASE + "/login?tab=creator"); pg.fill("#email", f"{handle}@creators.example"); pg.fill("#pw", PW); pg.click("#go")
+            pg.wait_for_url("**/studio")
+            pg.evaluate("async (m) => fetch('/api/studio/price-privacy', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode: m})})", mode)
+            pg.context.close()
+        for w, h in ((390, 844), (1440, 900)):
+            for scheme in ("light", "dark"):
+                pg = b.new_context(viewport={"width": w, "height": h}, color_scheme=scheme).new_page(); watch(pg, f"modes-{w}-{scheme}")
+                pg.goto(BASE + "/creators?budget=500"); pg.wait_for_selector(".ccard", timeout=20000); pg.wait_for_timeout(800)
+                if w == 1440 and scheme == "light":  # the three modes as the API gives them to a brand (Yusuf is past page 1)
+                    for who in ("sara", "layla", "yusuf"):
+                        c = pg.evaluate("async (h) => (await (await fetch('/api/creators?budget=500&q=' + h)).json()).creators[0]", who)
+                        print(f"  {c['handle']}: Reel {c['price']['label']} · budget $500: {c['budget_fit']} · exact cents: {c['reel_standard_cents']}", flush=True)
+                pg.locator(".ccard", has_text="Layla Rahman").first.scroll_into_view_if_needed(); shot(pg, "06-discover-three-modes", w, scheme, full=False)
+                pg.goto(BASE + "/c/layla.fits"); pg.wait_for_timeout(1200); shot(pg, "07-profile-on-request-layla", w, scheme)
+                pg.goto(BASE + "/c/yusuf.wanders"); pg.wait_for_timeout(1200); shot(pg, "08-profile-range-yusuf", w, scheme)
+                pg.context.close()
         b.close()
     print("problems:", problems or "none"); print("price leaks:", leaks or "none"); print("JS errors:", errs[:4] or "none")
 

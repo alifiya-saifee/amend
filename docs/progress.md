@@ -312,3 +312,5 @@ Next: Block 7.
 - Exception to the scope lock, approved by Alifiya, with the rule: passing + live-checked by Wed 11 Nov 12:00, else revert and list in the README "next". Checklist and results: `docs/discovery-v2.md`.
 - **Tests:** 559 passed, 3 skipped (`tests/test_price_privacy.py`, `tests/test_match.py`). Browser: `tests/browser/discovery_v2.py`.
 - **Next:** Manual Deploy, then the live check (Sara "On request" → Discover, profile, AI match, a brand offer), then switch Sara back to "Everyone" for the judges unless Alifiya wants otherwise.
+
+- **Discovery v2 live check PASS (8 Nov night)**, well before the Wed 12:00 deadline: no revert needed. Judges see all three modes: Sara Everyone, Layla On request, Yusuf A range. Small follow-up fix: "Next available" date formatted on profiles and compare (needs a deploy).

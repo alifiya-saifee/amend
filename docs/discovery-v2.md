@@ -22,7 +22,7 @@
 
 ## Done means
 - [x] Full suite passing (559); browser-checked at 390 / 1440, light / dark; screenshots in `docs/screenshots/discovery-v2/`
-- [ ] Live-checked after deploy (deadline Wed 11 Nov 12:00)
+- [x] Live-checked after deploy (a9a1921, 8 Nov night): /try, on-request deal with PayPal hold, Discover + AI match, no leaks. See docs/live-walk.md.
 
 ## Results (8 Nov night)
 - **Extra leak found and closed:** the offer is priced by code the moment a brand sends a brief, before the creator sees it, so anyone could request a deal to read an on-request price. For range / on-request creators the brand now sees items with "On request" and "Sara confirms it when she accepts" until she accepts (deal page, side panel, strip, chat brief card, brand Home and Deals list).

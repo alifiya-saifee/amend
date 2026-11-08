@@ -242,7 +242,7 @@ async function compare() {
     ["Reel", c => price(c, "reel")], ["Story set", c => price(c, "story_set")], ["Extra revision", c => price(c, "extra_revision")],
     ["Usage rights / month", c => price(c, "usage_rights")], ["Exclusivity / month", c => price(c, "exclusivity")],
     ["Turnaround", c => c.turnaround_days != null ? c.turnaround_days + " days to first draft" : "–"],
-    ["Next available", c => esc(c.next_available || "–")], ["Languages", c => esc(c.languages.join(", ") || "–")],
+    ["Next available", c => esc(fmtDate(c.next_available) || "–")], ["Languages", c => esc(c.languages.join(", ") || "–")],
     ["Permit", c => esc(c.permit.label)], ["Amend deals completed", c => c.track_record.completed],
     ["Rating", c => c.track_record.rating ? `<i data-lucide='star' aria-hidden='true'></i> ${c.track_record.rating} (${c.track_record.reviews})` : "No reviews yet"],
   ];

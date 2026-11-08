@@ -70,7 +70,7 @@ async function load() {
     ${c.samples && c.samples.length ? `<section class="card" style="margin-top:14px"><h2>Samples</h2><div class="samples">${c.samples.map(s => `<div>${esc(s)}</div>`).join("")}</div>
       <p class="hint">Placeholders for demo creators.</p></section>` : ""}
     <section class="card" style="margin-top:14px"><h2>Availability</h2>
-      <p class="small">${c.next_available ? `Next available <b>${esc(c.next_available)}</b>` : "Ask about dates"}${c.turnaround_days != null ? ` · first draft in about ${c.turnaround_days} days` : ""}</p>
+      <p class="small">${c.next_available ? `Next available <b>${esc(fmtDate(c.next_available))}</b>` : "Ask about dates"}${c.turnaround_days != null ? ` · first draft in about ${c.turnaround_days} days` : ""}</p>
       ${c.limits && c.limits.posting_days ? `<p class="small muted">Posts on ${c.limits.posting_days.map(d => d[0].toUpperCase() + d.slice(1)).join(", ")}</p>` : ""}</section>
     <section class="card" style="margin-top:14px"><h2>On Amend</h2>
       <div class="stats"><div><b>${c.track_record.completed}</b><span>deals done</span></div>
