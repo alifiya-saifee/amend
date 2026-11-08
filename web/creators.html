@@ -173,6 +173,11 @@ function cmpBar() {
 }
 async function browse() {
   $("#view").innerHTML = `
+  <form class="card gold" id="ai-match" style="margin-bottom:14px"><label for="ai-text"><b>Describe your campaign</b></label>
+    <textarea id="ai-text" maxlength="1000" style="min-height:64px" placeholder="e.g. Iced coffee launch in Dubai: food or coffee creators with a UAE audience, about $500 per Reel, starting next week."></textarea>
+    <div class="row between wrapx" style="gap:8px;margin-top:8px"><span class="tiny muted">The AI only reads your words into criteria. Amend scores every creator the same way and shows why.</span>
+      <button class="btn primary small" id="ai-go">Find matches</button></div></form>
+  <div id="ai-out"></div>
   <div class="row" style="gap:8px"><input id="q" class="grow" placeholder="Search name, handle, niche or keyword" value="${esc(Q.q || "")}">
       <button class="btn small hide-desktop" id="openf">Filters</button></div>
     <div class="row between wrapx" style="margin:12px 0;gap:8px"><span class="muted small" id="count"></span>
@@ -188,8 +193,34 @@ async function browse() {
   const name = prompt("Name this search", Q.niche ? Q.niche + " creators" : "My search"); if (!name) return;
   try { await api("/api/brand/searches", { body: { name, query: new URLSearchParams(Q).toString() } }); toast("Search saved · see Brand dashboard → Searches"); } catch (e) { toast(e.message, "bad"); }
   };
+  $("#ai-match").onsubmit = e => { e.preventDefault(); aiMatch(); };
   drawFilters();
   await search();
+}
+
+/* ---------- AI match (Discovery v2, B): the AI reads criteria; code scores and explains ---------- */
+async function aiMatch() {
+  const text = $("#ai-text").value.trim();
+  if (text.length < 10) { toast("Describe the campaign in a sentence or two", "bad"); return; }
+  const out = $("#ai-out");
+  out.innerHTML = `<div class="card" aria-busy="true"><div class="skeleton" style="width:40%"></div><div class="skeleton tall"></div></div>`;
+  await busy($("#ai-go"), async () => {
+    let r;
+    try { r = await api("/api/discover/match", { body: { text } }); }
+    catch (e) { out.innerHTML = `<div class="card" role="alert"><p class="small">${esc(friendlyError(e))}</p></div>`; return; }
+    out.innerHTML = `<section class="card" style="margin-bottom:14px"><div class="row between wrapx" style="gap:8px"><h2 style="margin:0">Top ${r.creators.length} matches</h2>
+        <button class="btn small ghost" id="ai-clear" type="button">Clear</button></div>
+      <p class="small muted" style="margin:6px 0 4px">What we read from your words:</p>
+      <div class="chips wrapx" style="flex-wrap:wrap">${r.criteria.map(c => `<button type="button" class="q-chip" data-quote="${esc(c.quote)}" title="Your words: ${esc(c.quote)}">${esc(c.label)}: <b>${esc(c.value)}</b></button>`).join("")}</div>
+      <ol class="match-list">${r.creators.map((c, i) => `<li class="match-row"><span class="match-n">${i + 1}</span>
+        <div class="grow"><div class="row between wrapx" style="gap:6px"><span><a href="/c/${esc(c.handle)}"><b>${esc(c.display_name)}</b></a> <span class="muted small">@${esc(c.handle)}</span>${c.is_demo ? ' <span class="tiny muted">· Demo data</span>' : ""}</span>
+          <span class="pill held" title="Out of 100, same weights for every creator">${c.match.score}/100</span></div>
+          <ul class="why">${c.match.why.map(w => `<li>${icon("check")} ${esc(w)}</li>`).join("")}${c.match.gaps.map(w => `<li class="gap">${icon("minus")} ${esc(w)}</li>`).join("")}</ul>
+          <div class="small">${c.price && c.price.label ? `Reel ${esc(c.price.label)}` : ""}${fitBadge(c.budget_fit)}</div></div></li>`).join("")}</ol>
+      <p class="tiny muted">Score weights: ${Object.entries(r.weights).map(([k, v]) => `${k.replace("_", " ")} ${v}`).join(" · ")}. Only what you asked for counts.</p></section>`;
+    $("#ai-clear").onclick = () => { out.innerHTML = ""; };
+    $$("[data-quote]", out).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, "Your campaign", "", ""));
+  });
 }
 
 /* ---------- compare (S65) ---------- */

@@ -604,6 +604,27 @@ def browse(request: Request):
         raise HTTPException(400, "A filter value isn't valid.")
 
 
+class MatchIn(BaseModel):
+    text: str = Field(min_length=10, max_length=1000)
+
+
+@app.post("/api/discover/match")
+async def discover_match(body: MatchIn, request: Request):
+    """Discovery v2 (B): the AI reads the campaign into criteria (each with an exact quote); code scores and ranks."""
+    from amend import match
+    rate_limit(f"match:{request.client.host if request.client else '?'}", 8, 600)
+    try:
+        crit = await match.read_criteria(body.text)
+    except match.MatchError as e:
+        raise HTTPException(400, str(e))
+    except (ai.DraftRejected, ai.ProviderError):
+        raise HTTPException(503, "The AI is busy right now. Try again in a moment, or use the filters.")
+    results = match.match(get_db(), crit)
+    get_db().log_event("discover.matched", actor="brand", payload={"criteria": [q[0] for q in crit["quotes"]], "results": len(results)})
+    return {"criteria": [{"label": l, "value": v, "quote": q} for l, v, q in crit["quotes"]], "creators": results,
+            "weights": match.WEIGHTS}
+
+
 @app.get("/api/creators/compare")
 def compare(ids: str):
     wanted = [i for i in ids.split(",") if i][:3]

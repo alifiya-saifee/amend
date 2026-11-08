@@ -66,7 +66,7 @@ function header() {
     strip.innerHTML = `<span>New deal · <b>waiting for the brief</b></span>`;
   } else {
     strip.hidden = false;
-    strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Offer"} · <b>${usd(V.total_cents)}</b></span>
+    strip.innerHTML = `<span>${d.version ? "Version " + d.version : "Offer"} · <b>${V.price_hidden ? "price on request" : usd(V.total_cents)}</b></span>
       <span>${V.hold ? moneyPill(V.hold.status) : dealPill(d.status)} <span class="muted">▾</span></span>`;
     strip.onclick = dealSheet;
   }
@@ -82,10 +82,10 @@ function linesHtml(editable = false) {
             <span class="small muted">standard ${usd(t.standard_cents)} · ${usd(t.min_cents)}–${usd(t.max_cents).slice(1)}</span></div>
           <div class="err" data-err="${t.id}" hidden></div>` : ""}
       </div>
-      <div class="amt">${usd(t.amount_cents)}<div class="aed">${t.aed}</div></div>
+      <div class="amt">${V.price_hidden ? '<span class="small muted">On request</span>' : `${usd(t.amount_cents)}<div class="aed">${t.aed}</div>`}</div>
    ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
     </div>`).join("")}
-    <div class="total"><span>Total</span><span>${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span></span></div></div>`;
+    <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div></div>`;
 }
 function bindQuotes(root = document) {
   $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));

@@ -553,3 +553,10 @@ body.inbox-full .topsearch { display: none !important; }            /* one searc
 /* chips inside the ledger grid sit on the row's centre line */
 .ag-cell .pill { vertical-align: middle; line-height: 1.5; padding-top: 2px; padding-bottom: 2px; }
 .ag-cell { display: flex; align-items: center; }
+/* Discovery v2: AI match results */
+.match-list { list-style: none; padding: 0; margin: 12px 0 8px; display: flex; flex-direction: column; gap: 12px; }
+.match-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--border); }
+.match-n { width: 28px; height: 28px; border-radius: 50%; background: var(--gold-soft); color: var(--gold-ink); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: none; }
+.why { list-style: none; padding: 0; margin: 6px 0; font-size: 14px; display: flex; flex-direction: column; gap: 3px; }
+.why li { display: flex; gap: 6px; align-items: flex-start; } .why li svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--ok, #2f7d4f); }
+.why li.gap { color: var(--muted); } .why li.gap svg { color: var(--muted); }

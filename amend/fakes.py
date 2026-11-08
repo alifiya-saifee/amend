@@ -110,6 +110,25 @@ async def fake_call_json(system: str, user: str, **kw):
         if m:
             fields.append({"field": "post_date", "value": m.group(1).title(), "quote": _q(text, "post")}); kind = "change" if kind == "none" else kind
         return AIResult({"kind": kind, "lines": lines, "fields": fields, "quote": text.strip()[:200]}, "fake", 1, False)
+    if "describes a campaign" in system:  # Discovery v2 (B): rule-based reading, every quote taken from the text
+        camp = user.split("Campaign:\n", 1)[-1]
+        lowc = camp.lower()
+        out = {"niches": []}
+        from amend.discovery import NICHES
+        for n in NICHES:
+            if q := _q(camp, n):
+                out["niches"].append({"value": n, "quote": q})
+        for word, val in (("dubai", "UAE"), ("uae", "UAE"), ("saudi", "KSA"), ("ksa", "KSA"), ("gcc", "GCC")):
+            if word in lowc and (q := _q(camp, word)):
+                out["country"] = {"value": val, "quote": q}; break
+        if "arabic" in lowc:
+            out["language"] = {"value": "Arabic", "quote": _q(camp, "arabic")}
+        if "instagram" in lowc:
+            out["platform"] = {"value": "instagram", "quote": _q(camp, "instagram")}
+        m = re.search(r"\$\s?\d[\d,]*", camp)
+        if m:
+            out["budget"] = {"quote": m.group(0)}
+        return AIResult(out, "fake", 1, False)
     if "draft video frames" in system:
         return AIResult({"checks": [{"check": "Product clearly visible", "ok": True, "frame": 1, "note": "product on the table"},
                                     {"check": "Matches the brief", "ok": True, "frame": 3, "note": "home setting"}]}, "fake", 1, False)

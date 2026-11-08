@@ -29,3 +29,6 @@ Ideas and fallbacks found along the way. Each one is either needed later or kept
 
 ## Source
 - freeapikeys.org: a directory that links to each provider's official sign-up. Only use keys you create yourself in the provider's own console.
+
+## Discovery v2 C — "Ask to work together" (not built, 8 Nov)
+Brand → creator Inbox request; Accept sends a deal link prefilled from her price list; Decline; the brand sees the status. Today a brand can already "Request a deal" from the creator's public page, which opens a deal link directly.

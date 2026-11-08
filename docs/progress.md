@@ -307,3 +307,8 @@ Next: Block 7.
 - **Item 5 made visible (8 Nov, late):** the 4 identical Sun 8 Nov Dune Roast rows in the final screenshots were the screenshot script's own runs (each run makes a new $610 deal). `scripts/mark_test_deals.py` (dry run by default, `--apply`, `--keep <id>`): flags @sara.eats deals that are neither demo history nor /try.
   - Local screenshot DB: flagged 3 earlier runs, kept the latest. Earnings rows 9 → 6, Dune Roast on Sun 8 Nov **4 → 1**, Dune Roast holdbacks 4 → 1, ledger rows 65 → 38. 07 and 07b re-shot (`final_shots.py --only-earnings`).
   - Live DB: dry run listed exactly the 5 live walks (…fe0a, …d858, …144e, …50a7, …eecc), then flagged. Earnings rows 9 → 5, Dune Roast on Sun 8 Nov **4 → 0**, owed $19 → $0, ledger rows 59 → 29.
+
+## Discovery v2 (8 Nov night) — A + B built, C moved to later
+- Exception to the scope lock, approved by Alifiya, with the rule: passing + live-checked by Wed 11 Nov 12:00, else revert and list in the README "next". Checklist and results: `docs/discovery-v2.md`.
+- **Tests:** 559 passed, 3 skipped (`tests/test_price_privacy.py`, `tests/test_match.py`). Browser: `tests/browser/discovery_v2.py`.
+- **Next:** Manual Deploy, then the live check (Sara "On request" → Discover, profile, AI match, a brand offer), then switch Sara back to "Everyone" for the judges unless Alifiya wants otherwise.
