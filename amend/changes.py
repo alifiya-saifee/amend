@@ -273,7 +273,8 @@ def _current_lines(db: Database, deal: dict) -> list[dict]:
 
 
 def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: str, source: str,
-          message_id: str | None, today: date | None = None) -> dict | None:
+          message_id: str | None, today: date | None = None, forced: dict[str, int] | None = None,
+          existing: dict | None = None) -> dict | None:
     """Price the AI's reading with code, build the ripple, and save the change card. None when nothing changes."""
     today = today or datetime.now(timezone.utc).date()
     if out.kind == "none" or (not out.lines and not out.fields and out.kind != "revision"):
@@ -303,9 +304,22 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         p = plist[l.item_code]
         have = cur.get(l.item_code, {}).get("qty", 0)
         qd = max(l.qty_delta, -have) if l.qty_delta < 0 else l.qty_delta
+        unit = cur.get(l.item_code, {}).get("unit_cents") or p["standard_cents"] or 0
+        if forced and l.item_code in forced:
+            qd = forced[l.item_code]
+        elif qd < 0 and have > 1:  # S102: singular words remove one, plural or "all" removes all, unclear → ask
+            n = removal_qty(l.quote, p["name"], have)
+            if n is None:
+                opts = sorted({1, have} | ({2} if have > 2 else set()))
+                lines.append({"label": f"Which {p['name']}? The deal has {have}", "item_code": l.item_code, "qty_delta": 0,
+                              "amount_cents": 0, "quote": l.quote, "source": "unclear wording: pick before anyone confirms",
+                              "choices": [{"qty": -k, "label": ("Remove both" if have == 2 else f"Remove all {have}") if k == have
+                                           else f"Remove {k} {p['name'].split('(')[0].strip()}",
+                                           "amount_cents": -unit * k} for k in opts]})
+                continue
+            qd = -n
         if qd == 0:
             continue
-        unit = cur.get(l.item_code, {}).get("unit_cents") or p["standard_cents"] or 0
         amt = unit * qd
         lines.append({"label": f"{'+' if qd > 0 else '−'} {abs(qd)} {p['name']}", "item_code": l.item_code, "qty_delta": qd,
                       "amount_cents": amt, "quote": l.quote, "source": f"{'kept price' if l.item_code in cur else 'price list'}"})
@@ -339,18 +353,50 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
             if c not in rip.conflicts:
                 rip.conflicts.append(c)
     status = "previewed" if side in ("brand", "creator") else "detected"  # reviewers create suggestions only
+    open_choice = any("choices" in l for l in lines)
+    if existing:  # S102: a choice was made; re-price the same card, both sides confirm the chosen version
+        upd = {"lines_json": json.dumps(lines), "ripple_json": json.dumps(rip.to_dict()), "untouched_count": rip.untouched_count,
+               "delta_cents": delta, "confirmed_brand_at": now() if side == "brand" and not open_choice else None,
+               "confirmed_creator_at": now() if side == "creator" and not rip.conflicts and not open_choice else None}
+        db.update("changes", "id", existing["id"], upd)
+        return db.one("select * from changes where id = :id", {"id": existing["id"]})
     cid = new_id("ch")
     row = {"id": cid, "deal_id": deal["id"], "status": status, "kind": out.kind, "lines_json": json.dumps(lines),
            "ripple_json": json.dumps(rip.to_dict()), "untouched_count": rip.untouched_count, "proposed_by": proposer,
            "quote": out.quote or message[:200], "source": source, "message_id": message_id, "delta_cents": delta,
            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EXPIRY_HOURS)).isoformat(), "created_at": now(),
-           "confirmed_brand_at": now() if side == "brand" else None,
-           "confirmed_creator_at": now() if side == "creator" and not rip.conflicts else None}
+           "confirmed_brand_at": now() if side == "brand" and not open_choice else None,
+           "confirmed_creator_at": now() if side == "creator" and not rip.conflicts and not open_choice else None}
     db.insert("changes", row)
     db.log_event("change.detected" if status == "previewed" else "change.suggested", actor=proposer, deal_id=deal["id"],
                  payload={"change": cid, "kind": out.kind, "delta_cents": delta, "conflicts": rip.conflicts,
                           "untouched": rip.untouched_count})
     return db.one("select * from changes where id = :id", {"id": cid})
+
+
+NUM_WORDS = {"one": 1, "single": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def removal_qty(quote: str, name: str, have: int) -> int | None:
+    """S102: how many to remove when the deal has more than one. Decided by code from the quoted words, not by the AI.
+    "all"/"both"/plural → all; a number → that many; "the/a/one/this <item>" → one; anything else → None (ask)."""
+    q = f" {quote.lower()} "
+    q = re.sub(r"\b(after all|at all|all right|all good|all set|that's all|thats all)\b", " ", q)  # idioms, not quantities
+    words = re.findall(r"[a-z]+", name.split("(")[0].lower())
+    if not words:
+        return None
+    if re.search(r"\b(all|both|every|entire)\b", q):
+        return have
+    m = re.search(r"\b(\d+)\b", q)
+    n = int(m.group(1)) if m else next((v for k, v in NUM_WORDS.items() if re.search(rf"\b{k}\b", q)), None)
+    if n:
+        return min(n, have)
+    plurals = {w + "s" for w in words} | {w[:-1] + "ies" for w in words if w.endswith("y")}
+    if any(re.search(rf"\b{p}\b", q) for p in plurals):
+        return have
+    if re.search(rf"\b(the|a|an|this|that)\b(\s+\w+){{0,3}}?\s+{re.escape(words[-1])}\b", q):
+        return 1
+    return None
 
 
 def card(db: Database, c: dict) -> dict:
@@ -385,7 +431,7 @@ def _pending_hold(db: Database, c: dict) -> dict | None:
     return {"id": h["id"], "amount_cents": h["amount_cents"]} if h else None
 
 
-def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str | None = None) -> dict:
+def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str | None = None, qty: int | None = None) -> dict:
     c = db.one("select * from changes where id = :id", {"id": change_id})
     if not c:
         raise ChangeError("change not found")
@@ -417,7 +463,25 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
             raise ChangeError("only the creator can override her own limit, with a reason")
         db.update("changes", "id", change_id, {"override_reason": reason.strip()[:300]})
         db.log_event("change.override", actor=party_id, deal_id=deal["id"], payload={"change": change_id, "reason": reason.strip()[:300]})
+    elif action == "choose":  # S102: pick how many; the card is re-priced and both sides confirm the chosen version
+        if side not in ("brand", "creator"):
+            raise ChangeError("only the deciders can choose")
+        lines = json.loads(c["lines_json"] or "[]")
+        open_line = next((l for l in lines if "choices" in l), None)
+        if not open_line or qty not in [ch["qty"] for ch in open_line["choices"]]:
+            raise ChangeError("pick one of the options on the card")
+        forced = {l["item_code"]: l["qty_delta"] for l in lines if l.get("item_code") and "choices" not in l and l.get("qty_delta")}
+        forced[open_line["item_code"]] = qty
+        out = ChangeOut(kind=c["kind"], quote=c["quote"] or "",
+                        lines=[LineDelta(item_code=l["item_code"], qty_delta=forced.get(l["item_code"], l["qty_delta"]) or -1, quote=l["quote"])
+                               for l in lines if l.get("item_code") and l.get("item_code") != "date_change" and not l.get("field")],
+                        fields=[FieldChange(field="post_date", value=l["value"], quote=l["quote"]) for l in lines if l.get("field") == "post_date"])
+        build(db, deal, out, message=c["quote"] or "", proposer=party_id, source=c["source"], message_id=c["message_id"],
+              forced=forced, existing=c)
+        db.log_event("change.choice_made", actor=party_id, deal_id=deal["id"], payload={"change": change_id, "qty": qty})
     elif action == "confirm":
+        if any("choices" in l for l in json.loads(c["lines_json"] or "[]")):
+            raise ChangeError("pick which one first: no money moves until the choice is confirmed")
         if c["status"] == "detected":
             raise ChangeError("this is a suggestion: the brand's main contact needs to propose it first")
         if side == "creator":

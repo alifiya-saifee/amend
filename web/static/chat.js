@@ -106,8 +106,10 @@ const Chat = (() => {
       <div class="row between"><b>${title}</b>${c.source && c.source !== "chat" ? `<span class="pill">${esc(c.source.split(":")[0])}</span>` : ""}</div>
       ${c.suggestion ? `<p class="small muted">From ${esc(c.proposed_by || "a teammate")}. Suggestions can't move money until the brand's main contact proposes them.</p>` : ""}
       <div class="list">${c.lines.map(l => `<div class="line"><div class="grow">${esc(l.label)}
-          ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}</div>
-          <div class="amt cc-amt ${l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
+          ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}
+          ${l.choices && open && !c.suggestion ? `<div class="row wrapx" style="gap:6px;margin-top:6px">${l.choices.map(ch =>
+            `<button class="btn small" data-act="choose" data-qty="${ch.qty}" data-id="${c.id}">${esc(ch.label)} · −${usd(Math.abs(ch.amount_cents))}</button>`).join("")}</div>` : ""}</div>
+          <div class="amt cc-amt ${l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${l.choices ? "?" : l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
      <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
       ${c.override_reason ? `<div class="tiny muted">Creator's override: “${esc(c.override_reason)}”</div>` : ""}
@@ -115,6 +117,7 @@ const Chat = (() => {
         <span><i data-lucide='wallet' aria-hidden='true'></i> ${c.money.map(esc).join(" · ")}</span></div>
       ${open ? `<div class="row wrapx" style="margin-top:10px;gap:8px">
           ${c.suggestion ? (isBrand ? `<button class="btn primary small" data-act="propose" data-id="${c.id}">Propose this change</button>` : "")
+            : c.lines.some(l => l.choices) ? `<span class="pill waiting">Pick one above · nothing moves until you both confirm it</span>`
             : (iOk ? `<span class="pill held">You confirmed</span>` : `<button class="btn primary small" data-act="confirm" data-id="${c.id}" data-conflict="${c.conflicts.length && !isBrand && !c.override_reason ? 1 : 0}">Confirm</button>`)}
           <button class="btn small" data-act="discuss" data-id="${c.id}">Discuss</button>
           <button class="btn small danger" data-act="reject" data-id="${c.id}">Reject</button>
@@ -135,7 +138,7 @@ const Chat = (() => {
     if (action === "discuss") { $("#chat-in").focus(); }
     await busy(b, async () => {
       try {
-        const r = await api(`${base}/changes/${id}/${action}`, { body: { reason } });
+        const r = await api(`${base}/changes/${id}/${action}`, { body: { reason, qty: b.dataset.qty ? +b.dataset.qty : null } });
         lastSig = ""; draw(r);
     if (r.change && r.change.status === "applied") { toast("Confirmed by both · applied"); if (onApplied) onApplied(); }
    } catch (e) { toast(e.message, "bad"); }

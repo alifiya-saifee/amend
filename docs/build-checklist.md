@@ -1044,3 +1044,4 @@ After each page: screenshots at 390 px and 1440 px, in light and dark (marketing
 | S96 | No emoji icons anywhere in the UI | All icons from one set | [ ] | [ ] |
 | S97 | Every app screen | Loading, empty and error states | [ ] | [ ] |
 | S98 | Price decrease after payout (refund) | Refund card shows the split first (holdback, then next payout); Sara approves → live status check → PayPal refund once; holdback marked used, never released; remainder owed and taken from the next payout; decline pauses the deal; editor shares untouched | [x] | [ ] |
+| S102 | Removal wording when the deal has more than one | Singular ("the/a/one … story set") removes one; plural, "both", "all" or a number removes that many; idioms ("after all") ignored; unclear → card asks "Which one?" with options and prices, Confirm blocked, no money moves until both confirm the choice; quote chip unchanged | [x] | [x] |

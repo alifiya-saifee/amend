@@ -2108,14 +2108,15 @@ async def creator_upload(deal_id: str, body: UploadIn, c: dict = Depends(require
 
 class ActIn(BaseModel):
     reason: str | None = Field(None, max_length=300)
+    qty: int | None = Field(None, ge=-10, le=10)
 
 
-def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None) -> dict:
+def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, qty: int | None = None) -> dict:
     d = get_db()
     if not d.one("select id from changes where id = :c and deal_id = :d", {"c": cid, "d": deal["id"]}):
         raise HTTPException(404, "change not found")
     try:
-        card = changes.act(d, cid, party_id, action, reason=reason)
+        card = changes.act(d, cid, party_id, action, reason=reason, qty=qty)
     except changes.ChangeError as e:
         raise HTTPException(400, str(e))
     return {"change": card, **_chat(deals.get_deal(d, deal["id"]), party_id)}
@@ -2123,12 +2124,12 @@ def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None) -
 
 @app.post("/api/d/{token}/changes/{cid}/{action}")
 def brand_act(token: str, cid: str, action: str, body: ActIn):
-    return _act(*_brand_ctx(token), cid, action, body.reason)
+    return _act(*_brand_ctx(token), cid, action, body.reason, body.qty)
 
 
 @app.post("/api/deals/{deal_id}/changes/{cid}/{action}")
 def creator_act(deal_id: str, cid: str, action: str, body: ActIn, c: dict = Depends(require_creator)):
-    return _act(*_creator_ctx(deal_id, c), cid, action, body.reason)
+    return _act(*_creator_ctx(deal_id, c), cid, action, body.reason, body.qty)
 
 
 class InviteIn(BaseModel):
