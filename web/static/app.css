@@ -539,3 +539,4 @@ body.inbox-full .topsearch { display: none !important; }            /* one searc
 .ibx-tools .chips { gap: 4px; }
 .ibx-tools .chips button { padding: 0 8px; }
 .ibx-tools .chips .dot { margin-left: 3px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }
+.bc-src { margin-top: 6px; font-size: 12px; color: var(--muted); }

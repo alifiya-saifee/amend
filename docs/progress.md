@@ -245,3 +245,9 @@ Next: Block 7.
 8. Deal dropdown only when a brand has more than one deal, styled like the other inputs.
 - Tests: tests/test_inbox_fixes.py (9 checks); tests/browser/inbox_layout.py now 180 checks at 1440 / 1280 / 1100 / 390, light + dark, incl. a one-deal brand → no dropdown. Results: docs/screenshots/inbox/test-results.txt. Hero layout tests and the full browser walk still pass. Suite: 475 passed, 3 skipped.
 - Brand inbox is still the simpler one-column list (wording, badge, short previews and dates applied); the 3-pane layout is creator-side.
+
+## Two Inbox fixes (8 Nov)
+- One definition of "needs me" (inbox.needs_me_brands): the "Needs me" chip, its filter and the nav badge use it; demo shows 2 and 2.
+- Brief card says whose prices they are: "Priced from your list" (creator) / "Priced from the creator's list" (brand); the brand's words stay on the Quote chips.
+- Tests: 2 more in tests/test_inbox_fixes.py; inbox_layout.py now 198 checks, all pass. Suite: 477 passed, 3 skipped.
+- Next: Alifiya Manual Deploys on Render and finishes webhook + PAYPAL_WEBHOOK_ID, cron-job.org tick, Supabase password reset; then the live walk-through (docs/live-walk.md).

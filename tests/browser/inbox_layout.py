@@ -47,6 +47,7 @@ MEASURE = """() => {
     badge: (qa('[data-badge]').find(vis) || {}).textContent || '', previews: qa('.ibx-prev .txt').map(t => t.textContent),
     nextbar: vis(q('#ibx-nextbar')) ? R(q('#ibx-nextbar')) : null, nextText: q('#ibx-nextbar') ? q('#ibx-nextbar').innerText : '',
     toggleLabel: q('#ib-panel') ? [...q('#ib-panel').querySelectorAll('span')].filter(vis).map(s => s.textContent.trim()).join(' ') : '',
+    chipNeeds: (q('.ibx-tools .chips button[data-f=needs_me] .dot') || {}).textContent || '',
     dealRows: (IBF.threads && IBF.threads[IBF.selBrand]) ? IBF.threads[IBF.selBrand].deals.length : null };
 }"""
 
@@ -56,6 +57,7 @@ DAY = re.compile(r"^(?:Today|Yesterday|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) [1-9]\d? 
 
 def fix_checks(m: dict, w: int, stage: str, needs: int) -> list[tuple[str, bool, str]]:
     out = []
+    out.append(("'Needs me' chip = nav badge (same number)", m["chipNeeds"] == m["badge"], f"chip={m['chipNeeds']!r} badge={m['badge']!r}"))
     out.append(("one badge = conversations that need me; no bell", m["badge"] == (str(needs) if needs else "") and not m["bell"], f"badge={m['badge']!r} api={needs} bell={m['bell']}"))
     out.append(("one search on the page (the list's own)", not m["topsearch"] and m["searches"] <= 1, f"topsearch shown={m['topsearch']} searches={m['searches']}"))
     if stage != "conv":
@@ -66,6 +68,7 @@ def fix_checks(m: dict, w: int, stage: str, needs: int) -> list[tuple[str, bool,
         out.append(("times like 2:00 PM (no leading zero)", bool(times) and not re.search(r"\b0\d:\d\d", m["chatText"]), f"e.g. {times[:2]}"))
         out.append(("day headers like Sat 21 Nov / Today", m["dayLabels"] and all(DAY.match(x.title() if x.isupper() else x) for x in m["dayLabels"]), str(m["dayLabels"][:3])))
         out.append(("brief shows as a card with quote chips", m["briefCards"] >= 1 and m["quoteChips"] >= 1, f"cards={m['briefCards']} quote chips={m['quoteChips']}"))
+        out.append(("brief card: prices labelled as the creator's", "Priced from your list" in m["chatText"], "footer 'Priced from your list'"))
         out.append(("deal dropdown only when the brand has >1 deal", m["switcher"] == ((m["dealRows"] or 0) > 1), f"dropdown={m['switcher']} deals={m['dealRows']}"))
         out.append(("offer wording, not draft", "Draft ready" not in m["chatText"] and (m["status"] or "") != "Draft to accept", f"status={m['status']!r}"))
     if w >= 1280:

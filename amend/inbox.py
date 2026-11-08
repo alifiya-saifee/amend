@@ -75,10 +75,19 @@ def _line(e: dict, deal: dict, brand: str) -> str | None:
     return None
 
 
-def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", page: int = 0) -> dict:
+def needs_me_brands(db: Database, creator: dict) -> set[str]:
+    """THE definition of "needs me" for the Inbox: brands (conversations) with something for the creator to do now.
+    Used for the "Needs me" chip, its filter and the nav badge, so they always agree."""
+    from amend import studio
+    by_deal = {d["id"]: d["brand_org"] for d in db.all("select id, brand_org from deals where creator_id = :c", {"c": creator["id"]})}
+    return {by_deal[n["deal"]] for n in studio.needs_you(db, creator) if n["deal"] in by_deal}
+
+
+def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", page: int = 0, needs: set[str] | None = None) -> dict:
     deals = {d["id"]: d for d in db.all("select * from deals where creator_id = :c", {"c": creator_id})}
+    needs = needs or set()
     if not deals:
-        return {"items": [], "unread": 0, "more": False}
+        return {"items": [], "unread": 0, "more": False, "threads": [], "needs_threads": 0, "counts": {"all": 0, "needs_me": 0, "messages": 0, "money": 0}}
     brands = {p["id"]: p for p in db.all("select id, name, org from parties where role like 'brand%'")}
     read = {r["event_id"] for r in db.all("select event_id from inbox_reads where party_id = :p", {"p": party_id})}
     rows = db.all("select * from events where deal_id in (select id from deals where creator_id = :c) "
@@ -112,16 +121,16 @@ def entries(db: Database, creator_id: str, party_id: str, *, flt: str = "all", p
         out.append({"event_id": e["id"], "deal": deal["id"], "brand": deal["brand_org"], "icon": icon, "category": cat, "type": e["type"],
                     "line": line, "at": e["at"], "unread": e["id"] not in read, "change": ch})
     unread = sum(x["unread"] for x in out)
-    counts = {"all": len(out), "needs_me": sum(x["category"] == "needs_me" for x in out),
+    counts = {"all": len(out), "needs_me": len(needs),  # conversations that need me (same number as the badge)
               "messages": sum(x["category"] == "messages" for x in out), "money": sum(x["category"] == "money" for x in out)}
-    threads = _threads(out, deals, flt)
+    threads = _threads(out, deals, flt, needs)
     if flt != "all":
         out = [x for x in out if x["category"] == flt]
     return {"items": out[page * PAGE:(page + 1) * PAGE], "more": len(out) > (page + 1) * PAGE, "unread": unread,
-            "counts": counts, "threads": threads}
+            "counts": counts, "threads": threads, "needs_threads": len(needs)}
 
 
-def _threads(out: list[dict], deals: dict, flt: str) -> list[dict]:
+def _threads(out: list[dict], deals: dict, flt: str, needs: set[str] = frozenset()) -> list[dict]:
     """One row per brand (newest activity first): the latest line, whether it's a chat message or an activity update,
     how many deals and updates, which updates are unread, and any change card that can be confirmed from the Inbox.
     The row opens the brand's most recently active deal; `deals` lists all of them (newest first) for the deal picker.
@@ -144,7 +153,9 @@ def _threads(out: list[dict], deals: dict, flt: str) -> list[dict]:
             d = deals[x["deal"]]
             t["deals"].append({"id": d["id"], "title": d.get("title"), "total_cents": d["total_cents"], "status": d["status"], "at": x["at"],
                                "created_at": d["created_at"]})
-    rows = [t for t in by.values() if flt == "all" or flt in t["categories"]]
+    for t in by.values():
+        t["needs_me"] = t["brand"] in needs
+    rows = [t for t in by.values() if flt == "all" or (t["needs_me"] if flt == "needs_me" else flt in t["categories"])]
     for t in rows:
         t["categories"] = sorted(t["categories"])
     return sorted(rows, key=lambda t: t["at"], reverse=True)

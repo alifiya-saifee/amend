@@ -85,7 +85,8 @@ const Chat = (() => {
       <div class="bc-lines">${(b.lines || []).map(l => `<div class="bc-line"><span class="grow">${esc(l.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}</span>
         ${l.quote ? `<button class="q-chip" data-quote="${esc(l.quote)}" data-who="${esc(b.from)}" data-where="the brief" title="The words this came from"><i data-lucide='quote' aria-hidden='true'></i> Quote</button>` : ""}
         <b>${usd(l.amount_cents)}</b></div>`).join("") || '<p class="small muted">No priced lines yet.</p>'}</div>
-      <div class="bc-foot">${b.post_date ? `<span><i data-lucide='calendar' aria-hidden='true'></i> Post ${esc(fmtDate(b.post_date))}</span>` : "<span></span>"}<span>Total <b>${usd(b.total_cents)}</b></span></div></div>`;
+      <div class="bc-foot">${b.post_date ? `<span><i data-lucide='calendar' aria-hidden='true'></i> Post ${esc(fmtDate(b.post_date))}</span>` : "<span></span>"}<span>Total <b>${usd(b.total_cents)}</b></span></div>
+      <div class="bc-src">${isBrand ? "Priced from the creator's list" : "Priced from your list"} · the brand's words are on the Quote chips</div></div>`;  // prices are the creator's, not the brand's
   }
   function withDays(items) {
     let last = "";

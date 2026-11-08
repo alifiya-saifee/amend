@@ -465,11 +465,8 @@ def permit_check(creator_id: str):
 def my_inbox(filter: str = "all", page: int = 0, c: dict = Depends(require_creator)):
     if filter not in ("all", "needs_me", "messages", "money"):
         raise HTTPException(400, "unknown filter")
-    r = inbox.entries(get_db(), c["id"], c["party_id"], flt=filter, page=max(page, 0))
-    # badge = how many conversations (brands) have something for me to do, not how many events
-    by_deal = {d["id"]: d["brand_org"] for d in get_db().all("select id, brand_org from deals where creator_id = :c", {"c": c["id"]})}
-    r["needs_threads"] = len({by_deal.get(n["deal"]) for n in studio.needs_you(get_db(), c)})
-    return r
+    # one definition of "needs me" (inbox.needs_me_brands) feeds the chip, its filter and the nav badge
+    return inbox.entries(get_db(), c["id"], c["party_id"], flt=filter, page=max(page, 0), needs=inbox.needs_me_brands(get_db(), c))
 
 
 class ReadIn(BaseModel):

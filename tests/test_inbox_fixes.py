@@ -115,3 +115,21 @@ def test_seed_history_is_never_in_the_future(client, history):
     for table, col in (("events", "at"), ("messages", "at"), ("deals", "created_at"), ("money_items", "created_at")):
         latest = d.one(f"select max({col}) as m from {table}")["m"]
         assert datetime.fromisoformat(latest) <= now, (table, latest)
+
+
+# A1. one definition of "needs me": chip count, its filter and the nav badge agree (demo: 2 and 2)
+def test_needs_me_chip_and_badge_are_the_same_number(client, history):
+    r = client.get("/api/studio/inbox").json()
+    assert r["counts"]["needs_me"] == r["needs_threads"] == 2
+    f = client.get("/api/studio/inbox?filter=needs_me").json()
+    assert len(f["threads"]) == 2 and all(t["needs_me"] for t in f["threads"])
+    assert {t["brand"] for t in f["threads"]} == {t["brand"] for t in r["threads"] if t["needs_me"]}
+    pages = (ROOT / "web/static/studio-pages.js").read_text()
+    assert "badge(r.needs_threads)" in pages and "c.needs_me" in pages  # chip and badge read the same API numbers
+
+
+# A2. the brief card says whose prices they are; the brand's words stay on the Quote chips
+def test_brief_card_labels_prices_as_the_creators():
+    chat = (ROOT / "web/static/chat.js").read_text()
+    assert '"Priced from your list"' in chat and "\"Priced from the creator's list\"" in chat
+    assert "the brand's words are on the Quote chips" in chat
