@@ -1358,7 +1358,7 @@ async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_c
         raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "A frame couldn't be read.")
     frames = [{"data_url": f"data:image/jpeg;base64,{f.data_b64}", "t": f.t} for f in body.frames]
     try:
-        checks = await delivery.check_frames(frames, body.caption, delivery.requirements(deal))
+        checks = await delivery.check_frames(frames, body.caption, delivery.draft_requirements(deal))  # content only
     except (ai.ProviderError, ai.DraftRejected):
         checks = [{"check": "AI check", "ok": False, "frame": None, "time": None, "note": "Couldn't check the frames right now; the brand reviews by eye."}]
     delivery.set_draft_result(get_db(), dv["id"], checks)

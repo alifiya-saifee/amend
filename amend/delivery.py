@@ -61,6 +61,15 @@ async def check_frames(frames: list[dict], caption: str, requirements: list[str]
     return out
 
 
+# Done-means items only the POST can show (when and where it went up, how long it stays live, that it matches the
+# approved draft). A draft is checked for content only; these are checked at posting (delivery check / tick).
+POST_ONLY = ("posted on ", "matches the approved draft", "live for ")
+
+
+def draft_requirements(deal: dict) -> list[str]:
+    return [r for r in requirements(deal) if not r.lower().startswith(POST_ONLY)]
+
+
 def requirements(deal: dict) -> list[str]:
     reqs = [d["value"] for d in (deal.get("done_means") or [])]
     b = briefs.load(deal)

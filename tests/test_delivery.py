@@ -219,3 +219,20 @@ def test_editor_share_paid_by_payouts(client, mocks, held):
             for c in mocks.payout.calls]
     assert ("editor@personal.example.com", "79.50") in sent  # 15% of $530
     assert any(v == "397.50" for _, v in sent)  # $530 − $53 holdback − $79.50 editor
+
+
+def test_draft_check_skips_post_only_items(client, mocks, held):
+    """Live walk: the draft check judged "Posted on … Friday", "Matches the approved draft" and "Live for 30 days" and
+    failed them, although a draft can't show those. They belong to the post check."""
+    deal, tok = held
+    mocks.ai.mock(return_value=ai_reply({"checks": [{"check": "Disclosure: #ad", "ok": True, "frame": 1, "note": "on screen"}]}))
+    frames = [{"data_b64": JPEG, "t": i * 1.5} for i in range(6)]
+    client.post(f"/api/deals/{deal}/draft", json={"frames": frames, "caption": "Trying the new cold brew #ad"}, headers=ORIGIN)
+    sent = json.dumps(json.loads(mocks.ai.calls.last.request.content)["messages"])
+    for post_only in ("Posted on", "Matches the approved draft", "Live for"):
+        assert post_only not in sent, post_only
+    from amend import delivery
+    d = get_db().one("select * from deals where id = :d", {"d": deal})
+    full = delivery.requirements(get_db().one("select * from deals where id = :d", {"d": deal}) | {"done_means": [
+        {"value": "Posted on Instagram on Friday"}, {"value": "Matches the approved draft"}, {"value": "Disclosure: #ad"}, {"value": "Live for 30 days"}]})
+    assert any(r.startswith("Posted on") for r in full)  # the post check still has them
