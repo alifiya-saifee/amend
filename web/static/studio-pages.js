@@ -77,11 +77,16 @@ async function inboxSplit() {
   let tq; $("#ib-q").oninput = e => { clearTimeout(tq); tq = setTimeout(() => { IBF.q = e.target.value; inboxSplit().then(() => { const q = $("#ib-q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }); }, 250); };
   if ($("#allread")) $("#allread").onclick = e => busy(e.currentTarget, async () => {
     await api("/api/studio/inbox/read", { body: { event_ids: (r.threads || []).flatMap(t => t.unread_ids) } }); inboxSplit(); });
-  $$(".ibx-row").forEach(row => row.onclick = async () => {
+  // Opening a conversation is instant: select the row and open its chat straight away (no reload of the whole list);
+  // marking its updates read happens in the background.
+  $$(".ibx-row").forEach(row => row.onclick = () => {
     const ids = row.dataset.ids ? row.dataset.ids.split(",").map(Number) : [];
-    if (ids.length) { try { await api("/api/studio/inbox/read", { body: { event_ids: ids } }); } catch {} }  // opening it reads its updates
     IBF.selBrand = row.dataset.brand; IBF.sel = row.dataset.deal; IBF.mobileConv = true;
-    await inboxSplit();
+    $$(".ibx-row").forEach(r => r.classList.toggle("sel", r === row));
+    row.classList.remove("unread"); row.querySelector(".udot")?.remove(); row.dataset.ids = "";
+    $("#ibx").classList.add("conv-open");
+    openPane(IBF.sel);
+    if (ids.length) api("/api/studio/inbox/read", { body: { event_ids: ids } }).catch(() => {});
   });
   if (IBF.sel) openPane(IBF.sel); else $("#ibx-conv").innerHTML = `<div class="ibx-empty">${emptyState("messages-square", "Pick a conversation", "Choose a brand on the left to see its chat.")}</div>`;
 }
