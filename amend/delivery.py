@@ -178,7 +178,9 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
                          "amount_cents": unit * (want - got), "status": "open",
                          "text": f"Delivered {got} × {name}, the deal has {want}."})
     from amend.changes import to_date
-    want_d = to_date(deal.get("deadline"), date.fromisoformat(posted_on) - timedelta(days=7))
+    # a weekday ("Friday") means the next one after the deal was agreed, as on the change cards, not a week before the post
+    agreed_base = date.fromisoformat((deal.get("created_at") or posted_on)[:10])
+    want_d = to_date(deal.get("deadline"), agreed_base)
     if want_d and want_d.isoformat() != posted_on:
         gaps.append({"id": new_id("gp"), "kind": "date", "posted_on": posted_on, "agreed_date": want_d.isoformat(), "status": "open",
                      "text": f"Posted on {date.fromisoformat(posted_on).strftime('%a %d %b')}, the deal says {want_d.strftime('%a %d %b')} "

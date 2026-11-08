@@ -236,3 +236,19 @@ def test_draft_check_skips_post_only_items(client, mocks, held):
     full = delivery.requirements(get_db().one("select * from deals where id = :d", {"d": deal}) | {"done_means": [
         {"value": "Posted on Instagram on Friday"}, {"value": "Matches the approved draft"}, {"value": "Disclosure: #ad"}, {"value": "Live for 30 days"}]})
     assert any(r.startswith("Posted on") for r in full)  # the post check still has them
+
+
+def test_weekday_deadline_means_the_friday_after_the_deal(client, mocks, held):
+    """Live walk: deal made Sun 8 Nov said "Friday" (= Fri 13 Nov); the post check read it as Fri 6 Nov."""
+    deal, tok = held
+    get_db().update("deals", "id", deal, {"deadline": "Friday", "created_at": "2026-11-08T09:51:00+00:00"})
+    on_time = post(client, deal, {"reel": 1, "story_set": 1}, posted_on="2026-11-13")
+    assert not [g for g in on_time["post"]["result"]["gaps"] if g["kind"] == "date"]
+
+
+def test_weekday_deadline_late_post_names_the_right_friday(client, mocks, held):
+    deal, tok = held
+    get_db().update("deals", "id", deal, {"deadline": "Friday", "created_at": "2026-11-08T09:51:00+00:00"})
+    late = post(client, deal, {"reel": 1, "story_set": 1}, posted_on="2026-11-16")
+    g = [g for g in late["post"]["result"]["gaps"] if g["kind"] == "date"][0]
+    assert "Fri 13 Nov" in g["text"] and "Mon 16 Nov" in g["text"]
