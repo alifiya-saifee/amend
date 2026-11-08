@@ -168,9 +168,9 @@ async function dealsBoard() {
     const cols = Object.keys(STAGE_LABEL);
     body.innerHTML = `<div class="board">${cols.map(k => { const c = rows.filter(d => d.stage === k);
       return `<section class="col" id="${k}"><h3><span>${STAGE_LABEL[k]}</span><span>${c.length}</span></h3>${c.map(d => `
-        <a class="card dealcard hover" href="/studio/deals/${d.id}"><div class="row between"><b>${esc(d.brand)}</b>${d.is_demo ? '<span class="pill">Demo</span>' : ""}</div>
+        <a class="card dealcard hover ${d.needs_me ? "needs" : ""}" href="/studio/deals/${d.id}"><div class="row between"><b>${esc(d.brand)}</b>${d.is_demo ? '<span class="pill">Demo</span>' : ""}</div>
           <div class="row between" style="margin-top:6px"><span class="num">${usd(d.total_cents)}</span>${moneyPill(d.money)}</div>
-          <div class="tiny muted" style="margin-top:6px">${d.needs_me ? `<b style="color:var(--held)">Needs you</b> · ` : ""}${ago(d.updated_at)}</div></a>`).join("")}</section>`; }).join("")}</div>`;
+          <div class="tiny muted" style="margin-top:6px">${d.needs_me ? `<span class="needs-pill">${I("circle-alert")} Needs you</span> ` : ""}${ago(d.updated_at)}</div></a>`).join("")}</section>`; }).join("")}</div>`;
   } else {
     const cols = [["brand", "Brand"], ["total_cents", "Value", "n"], ["stage", "Status"], ["money", "Money"], ["deadline", "Next deadline"], ["updated_at", "Last activity"]];
     rows = rows.slice().sort((a, b) => (a[DV.sort] > b[DV.sort] ? 1 : a[DV.sort] < b[DV.sort] ? -1 : 0) * DV.dir);

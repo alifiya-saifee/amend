@@ -263,7 +263,8 @@ def store_draft(db: Database, token: str, brief: str, draft: Draft) -> dict:
             db.update("deals", "id", deal["id"], {**extra, "updated_at": now()})
         db.log_event("deal.drafted", actor="ai", deal_id=deal["id"],
                      payload={"total_cents": draft.total_cents, "provider": draft.provider, "attempts": draft.attempts,
-                              "fell_back": draft.fell_back, "lines": len(draft.lines), "not_on_list": len(draft.not_on_list)})
+                              "fell_back": draft.fell_back, "lines": len(draft.lines), "not_on_list": len(draft.not_on_list),
+                              "ms": getattr(draft, "ms", None)})
     return get_deal(db, deal["id"])
 
 

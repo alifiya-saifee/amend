@@ -20,7 +20,7 @@ Setup checked first:
 
 | # | Step | Expected | Actual | PayPal IDs (last 4) | Webhook events | Screenshot | Result |
 |---|---|---|---|---|---|---|---|
-| 1 | Brief (free text) → offer with quotes (first run, on the Singapore DB; redo on Oregon) | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | Reel $450 + Story set $80 = $530 from Sara's list; quote button on each line; post Friday; "new cold brew" in Must include; #ad in done-means. Model + latency: pending DB check. Found: the brand's page said "Your offer" (it's Sara's offer) → fixed in 10fae63 with a test | n/a | n/a | Alifiya's screenshot (brand view) | PASS (wording fix pending deploy) |
+| 1 | Brief (free text) → offer with quotes | Gemini prices from Sara's list; every line has a quote from the brief; note model + latency | Oregon DB, deal …fe0a: Reel $450 + Story set $80 = $530; provider **gemini**, 1 attempt, no fallback; quotes "1 Reel" and "1 Story set" both appear word for word in the brief. Latency wasn't recorded (the events are logged after the AI call) → now logged as `ms` on deal.drafted. Earlier run found "Your offer" on the brand page → "Sara's offer" (10fae63) | n/a | n/a | Alifiya's screenshots (Deals board, brand view) | PASS |
 | 2 | Brand approves → hold $530 | Order approved, authorization created, status Held, expiry ~29 days; webhook received + verified | | | | | |
 | 3 | "+1 Story" in chat → change card → both confirm → second hold $80 | Card priced +$80 from the list; both confirm; second hold; held $610 | | | | | |
 | 4 | Draft upload (short mp4) → delivery check | Frames checked in the browser; check against the confirmed terms (version 2) | | | | | |
@@ -47,5 +47,7 @@ Setup checked first:
 
 - Story 1 step 1: brand page heading "Your offer" → "Sara's offer" + "Priced from Sara's own price list" (10fae63, test `test_brand_sees_the_creators_offer`). Needs a Manual Deploy.
 - UptimeRobot showed the site down: HEAD requests got 405. `/` and `/healthz` now accept HEAD (+ test).
+- AI latency wasn't logged; deal.drafted now carries `ms` (test `test_ai_latency_logged_and_needs_you_stands_out`).
+- Deals board: "Needs you" was plain text; now a gold pill and a gold-edged card.
 - Seed bug (mine, from the "never in the future" change): ALL seed dates were pulled back to now, including future deadlines, so on the fresh Oregon database the 3 demo holds were born expiring today and the 08:30 tick marked them expired; a demo holdback ($75, Oud & Ember) was also due at once (the tick's holdback job would pay it via sandbox Payouts). No payout happened. Fix: only today's dates are pulled back; deadlines stay in the future (test `test_seed_deadlines_stay_in_the_future`). Live DB reset (Amend's 29 tables dropped, with Alifiya's OK) and reseeded with the app's own start-up code: demo holds now expire in 23–27 days, holdback releases in 24 days; events still append-only.
 - Inbox clicks waited for a full reload over a slow database link: opening a conversation is now instant (ad55aa7).

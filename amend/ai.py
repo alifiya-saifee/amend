@@ -202,6 +202,7 @@ class Draft:
     attempts: int
     fell_back: bool
     fields: list = None  # brief-builder fields [{key, value, quote}] (checked word for word in briefs.from_ai)
+    ms: int | None = None  # how long the AI took (all attempts), set by the caller; logged on deal.drafted
 
 
 SYSTEM = """You turn a brand's brief into deal lines for a creator. Reply with ONE JSON object only:

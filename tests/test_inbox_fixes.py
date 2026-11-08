@@ -154,3 +154,11 @@ def test_seed_deadlines_stay_in_the_future(client, history):
     # and the tick does nothing to fresh demo data
     from amend import money
     assert not any(money.mark_expired_if_due(d, m)["status"] == "expired" for m in d.all("select * from money_items where kind = 'hold' and status = 'authorized'"))
+
+
+def test_ai_latency_logged_and_needs_you_stands_out(client, mocks):
+    deal, tok, _ = to_offered(client, mocks)
+    ev = next(e for e in get_db().events_for(deal) if e["type"] == "deal.drafted")
+    assert isinstance(ev["payload"].get("ms"), int) and ev["payload"]["provider"]
+    pages = (ROOT / "web/static/studio-pages.js").read_text()
+    assert 'class="needs-pill"' in pages and 'd.needs_me ? "needs" : ""' in pages

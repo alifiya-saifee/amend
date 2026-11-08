@@ -1016,8 +1016,10 @@ async def brand_brief(token: str, body: BriefIn, request: Request):
     ctx = deals.open_link(get_db(), token)
     c = deals.creator(get_db(), ctx["deal"]["creator_id"])
     plist = [p for p in engine.price_items(get_db(), c["id"]) if p["kind"] != "rule"]
+    t0 = time.monotonic()
     try:
         draft = await ai.brief_to_terms(body.brief, plist, today=date.today().isoformat())
+        draft.ms = round((time.monotonic() - t0) * 1000)
     except (ai.DraftFailed, ai.ProviderError) as e:
         get_db().log_event("deal.draft_failed", actor="ai", deal_id=ctx["deal"]["id"], payload={"why": str(e)[:300]})
         return JSONResponse({"error": "Couldn't draft it right now.", "draft_failed": True}, status_code=503)
