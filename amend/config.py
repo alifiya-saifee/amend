@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = "gemini-2.5-flash"
     groq_api_key: SecretStr = SecretStr("")
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"  # llama-3.3-70b-versatile was retired by Groq (404, 8 Nov)
     nvidia_api_key: SecretStr = SecretStr("")
     nvidia_model: str = ""
     amend_demo_password: SecretStr = SecretStr("")
