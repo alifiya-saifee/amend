@@ -88,3 +88,11 @@ def test_try_creator_hidden_from_browse(client):
     client.post("/api/try/start", json={"password": "test-demo-pw"}, headers=ORIGIN)
     client.post("/api/try/reset", headers=ORIGIN)
     assert "try.demo" not in [c["handle"] for c in client.get("/api/creators?q=demo").json()["creators"]]
+
+
+def test_try_start_actually_makes_the_deal():
+    """Live judge walk, 8 Nov: Start accepted the password but no deal appeared. The reset ran inside busy() on the
+    same button that was already busy, and busy() skips a busy button. Start must make the deal without a 2nd busy()."""
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "web" / "try.html").read_text()
+    assert 'await reset($("#go"))' not in html and "await reset(null)" in html

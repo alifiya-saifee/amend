@@ -23,8 +23,11 @@
   <p class="hint">PayPal sandbox only: no real money. Use a PayPal <b>sandbox personal account</b> to pay (details in the Devpost submission).</p>
 </main>
 <script>
-async function reset(btn) {
-  await busy(btn, async () => {
+// Make a fresh demo deal. Called inside the Start button's busy() and by the Reset button: one busy() per button,
+// because busy() ignores a button that's already busy (that silently skipped the reset after Start).
+async function reset(btn) { return btn ? busy(btn, makeDeal) : makeDeal(); }
+async function makeDeal() {
+  {
     try {
       const r = await api("/api/try/reset", { method: "POST" });
       $("#gate").hidden = true;
@@ -36,14 +39,14 @@ async function reset(btn) {
         <button class="btn small" id="again">Reset: make a fresh deal</button>
         <a class="small" href="/story/${r.deal}">Money story (as the creator) →</a></div>`;
       $("#again").onclick = e => reset(e.currentTarget);
-  } catch (e) { $("#err").textContent = e.message; $("#err").hidden = false; $("#gate").hidden = false; }
-  });
+  } catch (e) { $("#err").textContent = friendlyError(e); $("#err").hidden = false; $("#gate").hidden = false; }
+  }
 }
 $("#gate").onsubmit = e => {
   e.preventDefault();
   busy($("#go"), async () => {
     $("#err").hidden = true;
-    try { await api("/api/try/start", { body: { password: $("#pw").value } }); await reset($("#go")); }
+    try { await api("/api/try/start", { body: { password: $("#pw").value } }); await reset(null); }
   catch (er) { $("#err").textContent = er.message; $("#err").hidden = false; }
   });
 };
