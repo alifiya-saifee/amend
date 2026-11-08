@@ -427,7 +427,42 @@ def ensure_demo_accounts(db: Database) -> int:
     return made
 
 
+VIDEO_HANDLE = "sara.video"
+
+
+def ensure_video_creator(db: Database) -> tuple[str, bool]:
+    """A clean Sara for the demo video (Block 7): same made-up person, price list and limits as @sara.eats, but its own
+    login (sara.video@creators.example, demo password) and no history, so no leftover holds or owed balances.
+    Idempotent; nothing existing is changed or deleted. Returns (creator id, created now?)."""
+    have = db.one("select id from creators where handle = :h", {"h": VIDEO_HANDLE})
+    if have:
+        return have["id"], False
+    base = dict(CREATORS[0])
+    t, pid, cid = now(), new_id("p"), new_id("c")
+    db.insert("parties", {"id": pid, "name": base["name"], "role": "creator", "handle": VIDEO_HANDLE, "confirmed": 1,
+                          "paypal_email": get_settings().sandbox_creator_email, "created_at": t})
+    db.insert("creators", {"id": cid, "party_id": pid, "handle": VIDEO_HANDLE, "display_name": base["name"], "bio": base["bio"],
+                           "followers": base["followers"], "audience": base["audience"], "niche": base["niche"],
+                           "permit_no": base["permit_no"], "permit_expiry": base["permit_expiry"],
+                           "limits_json": json.dumps(base["limits"]), "created_at": t})
+    for i, (code, name, kind, lo, hi, std, unit, rules) in enumerate(base["items"]):
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": cid, "code": code, "name": name, "kind": kind,
+                                  "min_cents": lo, "max_cents": hi, "standard_cents": std, "unit": unit,
+                                  "rules_json": json.dumps(rules), "hidden": 0, "active": 1, "created_at": f"{t}-{i:02d}"})
+    db.log_event("creator.created", actor="seed", payload={"creator": cid, "handle": VIDEO_HANDLE, "why": "demo video"})
+    ensure_demo_accounts(db)
+    return cid, True
+
+
 if __name__ == "__main__":
+    import sys
     d = get_db()
+    if "--video" in sys.argv:  # Block 7: the clean pair for the demo video
+        from amend import deals as D
+        cid, made = ensure_video_creator(d)
+        deal, token = D.create_deal(d, cid, brand_org="Dune Roast Coffee", contact_name="Nadia", actor="seed")
+        print("video creator:", "created" if made else "already there", "| login: sara.video@creators.example")
+        print("fresh deal link:", f"{get_settings().base_url.rstrip('/')}/d/{token}")
+        raise SystemExit(0)
     print("seeded:", seed(d) or "nothing new", "| discovery:", seed_discovery(d), "| accounts:", ensure_demo_accounts(d))
     ensure_exclusivity_item(d)

@@ -84,3 +84,17 @@ def test_export_has_no_secrets_and_lists_deals(client, mocks):
     j = e.json()
     assert j["creator"]["handle"] == "sara.eats" and any(d["id"] == deal for d in j["deals"])
     assert "password" not in e.text and "request_id" not in e.text
+
+
+def test_video_creator_is_clean_and_idempotent(client):
+    """Block 7: a separate Sara for the demo video: same price list, own login, no history, no owed balance."""
+    from amend import money
+    from scripts.seed import VIDEO_HANDLE, ensure_video_creator
+    d = get_db()
+    cid, made = ensure_video_creator(d)
+    assert made and ensure_video_creator(d) == (cid, False)
+    sara = d.one("select id from creators where handle = 'sara.eats'")["id"]
+    codes = lambda c: sorted(r["code"] for r in d.all("select code from price_items where creator_id = :c", {"c": c}))
+    assert codes(cid) == [c for c in codes(sara) if c in codes(cid)] and "reel" in codes(cid)
+    assert d.one("select email from accounts where creator_id = :c", {"c": cid})["email"] == f"{VIDEO_HANDLE}@creators.example"
+    assert d.all("select id from deals where creator_id = :c", {"c": cid}) == [] and money.owed_balance(d, cid) == 0
