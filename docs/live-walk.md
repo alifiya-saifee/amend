@@ -103,3 +103,8 @@ Deal …144e (test browser, PayPal sandbox, with Alifiya's OK).
 - **Voice note** (same words as Story 3: "We don't need the story set after all. Please drop the story set."): card **"− 1 Story set" (−$80)**: S102 read "the story set" as one and ignored "after all". The script was set to stop unless the card said exactly that.
 - Refund card: *"$80 back to the brand… Paid by: $61 from your holdback + $19 from your next payout"*. Sara approved → **PayPal refund $80 (…760V)**; holdback → "used for refund $61"; **owed_by_creator $19**. JS errors: none.
 - **Webhooks, all verified, none rejected:** CHECKOUT.ORDER.APPROVED, PAYMENT.AUTHORIZATION.CREATED, PAYMENT.CAPTURE.COMPLETED, PAYMENT.PAYOUTSBATCH.PROCESSING / SUCCESS, PAYMENT.PAYOUTS-ITEM.SUCCEEDED, PAYMENT.CAPTURE.REFUNDED.
+
+## /try judge walk (live, phone width), 8 Nov night — PASS after two fixes
+- First run: **Start accepted the password but made no deal** (reset ran in busy() on the already-busy button). Fixed (bd1025c).
+- Second run: hold OK, but **"Add a Story and post Monday" gave no card**: Gemini failed once and the Groq fallback returned 404 (`llama-3.3-70b-versatile` retired). Fallback now `openai/gpt-oss-120b` (8b36a83).
+- Third run: password → deal ready ($70) → brand holds with the sandbox buyer (**$70 held**) → card "+1 Story set +$20 · Posting date Fri 13 Nov → Mon 9 Nov +$5 (under 48 h notice) · 2 other items unchanged · +$25 new hold" → creator confirms ("Confirmed by both · applied") → brand holds the extra → **Version 2 · $95 held**. JS errors: none.
