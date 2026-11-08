@@ -18,7 +18,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from amend.config import get_settings  # noqa: E402
 
-BASE = sys.argv[1]
+BASE = sys.argv[1]  # optional: --only-earnings (re-shoot 07 and 07b on the current data)
+# Each full run creates a new demo deal; flag earlier runs with scripts/mark_test_deals.py --keep <latest> so the
+# Earnings and Ledger screenshots show one deal, not one per run.
 OUT = ROOT / "docs" / "screenshots" / "final"
 OUT.mkdir(parents=True, exist_ok=True)
 PW = get_settings().amend_demo_password.get_secret_value()
@@ -76,6 +78,9 @@ def main() -> None:
                 pg.screenshot(path=str(OUT / f"{name}-{w}-{scheme}.png"), full_page=not focus)
             print("  saved", name, flush=True)
 
+        if "--only-earnings" in sys.argv:  # re-shoot 07 and 07b only, without driving (and creating) another deal
+            snap("07-earnings", "sara", "/studio/earnings"); snap("07b-ledger", "sara", "/studio/ledger")
+            b.close(); print("problems:", problems or "none"); print("JS errors:", errs[:4] or "none"); return
         snap("01-marketing", "brand", "/")
         r = sara.evaluate("""async () => (await fetch('/api/deals', {method: 'POST', headers: {'Content-Type': 'application/json'},
                              body: JSON.stringify({brand_org: 'Dune Roast Coffee', contact_name: 'Nadia'})})).json()""")

@@ -304,3 +304,6 @@ Next: Block 7.
 6. Wording: "Posted Sun 8 Nov"; "Nadia accepted the earlier post date"; "Price from Sara's list".
 7. Brand link header: "Save your account" (phones: "Save account") instead of "Sign in".
 - Tests: 541 passed, 3 skipped (`tests/test_review_fixes.py`). Final screenshots re-shot, no problems, no JS errors.
+- **Item 5 made visible (8 Nov, late):** the 4 identical Sun 8 Nov Dune Roast rows in the final screenshots were the screenshot script's own runs (each run makes a new $610 deal). `scripts/mark_test_deals.py` (dry run by default, `--apply`, `--keep <id>`): flags @sara.eats deals that are neither demo history nor /try.
+  - Local screenshot DB: flagged 3 earlier runs, kept the latest. Earnings rows 9 → 6, Dune Roast on Sun 8 Nov **4 → 1**, Dune Roast holdbacks 4 → 1, ledger rows 65 → 38. 07 and 07b re-shot (`final_shots.py --only-earnings`).
+  - Live DB: dry run listed exactly the 5 live walks (…fe0a, …d858, …144e, …50a7, …eecc), then flagged. Earnings rows 9 → 5, Dune Roast on Sun 8 Nov **4 → 0**, owed $19 → $0, ledger rows 59 → 29.
