@@ -93,12 +93,37 @@ function sheet(html, { onOpen, drawer = false } = {}) {
     bg.onclick = closeSheet;
   }
   sh.classList.toggle("drawer", drawer); sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true");
+  if (!sh.classList.contains("open")) SHEET_OPENER = document.activeElement;  // focus goes back here on close
   sh.innerHTML = `<div class="grab"></div>` + html;
+  const head = sh.querySelector("h1, h2, h3");
+  if (head) { head.id = head.id || "sheet-title"; sh.setAttribute("aria-labelledby", head.id); } else sh.removeAttribute("aria-labelledby");
+  sh.tabIndex = -1;
   bg.classList.add("open"); requestAnimationFrame(() => sh.classList.add("open"));
   if (onOpen) onOpen(sh);
+  // keyboard: focus moves into the sheet (first field, else the sheet itself); Tab stays inside; Esc closes
+  requestAnimationFrame(() => { const f = focusables(sh)[0]; (f && f.matches("input, textarea, select") ? f : sh).focus(); });
   return sh;
 }
-function closeSheet() { $("#sheet")?.classList.remove("open"); $("#sheet-bg")?.classList.remove("open"); }
+let SHEET_OPENER = null;
+const focusables = el => [...el.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+  .filter(x => x.offsetParent !== null);
+document.addEventListener("keydown", e => {
+  const sh = $("#sheet");
+  if (!sh || !sh.classList.contains("open")) return;
+  if (e.key === "Escape") { e.preventDefault(); closeSheet(); return; }
+  if (e.key !== "Tab") return;
+  const f = focusables(sh);
+  if (!f.length) { e.preventDefault(); sh.focus(); return; }
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && (document.activeElement === first || document.activeElement === sh)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+function closeSheet() {
+  const sh = $("#sheet"), wasOpen = sh && sh.classList.contains("open");
+  sh?.classList.remove("open"); $("#sheet-bg")?.classList.remove("open");
+  if (wasOpen && SHEET_OPENER && document.contains(SHEET_OPENER)) SHEET_OPENER.focus();
+  if (wasOpen) SHEET_OPENER = null;
+}
 
 function quoteSheet(quote, who, where, when) {
   sheet(`<h3>Where this was agreed</h3><blockquote>“${esc(quote)}”</blockquote>

@@ -23,6 +23,7 @@ from amend.config import get_settings  # noqa: E402
 
 BASE, DB = sys.argv[1], sys.argv[2]
 OUT = ROOT / "docs" / "screenshots" / (sys.argv[3] if len(sys.argv) > 3 else "audit")
+OTHER = len(sys.argv) > 4 and sys.argv[4] == "other"
 OUT.mkdir(parents=True, exist_ok=True)
 PW = get_settings().amend_demo_password.get_secret_value()
 db = sqlite3.connect(DB)
@@ -57,7 +58,22 @@ def screens() -> list[tuple[str, str | None, str]]:
             ("10-try", None, "/try")]
 
 
+def other_screens() -> list[tuple[str, str | None, str]]:
+    """Every screen not on the judge path (Block 7 step 3)."""
+    s = [("o01-login", None, "/login"), ("o02-signup", None, "/signup"), ("o03-creators", None, "/creators"),
+         ("o04-public-creator", None, "/c/sara.eats")]
+    s += [(f"o1{i}-studio-{tab}", "creator", f"/studio/{tab}" if tab else "/studio")
+          for i, tab in enumerate(["", "inbox", "deals", "calendar", "prices", "profile", "brands", "settings"])]
+    s += [(f"o2{i}-brand-{tab}", "brandacct", f"/brand/{tab}" if tab else "/brand")
+          for i, tab in enumerate(["", "inbox", "deals", "shortlist", "payments", "team", "settings"])]
+    return s
+
+
 def sign_in(pg, who: str) -> None:
+    pg.context.clear_cookies()
+    if who == "brandacct":
+        pg.goto(f"{BASE}/login?tab=brand"); pg.fill("#email", "nadia@duneroast.example"); pg.fill("#pw", PW); pg.click("#go")
+        pg.wait_for_url("**/brand", timeout=30000); return
     pg.goto(f"{BASE}/login?tab=creator"); pg.fill("#email", "sara.eats@creators.example"); pg.fill("#pw", PW); pg.click("#go")
     pg.wait_for_url("**/studio", timeout=30000)
 
@@ -77,10 +93,10 @@ def main() -> None:
                 pg = ctx.new_page()
                 errs: list[str] = []
                 pg.on("pageerror", lambda e: errs.append(str(e)[:120]))
-                signed = False
-                for name, who, path in screens():
-                    if who == "creator" and not signed:
-                        sign_in(pg, who); signed = True
+                signed = None
+                for name, who, path in (other_screens() if OTHER else screens()):
+                    if who in ("creator", "brandacct") and signed != who:
+                        sign_in(pg, who); signed = who
                     tag = f"{name}-{w}-{scheme}"
                     n0 = len(errs)
                     pg.goto("about:blank"); pg.goto(BASE + path); pg.wait_for_load_state("networkidle")

@@ -117,7 +117,7 @@ async function quickView(handle) {
   const sh = sheet(`<div class="skeleton"></div><div class="skeleton"></div>`, { drawer: true });
   let p;
   try { p = await api("/api/c/" + encodeURIComponent(handle)); }
-  catch (e) { sh.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><button class="btn" id="qv-retry">Try again</button></div>`; $("#qv-retry").onclick = () => quickView(handle); return; }
+  catch (e) { sh.innerHTML = `<div class="empty" role="alert"><p>${esc(friendlyError(e))}</p><button class="btn" id="qv-retry">Try again</button></div>`; $("#qv-retry").onclick = () => quickView(handle); return; }
   const brand = window.WHO && WHO.signed_in && WHO.kind === "brand";
   let lists = [];
   if (brand) { try { lists = (await api("/api/brand/shortlists")).lists; } catch {} }
@@ -142,7 +142,7 @@ async function search(append = false) {
   if (!append) $("#results").innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
   let r;
   try { r = await api("/api/creators?" + new URLSearchParams({ ...Q, page: PAGE }).toString()); }
-  catch (e) { $("#results").innerHTML = `<div class="empty">${esc(e.message)}<br><br><button class="btn" onclick="search()">Try again</button></div>`; return; }
+  catch (e) { $("#results").innerHTML = `<div class="empty" role="alert">${esc(friendlyError(e))}<br><br><button class="btn" onclick="search()">Try again</button></div>`; return; }
  $("#count").textContent = `${r.total} creator${r.total === 1 ? "" : "s"}`;
   const html = r.creators.map(cardHtml).join("");
   if (append) $("#results").insertAdjacentHTML("beforeend", html);

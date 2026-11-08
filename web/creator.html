@@ -43,7 +43,13 @@ function priceCard(p) {
 async function load() {
   let c;
   try { c = await api(`/api/c/${encodeURIComponent(handle)}`); }
-  catch (e) { $("#view").innerHTML = `<div class="empty"><div class="ic"><i data-lucide='search' aria-hidden='true'></i></div>${esc(e.message)}</div>`; return; }
+  catch (e) {
+    $("#view").innerHTML = e.status === 404
+      ? `<div class="empty"><div class="ic"><i data-lucide='search' aria-hidden='true'></i></div><h2>No creator called @${esc(handle)}</h2><p><a href="/creators">Browse creators</a></p></div>`
+      : `<div class="empty" role="alert"><div class="ic"><i data-lucide='wifi-off' aria-hidden='true'></i></div><h2>Couldn't load this profile</h2><p>${esc(friendlyError(e))}</p><button class="btn" id="retry">Try again</button></div>`;
+    if ($("#retry")) $("#retry").onclick = load;
+    return;
+  }
   document.title = `${c.display_name} · Amend`;
  $("#ttl").textContent = "@" + c.handle;
   const main = c.items.filter(p => p.kind === "deliverable"), extras = c.items.filter(p => p.kind !== "deliverable");

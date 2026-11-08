@@ -196,7 +196,7 @@ async function earningsTab(ledgerView = false) {
     <div class="row between wrapx" style="gap:8px"><h1>Earnings</h1>
       <div class="row" style="gap:8px"><a class="btn small" href="/studio/ledger">${I("table")} Full ledger</a>
         <button class="btn small" id="e-csv">${I("download")} CSV</button>
-        ${e.months.length ? `<select id="e-month" style="width:auto">${e.months.map(m => `<option>${m}</option>`).join("")}</select>
+        ${e.months.length ? `<select id="e-month" aria-label="Statement month" style="width:auto">${e.months.map(m => `<option>${m}</option>`).join("")}</select>
           <a class="btn small primary" id="e-pdf" href="/api/studio/earnings/statement.pdf?month=${e.months[0]}">${I("file-text")} Monthly statement</a>` : ""}</div></div>
     <div class="grid4" style="margin:16px 0">
       <div class="tile"><span class="k">Lifetime</span><span class="v">${usd(t.lifetime_cents)}</span></div>
@@ -303,26 +303,26 @@ async function brandsTab() {
 /* ---------- Settings ---------- */
 async function settingsTab() {
   const s = await api("/api/studio/settings");
-  const sel = (k, v) => `<select data-n="${k}">${[["whatsapp", "WhatsApp + in-app"], ["in-app", "In-app only"], ["off", "Off"]].map(([x, l]) => `<option value="${x}" ${v === x ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  const sel = (k, v) => `<select id="s-n-${k}" data-n="${k}">${[["whatsapp", "WhatsApp + in-app"], ["in-app", "In-app only"], ["off", "Off"]].map(([x, l]) => `<option value="${x}" ${v === x ? "selected" : ""}>${l}</option>`).join("")}</select>`;
   $("#view").innerHTML = `<h1>Settings</h1>
     <div class="grid2" style="align-items:start">
       <section class="card"><h2>Account</h2>
-        <label>Name</label><input id="s-name" value="${esc(s.account.name)}" maxlength="80">
-        <label>Email</label><input value="${esc(s.account.email)}" disabled>
+        <label for="s-name">Name</label><input id="s-name" value="${esc(s.account.name)}" maxlength="80">
+        <label for="s-email">Email</label><input id="s-email" value="${esc(s.account.email)}" disabled>
         ${s.account.demo ? '<p class="hint">Demo account: it uses the shared demo password, which can\'t be changed here.</p>'
           : `<label>Current password</label><input id="s-cur" type="password" autocomplete="current-password"><label>New password</label><input id="s-new" type="password" autocomplete="new-password">
              <button class="btn small" id="s-pw" style="margin-top:8px">Change password</button>`}
-        <label>PayPal payout email</label><input id="s-pp" type="email" value="${esc(s.paypal_email || "")}" placeholder="your PayPal email">
+        <label for="s-pp">PayPal payout email</label><input id="s-pp" type="email" value="${esc(s.paypal_email || "")}" placeholder="your PayPal email">
         <p class="hint">Payouts from released deals go here (PayPal sandbox in this demo).</p>
         <label>UAE Advertiser Permit</label><p class="small">${esc(s.permit.label)} · <a href="/studio/prices">Edit in Price list</a></p></section>
       <section class="card"><h2>Notifications</h2>
         <label for="s-phone">WhatsApp number</label><input id="s-phone" type="tel" inputmode="tel" value="${s.phone ? "+" + esc(s.phone) : ""}" placeholder="+971 50 123 4567">
         <p class="hint">Alerts like "Nadia proposed +1 Story set" go here and open the deal. Leave empty to keep them in Amend only.</p>
-        ${[["change", "Change cards"], ["money", "Money updates (held, paid)"], ["message", "New messages"], ["delivery", "Drafts, gaps and delivery"]].map(([k, l]) => `<label>${l}</label>${sel(k, s.notify[k])}`).join("")}
+        ${[["change", "Change cards"], ["money", "Money updates (held, paid)"], ["message", "New messages"], ["delivery", "Drafts, gaps and delivery"]].map(([k, l]) => `<label for="s-n-${k}">${l}</label>${sel(k, s.notify[k])}`).join("")}
         <p class="hint">WhatsApp is sent from Amend's own number once the template is approved; in-app is always on in your Inbox.</p>
         <h2 style="margin-top:16px">Language and theme</h2>
-        <label>Language</label><select id="s-lang"><option value="en" ${s.language === "en" ? "selected" : ""}>English</option><option value="ar" ${s.language === "ar" ? "selected" : ""}>العربية (Arabic, coming soon)</option></select>
-        <label>Theme</label><select id="s-theme">${[["system", "Follow my device"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<option value="${v}" ${s.theme === v ? "selected" : ""}>${l}</option>`).join("")}</select></section>
+        <label for="s-lang">Language</label><select id="s-lang"><option value="en" ${s.language === "en" ? "selected" : ""}>English</option><option value="ar" ${s.language === "ar" ? "selected" : ""}>العربية (Arabic, coming soon)</option></select>
+        <label for="s-theme">Theme</label><select id="s-theme">${[["system", "Follow my device"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<option value="${v}" ${s.theme === v ? "selected" : ""}>${l}</option>`).join("")}</select></section>
     </div>
     <button class="btn primary" id="s-save" style="margin-top:14px">Save settings</button>
     <section class="card" style="margin-top:14px"><h2>Your data</h2>

@@ -5,7 +5,7 @@
   color-scheme: light;
   --bg: #FAFAF7; --surface: #FFFFFF; --surface-2: #F4F3EE; --raise: #F1EFE9; --border: #E7E5DF; --border-2: #D9D6CE;
   --ink: #15171A; --muted: #5B616B; --faint: #6B717B;
-  --gold: #D9A441; --gold-ink: #8A6414; --gold-soft: rgba(217,164,65,.14);
+  --gold: #D9A441; --gold-ink: #7A580F; --gold-soft: rgba(217,164,65,.14);
   --primary: #15171A; --on-primary: #FFFFFF; --focus: #8A6414;
   --held: #9A5B00; --held-bg: #FDF1DD; --ok: #1D6F3F; --ok-bg: #E3F3E8; --teal: #0D6B63; --teal-bg: #DFF2EF;
   --blue: #2A50AD; --blue-bg: #E5EBFA; --wait: #5B616B; --wait-bg: #EEEEEA; --bad: #B3261E; --bad-bg: #FBE7E5;
@@ -24,7 +24,7 @@
     color-scheme: dark;
     --bg: #0E1013; --surface: #171A1F; --surface-2: #1C2026; --raise: #20242B; --border: #262A31; --border-2: #343943;
     --ink: #ECEDEE; --muted: #A0A6AE; --faint: #959BA4;
-    --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C;
+    --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C; --hero-v: #7A580F;
     --held: #F0B35E; --held-bg: rgba(240,179,94,.14); --ok: #82D99F; --ok-bg: rgba(130,217,159,.13); --teal: #5CCFB5; --teal-bg: rgba(92,207,181,.13);
     --blue: #93B4FA; --blue-bg: rgba(126,166,248,.14); --wait: #A0A6AE; --wait-bg: rgba(255,255,255,.07); --bad: #F58A8A; --bad-bg: rgba(242,125,125,.13);
     --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
@@ -35,7 +35,7 @@ html.theme-dark body:not(.marketing) {
     color-scheme: dark;
     --bg: #0E1013; --surface: #171A1F; --surface-2: #1C2026; --raise: #20242B; --border: #262A31; --border-2: #343943;
     --ink: #ECEDEE; --muted: #A0A6AE; --faint: #959BA4;
-    --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C;
+    --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C; --hero-v: #7A580F;
     --held: #F0B35E; --held-bg: rgba(240,179,94,.14); --ok: #82D99F; --ok-bg: rgba(130,217,159,.13); --teal: #5CCFB5; --teal-bg: rgba(92,207,181,.13);
     --blue: #93B4FA; --blue-bg: rgba(126,166,248,.14); --wait: #A0A6AE; --wait-bg: rgba(255,255,255,.07); --bad: #F58A8A; --bad-bg: rgba(242,125,125,.13);
     --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
@@ -219,7 +219,7 @@ button.pick { width: 100%; font: inherit; color: var(--ink); }
 .tile .k { font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .tile .v { font-size: 26px; margin-top: 4px; letter-spacing: -.01em; display: block; }
 .tile.hero { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.tile.hero .k { color: var(--bg); opacity: .75; } .tile.hero .v { color: var(--gold); font-size: 32px; }
+.tile.hero .k { color: var(--bg); opacity: .75; } .tile.hero .v { color: var(--hero-v, var(--gold)); font-size: 32px; }
 .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: var(--s3); overflow-x: auto; padding-bottom: 8px; }
 .col { background: var(--surface-2); border-radius: var(--r); padding: var(--s3); min-height: 120px; }
 .col h3 { font-size: 13px; display: flex; justify-content: space-between; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
