@@ -201,7 +201,7 @@ STUDIO_TABS = {"inbox", "deals", "calendar", "earnings", "ledger", "prices", "pr
 BRAND_TABS = {"inbox", "deals", "shortlist", "searches", "payments", "team", "settings", "company"}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])  # HEAD: uptime monitors (UptimeRobot) check with HEAD
 def home(request: Request):
     a = current_account(request)  # S84: signed-in people go to their own home
     if a:
@@ -276,7 +276,7 @@ def manifest():
     return FileResponse(WEB / "manifest.webmanifest", media_type="application/manifest+json")
 
 
-@app.get("/healthz")
+@app.api_route("/healthz", methods=["GET", "HEAD"])  # HEAD: uptime monitors check with HEAD
 def healthz():
     get_db().one("select 1 as ok")
     return {"ok": True}

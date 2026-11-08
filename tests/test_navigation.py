@@ -92,3 +92,15 @@ def test_s84_signed_in_home_redirects(client):
 def test_every_app_page_loads_the_shell(client):
     for page in ("studio.html", "brand.html", "deal.html", "story.html", "creators.html"):
         assert "/static/shell.js" in (ROOT / "web" / page).read_text(), page
+
+
+def test_uptime_monitors_can_check_with_head():
+    """UptimeRobot checks with HEAD; a 405 there showed the live site as 'down' although it was up."""
+    from fastapi.testclient import TestClient
+    import amend.app as appmod
+    from amend.db import Database, set_db
+    db = Database("sqlite:///:memory:"); db.init_schema(); set_db(db)
+    with TestClient(appmod.app) as c:
+        assert c.head("/healthz").status_code == 200
+        assert c.head("/").status_code == 200
+    set_db(None)

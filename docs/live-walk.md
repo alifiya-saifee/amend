@@ -37,8 +37,11 @@ Setup checked first:
 
 | Area | Test mode (AMEND_FAKE=1) | Live | Notes |
 |---|---|---|---|
-| | | | |
+| Database speed | SQLite on the same machine: ~1 ms per query | Render ↔ Supabase in different regions: ~150 ms per query (Find creators 177 queries ≈ 26 s; Inbox click ~84 queries) | Same region needed (Render looks like Oregon); inbox click made instant in code (ad55aa7) |
+| Uptime checks | not used | UptimeRobot checks with HEAD; `/` and `/healthz` answered 405 → shown "down" though up | Fixed: HEAD allowed (test `test_uptime_monitors_can_check_with_head`) |
 
 ## Fixes made during the walk
 
 - Story 1 step 1: brand page heading "Your offer" → "Sara's offer" + "Priced from Sara's own price list" (10fae63, test `test_brand_sees_the_creators_offer`). Needs a Manual Deploy.
+- UptimeRobot showed the site down: HEAD requests got 405. `/` and `/healthz` now accept HEAD (+ test).
+- Inbox clicks waited for a full reload over a slow database link: opening a conversation is now instant (ad55aa7).
