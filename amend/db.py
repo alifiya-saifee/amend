@@ -24,7 +24,8 @@ EVENT_TYPES = {
     # deals and links
     "deal.created", "link.created", "link.opened", "link.refused", "link.expired_open", "link.expired",
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
-    "deal.declined", "deal.status", "term.price_edited",
+    "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
+    "offer.made", "offer.countered", "offer.declined",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -155,6 +156,10 @@ create table if not exists ig_lookups (
   handle text primary key, json text not null, fetched_at text not null);
 create table if not exists ig_lookup_calls (
   id text primary key, account_id text not null, handle text not null, at text not null);
+create table if not exists price_offers (
+  id text primary key, deal_id text not null references deals(id), term_id text not null, side text not null,
+  party_id text not null, unit_cents integer not null, note text, status text not null, counter_of text,
+  created_at text not null, decided_at text, decided_by text);
 create table if not exists creator_invites (
   id text primary key, token text not null unique, handle text not null, brand_account_id text not null,
   created_at text not null, expires_at text not null, claimed_creator_id text, claimed_at text,

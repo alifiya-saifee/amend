@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, shipping, studio, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, offers, shipping, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -604,6 +604,56 @@ class PriceEditIn(BaseModel):
 def edit_term(deal_id: str, term_id: str, body: PriceEditIn, c: dict = Depends(require_creator)):
     own_deal(deal_id, c)
     deals.set_term_price(get_db(), deal_id, term_id, body.unit_cents, creator_party=c["party_id"])
+    return studio_deal(deal_id, c)
+
+
+# ---------- price offers before acceptance (brand offers, creator accepts / counters / declines) ----------
+
+class OfferIn(BaseModel):
+    term_id: str = Field(max_length=64)
+    unit_cents: int
+    note: str | None = Field(default=None, max_length=200)
+
+
+class CounterIn(BaseModel):
+    unit_cents: int
+    note: str | None = Field(default=None, max_length=200)
+
+
+@app.post("/api/d/{token}/offers")
+def brand_offer(token: str, body: OfferIn):
+    rate_limit(f"offer:{token[:12]}", 20, 600)
+    ctx = deals.open_link(get_db(), token)
+    offers.make(get_db(), ctx["deal"], body.term_id, body.unit_cents, body.note, brand_party=ctx["party"]["id"], role=ctx["role"])
+    return _brand_view(token)
+
+
+@app.post("/api/d/{token}/offers/{offer_id}/{action}")
+def brand_offer_answer(token: str, offer_id: str, action: str):
+    ctx = deals.open_link(get_db(), token)
+    if ctx["role"] != "brand_main":
+        raise HTTPException(403, "Only the brand's main contact can answer a price.")
+    fn = {"accept": offers.accept, "decline": offers.decline}.get(action)
+    if not fn:
+        raise HTTPException(404, "Not found")
+    fn(get_db(), ctx["deal"], offer_id, party=ctx["party"]["id"], side="brand")
+    return _brand_view(token)
+
+
+@app.post("/api/deals/{deal_id}/offers/{offer_id}/counter")
+def creator_offer_counter(deal_id: str, offer_id: str, body: CounterIn, c: dict = Depends(require_creator)):
+    own_deal(deal_id, c)
+    offers.counter(get_db(), deals.get_deal(get_db(), deal_id), offer_id, body.unit_cents, body.note, creator_party=c["party_id"])
+    return studio_deal(deal_id, c)
+
+
+@app.post("/api/deals/{deal_id}/offers/{offer_id}/{action}")
+def creator_offer_answer(deal_id: str, offer_id: str, action: str, c: dict = Depends(require_creator)):
+    own_deal(deal_id, c)
+    fn = {"accept": offers.accept, "decline": offers.decline}.get(action)
+    if not fn:
+        raise HTTPException(404, "Not found")
+    fn(get_db(), deals.get_deal(get_db(), deal_id), offer_id, party=c["party_id"], side="creator")
     return studio_deal(deal_id, c)
 
 

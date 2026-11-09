@@ -591,3 +591,10 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .samples .demo-thumb.g1 { background: linear-gradient(160deg, #7aa7e855, #3c6bc233); }
 .samples .demo-thumb.g2 { background: linear-gradient(160deg, #8fd1a655, #2f8f6b33); }
 .samples .demo-thumb.g3 { background: linear-gradient(160deg, #d18fc455, #8f2f7a33); }
+
+/* price offers on a line (before acceptance) */
+.offer-row { padding: 0 0 10px; margin-top: -4px; }
+.offer-row > .btn.ghost { padding-left: 0; color: var(--gold-ink); }
+.offer { background: var(--gold-soft); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+.offer.ok { background: transparent; padding: 0; display: flex; align-items: center; gap: 6px; }
+.offer.ok svg { width: 16px; height: 16px; }

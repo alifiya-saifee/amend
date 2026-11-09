@@ -84,8 +84,59 @@ function linesHtml(editable = false) {
       </div>
       <div class="amt">${V.price_hidden ? '<span class="small muted">On request</span>' : `${usd(t.amount_cents)}<div class="aed">${t.aed}</div>`}</div>
    ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
-    </div>`).join("")}
+    </div>${offerHtml(t)}`).join("")}
     <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div>${usageHtml()}</div>`;
+}
+// Price offers before acceptance (offers.py): the brand offers a different unit price on a line; the creator accepts,
+// counters or declines; a counter goes back to the brand. Nothing is held until the deal is accepted.
+function offerHtml(t) {
+  if (!V.deal || V.deal.status !== "offered") return "";
+  const o = (V.offers || []).filter(x => x.term_id === t.id)[0];
+  const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "The brand").split(" ")[0];
+  const each = t.qty > 1 ? " each" : "";
+  const note = x => x.note ? `<div class="small muted">“${esc(x.note)}”</div>` : "";
+  const canOffer = IS_BRAND && V.me && V.me.role === "brand_main";
+  const offerBtn = label => canOffer ? `<button class="btn small ghost" data-offer="${t.id}" data-name="${esc(t.name)}">${label}</button>` : "";
+  let h = "";
+  if (o && o.status === "open" && o.side === "brand") h = IS_BRAND
+    ? `<div class="offer"><b>You offered ${usd(o.unit_cents)}</b>${each} · waiting for ${esc(first)}${note(o)}</div>`
+    : `<div class="offer"><b>${esc(brandName)} offers ${usd(o.unit_cents)}</b>${each} (your price ${usd(t.unit_cents)})${note(o)}
+        <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn small primary" data-oa="accept" data-o="${o.id}">Accept</button>
+        <button class="btn small" data-oc="${o.id}" data-name="${esc(t.name)}">Counter</button><button class="btn small ghost" data-oa="decline" data-o="${o.id}">Decline</button></div></div>`;
+  else if (o && o.status === "open" && o.side === "creator") h = IS_BRAND
+    ? `<div class="offer"><b>${esc(first)} counters ${usd(o.unit_cents)}</b>${each}${note(o)}
+        ${canOffer ? `<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn small primary" data-oa="accept" data-o="${o.id}">Accept</button>
+        <button class="btn small ghost" data-oa="decline" data-o="${o.id}">Decline</button>${offerBtn("Offer again")}</div>` : ""}</div>`
+    : `<div class="offer"><b>You countered ${usd(o.unit_cents)}</b>${each} · waiting for ${esc(brandName)}${note(o)}</div>`;
+  else if (o && o.status === "accepted") h = `<div class="offer ok small">${icon("circle-check")} Agreed at ${usd(o.unit_cents)}${each}</div>${offerBtn("Offer a different price")}`;
+  else if (o && o.status === "declined") {
+    const whose = o.side === "brand" ? (IS_BRAND ? "Your" : brandName + "'s") : (IS_BRAND ? first + "'s" : "Your");
+    h = `<div class="offer small muted">${esc(whose)} offer of ${usd(o.unit_cents)} was declined</div>${offerBtn("Offer a different price")}`;
+  } else h = offerBtn("Offer a different price");
+  return h ? `<div class="offer-row">${h}</div>` : "";
+}
+function bindOffers() {
+  const done = (v, msg) => { V = v; closeSheet(); render(); toast(msg); };
+  $$("[data-offer]").forEach(b => b.onclick = () => priceSheet("Offer a different price", b.dataset.name, async (cents, note) =>
+    done(await api(url("/offers"), { body: { term_id: b.dataset.offer, unit_cents: cents, note } }), `Offer sent to ${V.creator.name.split(" ")[0]}`)));
+  $$("[data-oc]").forEach(b => b.onclick = () => priceSheet("Counter", b.dataset.name, async (cents, note) =>
+    done(await api(url(`/offers/${b.dataset.oc}/counter`), { body: { unit_cents: cents, note } }), "Counter sent")));
+  $$("[data-oa]").forEach(b => b.onclick = () => busy(b, async () => {
+    try { done(await api(url(`/offers/${b.dataset.o}/${b.dataset.oa}`), { method: "POST" }), b.dataset.oa === "accept" ? "Price agreed" : "Declined"); }
+    catch (e) { toast(e.message, "bad"); }
+  }));
+}
+function priceSheet(title, name, send) {
+  sheet(`<h2>${esc(title)}</h2><p class="small muted">${esc(name)} · price per item. Nothing is held until the deal is accepted.</p>
+    <label for="of-amt">Price (USD)</label><input id="of-amt" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 400">
+    <label for="of-note">Short note (optional)</label><input id="of-note" maxlength="140" placeholder="e.g. Our launch budget is fixed">
+    <div class="err" id="of-err" hidden></div><button class="btn primary block" id="of-go" style="margin-top:14px">Send</button>`);
+  $("#of-go").onclick = e => busy(e.currentTarget, async () => {
+    const cents = Math.round(+$("#of-amt").value * 100);
+    if (!(cents > 0)) { $("#of-err").textContent = "Type a price above $0."; $("#of-err").hidden = false; return; }
+    try { await send(cents, $("#of-note").value.trim()); }
+    catch (er) { $("#of-err").textContent = er.message; $("#of-err").hidden = false; }
+  });
 }
 function bindQuotes(root = document) {
   $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));
@@ -540,6 +591,7 @@ function brand(d) {
       <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>
       <p class="hint">Prices come from ${esc(first)}'s own price list. The AI only picks the items; it never sets prices.</p>`;
     $("#edit").onclick = () => editBrief();
+    bindOffers();
     return;
   }
   if (d.status === "accepted") {
@@ -657,7 +709,8 @@ function creator(d) {
     try { V = await api(url("/accept"), { method: "POST" }); closeSheet(); render(); toast("Accepted · version 1"); } catch (er) { toast(er.message, "bad"); }
       });
     };
-  $("#ask").onclick = () => toast("The deal chat for counter-offers opens on Sunday. For now, edit the prices above or decline with a reason.");
+    bindOffers();
+    $("#ask").onclick = () => toast("Edit a price above (within your range), answer the brand's price offers on each line, or decline with a reason.");
     $("#dec").onclick = () => {
       sheet(`<h2>Decline this deal</h2><label>Reason (the brand sees this)</label><textarea id="why" maxlength="500"></textarea>
         <div class="err" id="why-err" hidden></div><button class="btn danger block" id="dec2" style="margin-top:12px">Decline</button>`);

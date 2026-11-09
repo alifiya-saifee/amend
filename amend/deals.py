@@ -274,7 +274,11 @@ def _recalc(db: Database, deal_id: str) -> int:
     return total
 
 
-def set_term_price(db: Database, deal_id: str, term_id: str, unit_cents: int, *, creator_party: str) -> dict:
+def set_term_price(db: Database, deal_id: str, term_id: str, unit_cents: int, *, creator_party: str,
+                   agreed: dict | None = None) -> dict:
+    """The creator edits a line's price before accepting (within her own min / max). `agreed` = a price offer both sides
+    accepted (offers.accept): then a price outside her range is allowed, because she agreed to it, and the event records
+    who offered and who accepted."""
     deal = get_deal(db, deal_id)
     if deal["status"] != "offered":
         raise DealError("prices can only change before you accept")
@@ -285,15 +289,21 @@ def set_term_price(db: Database, deal_id: str, term_id: str, unit_cents: int, *,
     if not isinstance(unit_cents, int) or unit_cents <= 0:
         raise DealError("price must be above $0")
     lo, hi = t["min_cents"], t["max_cents"]
-    if (lo is not None and unit_cents < lo) or (hi is not None and unit_cents > hi):
-        raise DealError(f"{t['name']} must be between ${(lo or 0) // 100} and ${(hi or 0) // 100}")
-    lim = engine.creator_limits(db, deal_id)
-    if "reel" in t["name"].lower() and lim.get("min_reel_cents") and unit_cents < lim["min_reel_cents"]:
-        raise DealError(f"below your minimum Reel price (${lim['min_reel_cents'] // 100})")
+    if not agreed:
+        if (lo is not None and unit_cents < lo) or (hi is not None and unit_cents > hi):
+            raise DealError(f"{t['name']} must be between ${(lo or 0) // 100} and ${(hi or 0) // 100}")
+        lim = engine.creator_limits(db, deal_id)
+        if "reel" in t["name"].lower() and lim.get("min_reel_cents") and unit_cents < lim["min_reel_cents"]:
+            raise DealError(f"below your minimum Reel price (${lim['min_reel_cents'] // 100})")
     db.update("terms", "id", term_id, {"unit_price_cents": unit_cents, "amount_cents": unit_cents * t["qty"]})
     total = _recalc(db, deal_id)
-    db.log_event("term.price_edited", actor=creator_party, deal_id=deal_id,
-                 payload={"term": term_id, "from": t["unit_price_cents"], "to": unit_cents, "total_cents": total})
+    if agreed:
+        db.log_event("term.price_agreed", actor=agreed["accepted_by"], deal_id=deal_id,
+                     payload={"term": term_id, "from": t["unit_price_cents"], "to": unit_cents, "total_cents": total,
+                              "below_her_min": bool(lo is not None and unit_cents < lo), **agreed})
+    else:
+        db.log_event("term.price_edited", actor=creator_party, deal_id=deal_id,
+                     payload={"term": term_id, "from": t["unit_price_cents"], "to": unit_cents, "total_cents": total})
     return get_deal(db, deal_id)
 
 
@@ -442,7 +452,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"], "text": _event_text(e, items, c["display_name"])}
                    for e in db.events_for(deal_id)][-30:],
         "dispute": _dispute_view(db, deal_id),
-        "draft_status": _draft_status(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
+        "draft_status": _draft_status(db, deal_id),
+        "offers": offers_for(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
         "usage": _usage_view(db, deal),
     }
 
@@ -475,6 +486,11 @@ def _event_text(e: dict, items: list[dict], creator_name: str) -> str | None:
             "voided": "released", "refunded": "refunded", "failed": "failed · nothing charged", "paid": "done",
             "authorized": "held", "expired": "expired"}.get(to, to or "updated")
     return f"{named} of {amt} {word}"
+
+
+def offers_for(db: Database, deal_id: str) -> list[dict]:
+    from amend import offers
+    return offers.for_deal(db, deal_id)
 
 
 def _draft_status(db: Database, deal_id: str) -> str | None:

@@ -356,3 +356,6 @@ Next: Block 7.
 6. History (both panels) names money events: "$530.00 held by PayPal", "$80.00 extra held by PayPal", and a named fallback for every other money status.
 - Also: the deal total shows whole dirhams like the lines (AED 2,240, not 2,240.23).
 - Tests: 633 passed, 3 skipped. Browser tests/browser/deal_page.py, both roles at 390/1440: no problems.
+- Price offers before acceptance (built, since there was time before the freeze): on each line the brand's main contact can "Offer a different price" with a short note (140 characters at most). Sara sees "Nadia offers $X (your price $Y)" with Accept / Counter / Decline; a counter goes back to the brand (Accept / Decline / Offer again). Accepted → set_term_price with that amount. A price below her minimum is allowed only on this path, because she agreed; the `term.price_agreed` event records offered_by, accepted_by and below_her_min. Only while the deal is "offered", so nothing is held. One open offer per line (a new one replaces it). Her own manual edit still stays within her range.
+- Tests: 646 passed, 3 skipped. Browser tests/browser/offers_flow.py (brand 1440 + Sara 390): offer $300 → counter $400 → accept → "Agreed at $400", total $480, no money items.
+- Also fixed: the creator's "Ask for changes" button showed an old "chat opens on Sunday" message.
