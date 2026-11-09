@@ -334,3 +334,15 @@ Next: Block 7.
 - Wording: an unknown or personal handle now shows "Couldn't find @<handle> on Instagram, or it's a personal account. Instagram only shares numbers for professional accounts." Invite shows below it.
 - Next: Alifiya sets META_IG_TOKEN, META_IG_USER_ID and IG_LOOKUP_ENABLED=true on Render, then runs Manual Deploy. Then live checks: lookup, dispute banner and Send proof, invite flow.
 - Open: before 28 Jan 2027, re-log in to Diwan's Meta app to renew data access (after submission; not urgent).
+
+## Public page fixes from the live review (9 Nov)
+- On time: only deals with a real date deadline count ("Fri" no longer counts), so on time can't go past 100%.
+- Profile header audience line is built from the same numbers as the Gender, Countries and Ages charts. Without chart data it drops typed percentages.
+- Stars are filled from the rating, with half stars (4.7 → 4½). The request sheet has a darker backdrop and an X; Esc, a backdrop click and the X close it, and focus stays inside. Every sheet now has the X.
+- AED price ranges show as a range ("AED 1,285–1,836"). "Other" country is always last. Signup title is "Create an account · Amend".
+- Samples: "food sample N" is hidden. Demo creators get 4 small "Demo" thumbnails; a real creator with no samples gets no section.
+- Dashboard scan (every studio and brand tab, 390 and 1440 px): no percentages above 100% and no undrawn icons.
+- Found and fixed:
+  - Earnings showed a two-part deal (payment, then holdback) as one row with the last date and the full amount, so the table disagreed with "This month". Now there is one row per PayPal payout, with a "What" column (Payment / Holdback / Cancellation split).
+  - The Earnings buttons overflowed at 390 px; they now wrap.
+- Tests: 618 passed, 3 skipped. Browser: tests/browser/public_page.py: no problems, no JS errors.

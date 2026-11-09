@@ -12,6 +12,7 @@ Scale note: filtering runs in Python over all creators; fine for hundreds. With 
 from __future__ import annotations
 
 import json
+import re
 import statistics
 from datetime import date, datetime, timezone
 
@@ -183,14 +184,23 @@ async def read_insights(data_url: str) -> dict:
 def track_record(db: Database, creator_id: str) -> dict:
     deals = db.all("select * from deals where creator_id = :c", {"c": creator_id})
     done = [d for d in deals if d["status"] == "completed"]
-    on_time = [d for d in done if d.get("posted_at") and d.get("deadline") and d["posted_at"][:10] <= str(d["deadline"])[:10]]
-    timed = [d for d in done if d.get("posted_at") and d.get("deadline") and len(str(d["deadline"])) >= 10]
+    # Only deals with a real date deadline count ("Fri" can't be compared). on_time ⊆ timed, so never above 100 %.
+    timed = [d for d in done if d.get("posted_at") and _is_date(d.get("deadline"))]
+    on_time = [d for d in timed if d["posted_at"][:10] <= str(d["deadline"])[:10]]
     reviews = db.all("select rating, text, at from reviews where creator_id = :c order by at desc", {"c": creator_id})
     replies = _reply_minutes(db, creator_id)
-    return {"completed": len(done), "on_time_pct": round(100 * len(on_time) / len(timed)) if timed else None,
+    return {"completed": len(done), "on_time_pct": min(100, round(100 * len(on_time) / len(timed))) if timed else None,
             "rating": round(sum(r["rating"] for r in reviews) / len(reviews), 1) if reviews else None,
             "reviews": len(reviews), "recent_reviews": [{"rating": r["rating"], "text": r["text"], "at": r["at"]} for r in reviews[:5]],
             "median_reply_minutes": round(statistics.median(replies)) if replies else None}
+
+
+def _is_date(v) -> bool:
+    try:
+        date.fromisoformat(str(v)[:10])
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def _reply_minutes(db: Database, creator_id: str) -> list[float]:
@@ -345,10 +355,40 @@ def search(db: Database, q: dict) -> dict:
     return {"total": len(out), "creators": out[page * size:(page + 1) * size], "more": len(out) > (page + 1) * size}
 
 
+PLACEHOLDER_SAMPLE = re.compile(r"^[\w &-]+ sample \d+$", re.I)  # "food sample 3": seed filler, not a real sample
+
+
+def real_samples(c: dict) -> list[str]:
+    return [x for x in _json(c.get("samples_json"), []) if not PLACEHOLDER_SAMPLE.match(str(x).strip())][:6]
+
+
+def audience_line(metrics: list[dict], typed: str | None) -> str | None:
+    """The profile header's audience summary, built from the same numbers as the Countries / Gender / Ages charts
+    (the newest metrics row). Without chart data, the creator's own words with any percentages taken out, so the
+    header never states a number the charts don't show."""
+    aud = (metrics[0].get("audience") if metrics else None) or {}
+    parts = []
+    countries = {k: v for k, v in (aud.get("countries") or {}).items() if k.lower() != "other"}
+    if countries:
+        parts.append(max(countries, key=countries.get))
+    ages = aud.get("ages") or {}
+    if ages:
+        parts.append(max(ages, key=ages.get).replace("-", "–"))
+    gender = aud.get("gender") or {}
+    if gender:
+        g = max(gender, key=gender.get)
+        parts.append(f"{round(gender[g])}% {'women' if g == 'female' else 'men' if g == 'male' else g}")
+    if parts:
+        return " · ".join(parts)
+    clean = " · ".join(x.strip() for x in re.split(r"·", typed or "") if x.strip() and "%" not in x)
+    return clean or None
+
+
 def profile(db: Database, c: dict) -> dict:
     base = card(db, c)
     return base | {"metrics": latest_metrics(db, c["id"]), "track_record": track_record(db, c["id"]),
-                   "samples": _json(c.get("samples_json"), [])[:6], "past_brands": _json(c.get("past_brands_json"), [])}
+                   "samples": real_samples(c), "demo_samples": bool(c.get("is_demo")) and not real_samples(c),
+                   "past_brands": _json(c.get("past_brands_json"), [])}
 
 
 def save_profile(db: Database, creator_id: str, p: dict, *, actor: str) -> None:

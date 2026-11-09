@@ -646,8 +646,9 @@ def public_creator(handle: str):
     items = discovery.public_items(raw, engine.price_items(get_db(), c["id"]))  # amounts per her price privacy (v2)
     for it in items:
         if it.get("standard_cents") is not None:
-            it["aed"] = money.fmt_aed(it["standard_cents"], compact=True)
-    return prof | {"audience": c["audience"], "niche": c["niche"], "price_privacy": discovery.privacy_of(raw),
+            it["aed"] = money.aed_range(it.get("min_cents"), it.get("max_cents")) or money.fmt_aed(it["standard_cents"], compact=True)
+    # the header line comes from the same audience numbers as the charts, so the two can never disagree
+    return prof | {"audience": discovery.audience_line(prof["metrics"], c["audience"]), "niche": c["niche"], "price_privacy": discovery.privacy_of(raw),
                    "limits": {"posting_days": c["limits"].get("posting_days", [])}, "items": items}
 
 

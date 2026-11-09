@@ -162,22 +162,28 @@ def home(db: Database, creator: dict) -> dict:
 def earnings(db: Database, creator_id: str) -> dict:
     items = _items(db, creator_id)
     deals = {d["id"]: d for d in _deals(db, creator_id)}
+    # One row per PayPal payout (the main payment and the holdback are paid on different days), so the dates, the
+    # "This month" tile, Lifetime and the monthly statement all add up from the same rows. The deal's gross, fee and
+    # editor share sit on its first payout row only, so every column sums correctly.
     rows = []
     for did, d in deals.items():
         di = [i for i in items if i["deal_id"] == did]
-        payouts = [i for i in di if i["kind"] == "payout" and (i.get("note") or "") in CREATOR_PAYOUT_NOTES]
+        payouts = sorted((i for i in di if i["kind"] == "payout" and (i.get("note") or "") in CREATOR_PAYOUT_NOTES
+                          and i["status"] in ("sent", "paid", "failed")), key=lambda i: i["updated_at"])
         if not payouts:
             continue
         gross = sum(i["amount_cents"] for i in di if i["kind"] == "capture" and i["status"] in ("paid", "refunded"))
         refunds = sum(i["amount_cents"] for i in di if i["kind"] == "refund" and i["status"] == "paid")
         fee = sum(i["fee_cents"] or 0 for i in di if i["kind"] == "capture")
         editor = sum(i["amount_cents"] for i in di if i["kind"] == "payout" and (i.get("note") or "").startswith("release:editor"))
-        net = sum(i["amount_cents"] for i in payouts if i["status"] == "paid")
-        last = max(payouts, key=lambda i: i["updated_at"])
-        rows.append({"date": last["updated_at"][:10], "deal": did, "brand": d["brand_org"], "gross_cents": gross - refunds, "fee_cents": fee,
-                     "editor_cents": editor, "net_cents": net, "paypal_id": last["paypal_id"],
-                     "status": "paid" if all(i["status"] == "paid" for i in payouts) else ("holdback pending" if any(
-                         (i.get("note") or "").startswith("holdback") and i["status"] == "approved" for i in payouts) else last["status"])})
+        for n, i in enumerate(payouts):
+            note = i.get("note") or ""
+            rows.append({"date": i["updated_at"][:10], "deal": did, "brand": d["brand_org"], "item": i["id"],
+                         "part": "Holdback" if note.startswith("holdback") else "Cancellation split" if note.startswith("cancel") else "Payment",
+                         "gross_cents": gross - refunds if n == 0 else None, "fee_cents": fee if n == 0 else None,
+                         "editor_cents": editor if n == 0 else None,
+                         "net_cents": i["amount_cents"] if i["status"] == "paid" else 0, "amount_cents": i["amount_cents"],
+                         "paypal_id": i["paypal_id"], "status": i["status"]})
     rows.sort(key=lambda r: r["date"], reverse=True)
     holdbacks = [{"deal": i["deal_id"], "brand": deals[i["deal_id"]]["brand_org"], "amount_cents": i["amount_cents"],
                   "until": deals[i["deal_id"]].get("holdback_release_at"),
@@ -200,6 +206,10 @@ def earnings(db: Database, creator_id: str) -> dict:
             "months": sorted({r["date"][:7] for r in rows}, reverse=True)}
 
 
+def _usd_or_dash(cents: int | None) -> str:
+    return "-" if cents is None else money.fmt_usd(cents)
+
+
 def statement_pdf(db: Database, creator: dict, month: str) -> bytes:
     from amend.pdf import Doc
     e = earnings(db, creator["id"])
@@ -213,8 +223,8 @@ def statement_pdf(db: Database, creator: dict, month: str) -> bytes:
     doc.row(W, bold=True, align_right_from=2)
     doc.rule(4)
     for r in rows:
-        doc.row([(r["date"], 70), ((r["brand"] or "")[:24], 140), (money.fmt_usd(r["gross_cents"]), 70), (money.fmt_usd(r["fee_cents"]), 55),
-                 (money.fmt_usd(r["editor_cents"]), 60), (money.fmt_usd(r["net_cents"]), 70), ("", 34)], align_right_from=2)
+        doc.row([(r["date"], 70), ((r["brand"] or "")[:24], 140), (_usd_or_dash(r["gross_cents"]), 70), (_usd_or_dash(r["fee_cents"]), 55),
+                 (_usd_or_dash(r["editor_cents"]), 60), (money.fmt_usd(r["net_cents"]), 70), ("", 34)], align_right_from=2)
     if not rows:
         doc.text("No payouts this month.", 11)
     doc.rule()

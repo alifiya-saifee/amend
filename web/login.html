@@ -32,6 +32,7 @@
 <script>
 const Q = new URLSearchParams(location.search);
 const SIGNUP = location.pathname === "/signup";
+if (SIGNUP) document.title = "Create an account · Amend";
 let KIND = Q.get("tab") === "brand" || Q.get("kind") === "brand" ? "brand" : "creator";
 
 function draw() {

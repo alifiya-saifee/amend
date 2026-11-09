@@ -1,4 +1,6 @@
 """Block 4: creator Home, Earnings, Calendar from real tables (S85–S88)."""
+from datetime import datetime, timezone
+
 import pytest
 
 from amend import studio
@@ -90,3 +92,19 @@ def test_inbox_change_entries_are_actionable(client, history):
 def test_deals_list_has_stage(client, history):
     ds = client.get("/api/studio/deals").json()["deals"]
     assert {d["stage"] for d in ds} >= {"brief", "held", "production", "delivered", "paid"} and all(d["is_demo"] for d in ds)
+
+
+def test_payout_history_one_row_per_payout_so_month_tiles_agree(client, history):
+    """Live review: a deal paid in two parts (payment, then holdback a month later) showed as one row dated by the
+    last part with the full amount, so "This month" disagreed with the table. Now each PayPal payout is its own row."""
+    e = client.get("/api/studio/earnings").json()
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    assert e["totals"]["month_cents"] == sum(r["net_cents"] for r in e["rows"] if r["date"].startswith(month))
+    assert e["totals"]["lifetime_cents"] == sum(r["net_cents"] for r in e["rows"])
+    for deal in {r["deal"] for r in e["rows"]}:
+        rows = [r for r in e["rows"] if r["deal"] == deal]
+        assert sum(r["gross_cents"] is not None for r in rows) == 1  # gross / fee shown once per deal
+    two_part = [d for d in {r["deal"] for r in e["rows"]} if len([r for r in e["rows"] if r["deal"] == d]) > 1]
+    assert two_part, "the demo history should include a deal paid in two parts"
+    parts = sorted(r["part"] for r in e["rows"] if r["deal"] == two_part[0])
+    assert parts == ["Holdback", "Payment"]

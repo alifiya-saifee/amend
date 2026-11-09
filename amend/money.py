@@ -58,6 +58,13 @@ def fmt_aed(usd_cents: int, compact: bool = False) -> str:
     return f"AED {a // 100:,}.{a % 100:02d}"
 
 
+def aed_range(min_cents: int | None, max_cents: int | None) -> str | None:
+    """A USD price range shown in AED as a range ("AED 1,285–1,836"), never the midpoint. None if not a range."""
+    if min_cents is None or max_cents is None or min_cents == max_cents:
+        return None
+    return f"{fmt_aed(min_cents, compact=True)}–{fmt_aed(max_cents, compact=True)[4:]}"
+
+
 # ---------- rows ----------
 
 def get_item(db: Database, item_id: str) -> dict:

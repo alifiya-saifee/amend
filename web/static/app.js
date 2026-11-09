@@ -94,14 +94,16 @@ function sheet(html, { onOpen, drawer = false } = {}) {
   }
   sh.classList.toggle("drawer", drawer); sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true");
   if (!sh.classList.contains("open")) SHEET_OPENER = document.activeElement;  // focus goes back here on close
-  sh.innerHTML = `<div class="grab"></div>` + html;
+  // every sheet gets an X (unless the page drew its own Close)
+  const x = /aria-label="Close"/.test(html) ? "" : `<button type="button" class="sheet-x" aria-label="Close" onclick="closeSheet()"><i data-lucide="x" aria-hidden="true"></i></button>`;
+  sh.innerHTML = `<div class="grab"></div>` + x + html;
   const head = sh.querySelector("h1, h2, h3");
   if (head) { head.id = head.id || "sheet-title"; sh.setAttribute("aria-labelledby", head.id); } else sh.removeAttribute("aria-labelledby");
   sh.tabIndex = -1;
   bg.classList.add("open"); requestAnimationFrame(() => sh.classList.add("open"));
   if (onOpen) onOpen(sh);
   // keyboard: focus moves into the sheet (first field, else the sheet itself); Tab stays inside; Esc closes
-  requestAnimationFrame(() => { const f = focusables(sh)[0]; (f && f.matches("input, textarea, select") ? f : sh).focus(); });
+  requestAnimationFrame(() => { const f = focusables(sh).filter(x => !x.classList.contains("sheet-x"))[0]; (f && f.matches("input, textarea, select") ? f : sh).focus(); });
   return sh;
 }
 let SHEET_OPENER = null;
@@ -185,4 +187,15 @@ function applyTheme(t) {
   document.documentElement.classList.toggle("theme-light", t === "light");
 }
 try { const t = localStorage.getItem("amend.theme"); if (t) applyTheme(t); } catch {}
+// Stars filled from a rating (0–5, halves allowed): 4.5 → 4 full, 1 half, 0 empty. Labelled for screen readers.
+function starParts(rating) {
+  const r = Math.max(0, Math.min(5, Math.round((Number(rating) || 0) * 2) / 2));
+  const full = Math.floor(r), half = r - full === 0.5 ? 1 : 0;
+  return { full, half, empty: 5 - full - half };
+}
+function starsHtml(rating) {
+  const { full, half, empty } = starParts(rating);
+  const st = n => `<i data-lucide="star" class="st-on" aria-hidden="true"></i>`.repeat(n);
+  return `<span class="stars-r" role="img" aria-label="${Number(rating)} out of 5 stars">${st(full)}${half ? `<span class="st-half"><i data-lucide="star" class="st-off" aria-hidden="true"></i><i data-lucide="star-half" class="st-on" aria-hidden="true"></i></span>` : ""}${`<i data-lucide="star" class="st-off" aria-hidden="true"></i>`.repeat(empty)}</span>`;
+}
 function icon(name, cls = "") { return `<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`; }
