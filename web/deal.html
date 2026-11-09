@@ -85,7 +85,7 @@ function linesHtml(editable = false) {
       <div class="amt">${V.price_hidden ? '<span class="small muted">On request</span>' : `${usd(t.amount_cents)}<div class="aed">${t.aed}</div>`}</div>
    ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
     </div>`).join("")}
-    <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div></div>`;
+    <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div>${usageHtml()}</div>`;
 }
 function bindQuotes(root = document) {
   $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));
@@ -161,6 +161,9 @@ function render() {
   panel();
   bindBrief();
   bindQuotes();
+  // bound after panel(): the desktop copy of the usage line lives in the side panel, drawn after the room
+  $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
+    try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   $$("[data-refund]").forEach(b => b.onclick = () => busy(b, async () => {
     try { V = await api(url(`/refunds/${b.dataset.refund}/approve`), { body: {} }); render(); toast("Refund sent through PayPal"); }
     catch (e) { toast(e.message, "bad"); }
@@ -195,7 +198,7 @@ function activeRoom(d) {
     : d.status === "completed" ? `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> Completed</div>`
     : d.status === "delivered" ? `<div class="banner ok"><i data-lucide='package-check' aria-hidden='true'></i> Delivered${held ? ` · ${usd(held)} still held by PayPal` : " · the held money has been collected"}</div>`
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
-  $("#view").innerHTML = `${banner}
+  $("#view").innerHTML = `${disputeBanner()}${banner}
     ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}. Nothing is collected until the delivery matches the deal.</p>` : ""}
     ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
@@ -208,6 +211,7 @@ function activeRoom(d) {
     <div class="rt" data-tab="history"><div class="hide-desktop" style="margin-top:12px">${historyHtml()}${IS_BRAND ? alertsHtml() : ""}</div></div>
     <div class="row wrapx" style="margin-top:12px;gap:8px">
       ${IS_BRAND && V.me.role === "brand_main" ? `<button class="btn small" id="invite"><i data-lucide='users' aria-hidden='true'></i> Invite teammate</button>` : ""}
+      ${!IS_BRAND ? `<a class="btn small" href="/api/deals/${KEY}/evidence.pdf" download><i data-lucide='file-check' aria-hidden='true'></i> Download proof</a>` : ""}
       ${!IS_BRAND && ["accepted", "in_progress", "delivered"].includes(d.status) ? `<button class="btn small" id="pause-deal"><i data-lucide='circle-pause' aria-hidden='true'></i> Pause deal</button>` : ""}
       ${(IS_BRAND ? V.me.role === "brand_main" : true) && !["completed", "cancelled"].includes(d.status) ? `<button class="btn small danger" id="cancel-deal">Cancel deal…</button>` : ""}
       <button class="btn small" id="del-media">Delete my recordings and screenshots</button></div>`;
@@ -222,6 +226,10 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
+  if ($("#send-proof")) $("#send-proof").onclick = e => {
+    if (!confirm("Send this deal's record (the PDF from Download proof) to PayPal for the dispute? It's sent once.")) return;
+    busy(e.currentTarget, async () => { try { V = await api(url("/dispute/evidence"), { body: {} }); render(); toast("Proof sent to PayPal"); } catch (er) { toast(friendlyError(er), "bad"); } });
+  };
   if ($("#pause-deal")) $("#pause-deal").onclick = e => {
     const reason = prompt("Why are you pausing? The brand sees this. Nothing moves until you resume.", "Waiting for an answer on the open change.");
     if (reason === null) return;
@@ -282,6 +290,11 @@ function nextStep(d, pendingHolds) {
   const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "the brand").split(" ")[0];
   const PP = (() => { try { return JSON.parse(d.pause_json || "{}"); } catch { return {}; } })();
   if (d.status === "paused" && PP.kind === "creator_pause") return { ic: "circle-pause", t: IS_BRAND ? `Paused by ${first}` : "You paused the deal", s: IS_BRAND ? "Answer in the chat; nothing moves until she resumes." : "Resume when you're ready. Nothing moves until then." };
+  if (V.dispute && V.dispute.open) return IS_BRAND
+    ? { ic: "shield-alert", t: "PayPal is reviewing your dispute", s: `PayPal decides; Amend follows its outcome. ${first} can send the deal record.` }
+    : V.dispute.evidence === "sent"
+      ? { ic: "shield-check", t: "Proof sent to PayPal", s: "PayPal decides. Any holdback stays frozen until then." }
+      : { ic: "shield-alert", t: "Send your proof to PayPal", s: "A PayPal dispute is open. The deal record (quotes, confirmations, delivery check) is ready to send." };
   const refundAsk = (V.money || []).find(i => i.kind === "refund" && i.status === "planned");
   if (refundAsk) return IS_BRAND
     ? { ic: "rotate-ccw", t: `Refund of ${usd(refundAsk.amount_cents)} proposed`, s: `Waiting for ${first} to approve it. It comes back to you through PayPal.`, tab: "money" }
@@ -401,6 +414,25 @@ function panel() {
     ${IS_BRAND ? alertsHtml() : ""}`;
   bindQuotes($("#panel"));
   bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
+}
+// Lifecycle 2: the usage-rights clock (from the post date, for the months agreed)
+function usageHtml() {
+  const u = V.usage;
+  if (!u || !u.end) return u ? `<p class="small muted" style="margin-top:8px">${icon("clock")} Usage rights: ${u.months} month${u.months === 1 ? "" : "s"}, counted from the post date.</p>` : "";
+  return `<div class="usage-line small" style="margin-top:8px">${icon("clock")} <span>Usage rights ${u.ended ? "ended" : "end"} <b>${esc(u.end_label)}</b> (${u.months} month${u.months === 1 ? "" : "s"} from the post)</span>
+    ${!IS_BRAND && u.ended && !u.extension_open ? `<button class="btn small" data-usage-extend>Still being used after ${esc(u.end_label)}</button>` : ""}
+    ${u.extension_open ? `<span class="pill waiting">Extension card open</span>` : ""}</div>`;
+}
+// Lifecycle 1: a PayPal dispute is shown to both sides with PayPal's reason; the creator can send the proof (once).
+function disputeBanner() {
+  const x = V.dispute;
+  if (!x || !x.open) return x && x.outcome ? `<div class="banner ok" style="margin-bottom:10px">${icon("shield-check")} PayPal dispute closed (${esc(x.outcome.replace(/_/g, " ").toLowerCase())}).</div>` : "";
+  const first = V.creator.name.split(" ")[0];
+  return `<div class="banner bad" role="status" style="margin-bottom:10px">${icon("shield-alert")}<div class="grow"><b>PayPal dispute opened</b> (${usd(x.amount_cents)}): ${esc(x.why)}.
+    <div class="small" style="margin-top:4px">Any holdback is frozen until PayPal decides.${IS_BRAND ? ` ${esc(first)} can send the deal record to PayPal.` : ""}</div>
+    ${!IS_BRAND ? (x.evidence === "sent" ? `<div class="small" style="margin-top:6px"><b>Proof sent to PayPal.</b></div>`
+      : `<div class="row wrapx" style="gap:6px;margin-top:8px"><button class="btn small primary" id="send-proof">Send proof to PayPal</button>
+         <a class="btn small" href="/api/deals/${KEY}/evidence.pdf" download>See the proof (PDF)</a></div>`) : ""}</div></div>`;
 }
 // The brand needs no account: a WhatsApp number on the link is enough to be told when something needs them.
 function alertsHtml() {

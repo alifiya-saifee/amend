@@ -32,3 +32,8 @@ Ideas and fallbacks found along the way. Each one is either needed later or kept
 
 ## Discovery v2 C — "Ask to work together" (not built, 8 Nov)
 Brand → creator Inbox request; Accept sends a deal link prefilled from her price list; Decline; the brand sees the status. Today a brand can already "Request a deal" from the creator's public page, which opens a deal link directly.
+
+## Usage extension: collecting the extension hold (not built, 9 Nov)
+The Extend usage card leads to a new PayPal hold. Collecting it ("paid with the next release") needs a release step after the
+deal's own release (often after the holdback is paid and the deal is completed). That would be a new money step, so it was left out
+to keep the existing money rules unchanged. Today the hold sits authorised until it is collected by a future release step or expires.

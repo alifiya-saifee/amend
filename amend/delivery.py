@@ -195,6 +195,8 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
         if deal["status"] == "in_progress":
             _move(db, deal, "delivered", creator_party)
         db.log_event("post.submitted", actor=creator_party, deal_id=deal["id"], payload={"post": row["id"], "url": post_url[:200]})
+        from amend import usage
+        usage.start_clock(db, dict(deal, posted_at=posted_on))  # lifecycle 2: usage rights run from the post date
         db.log_event("delivery.checked", actor="system", deal_id=deal["id"], payload={"post": row["id"], "gaps": len(gaps)})
     return latest(db, deal["id"], "post")
 
@@ -486,7 +488,8 @@ async def tick_holdback(db: Database, rail: money.PlatformRail, at: datetime | N
     from amend.deals import _move, get_deal
     at = at or datetime.now(timezone.utc)
     paid = returned = 0
-    for deal in db.all("select * from deals where holdback_release_at is not null and status = 'delivered'"):
+    # a deal with an open PayPal dispute is skipped: its holdback stays frozen until PayPal decides
+    for deal in db.all("select * from deals where holdback_release_at is not null and status = 'delivered' and dispute_open = 0"):
         hb = db.one("select * from money_items where deal_id = :d and note like 'holdback:%' and status = 'approved'", {"d": deal["id"]})
         if not hb:
             continue

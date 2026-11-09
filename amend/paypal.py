@@ -10,6 +10,7 @@ Rules enforced here (CLAUDE.md hard rules 2, 3, 4):
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -171,6 +172,29 @@ class PayPalClient:
         body = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)}}
         return await self._write("POST", f"/v2/payments/captures/{capture_id}/refund", body,
                                  request_id=request_id, approval=approval)
+
+    async def provide_evidence(self, dispute_id: str, *, pdf: bytes, notes: str, request_id: str | None,
+                               approval: dict | None) -> dict:
+        """Disputes API provide-evidence (multipart: the JSON part + the PDF). Same guards as every write."""
+        if not request_id:
+            raise ValueError("every PayPal write needs a PayPal-Request-Id")
+        if not approval or approval.get("decision") != "approved":
+            raise NoApproval("no approved approval record for this PayPal write")
+        token = await self._get_token()
+        meta = {"evidences": [{"evidence_type": "PROOF_OF_FULFILLMENT", "notes": notes[:2000],
+                               "documents": [{"name": "amend-deal-record.pdf"}]}]}
+        files = {"input": (None, json.dumps(meta), "application/json"),
+                 "file1": ("amend-deal-record.pdf", pdf, "application/pdf")}
+        try:
+            async with self._client() as c:
+                r = await c.post(f"/v1/customer/disputes/{dispute_id}/provide-evidence", files=files,
+                                 headers={"Authorization": f"Bearer {token}", "PayPal-Request-Id": request_id})
+        except httpx.HTTPError as e:
+            raise PayPalError(0, "NETWORK", type(e).__name__) from None
+        log.info("paypal POST provide-evidence status=%s request_id=%s", r.status_code, request_id)
+        if r.status_code >= 400:
+            raise _err(r)
+        return r.json() if r.content else {}
 
     # ---- invoices ----
     async def create_invoice(self, *, recipient_email: str, item_name: str, amount_cents: int, number: str,

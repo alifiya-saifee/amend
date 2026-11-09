@@ -314,3 +314,16 @@ Next: Block 7.
 - **Next:** Manual Deploy, then the live check (Sara "On request" → Discover, profile, AI match, a brand offer), then switch Sara back to "Everyone" for the judges unless Alifiya wants otherwise.
 
 - **Discovery v2 live check PASS (8 Nov night)**, well before the Wed 12:00 deadline: no revert needed. Judges see all three modes: Sara Everyone, Layla On request, Yusuf A range. Small follow-up fix: "Next available" date formatted on profiles and compare (needs a deploy).
+
+## Lifecycle features (9 Nov) — branch `lifecycle`, merged when green
+- **1. PayPal dispute shield (S126–S130):** CUSTOMER.DISPUTE.* via the verified webhook path; matched by capture id; holdback frozen;
+  banner + Inbox both sides with PayPal's reason; evidence pack PDF ("Download proof", any time); "Send proof to PayPal" = guarded
+  provide-evidence (creator's approval record, one PayPal-Request-Id, once); resolved for the creator → freeze lifted; for the brand →
+  NO refund call (PayPal already took it back), recorded and funded by S98.
+- **2. Usage-rights clock (S131–S134):** end = post date + months; deal panel, Calendar, Earnings; reminder 7 days before; Extend usage
+  card on the end date or via "Still being used after <date>"; brand confirm → new hold. **Collecting that hold is not built** (docs/later.md).
+- Found on the way: on desktop the "Still being used" button did nothing (bound before the side panel was drawn). Fixed.
+- **Tests:** 569 passed, 3 skipped. Screenshots: `docs/screenshots/lifecycle/` (dispute banner both sides, evidence pack PDF + PNG,
+  usage clock, extension card both sides; 390/1440, light/dark; no problems, no JS errors).
+- **Needs Alifiya:** tick CUSTOMER.DISPUTE.CREATED / UPDATED / RESOLVED on the PayPal webhook; Manual Deploy; then the live check.
+- **Deadline:** tests + live check by Wed 11 Nov 12:00, else revert to be3d089 and list both in README "Next".

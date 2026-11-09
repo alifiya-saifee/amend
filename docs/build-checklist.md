@@ -1045,3 +1045,12 @@ After each page: screenshots at 390 px and 1440 px, in light and dark (marketing
 | S97 | Every app screen | Loading, empty and error states | [ ] | [ ] |
 | S98 | Price decrease after payout (refund) | Refund card shows the split first (holdback, then next payout); Sara approves → live status check → PayPal refund once; holdback marked used, never released; remainder owed and taken from the next payout; decline pauses the deal; editor shares untouched | [x] | [ ] |
 | S102 | Removal wording when the deal has more than one | Singular ("the/a/one … story set") removes one; plural, "both", "all" or a number removes that many; idioms ("after all") ignored; unclear → card asks "Which one?" with options and prices, Confirm blocked, no money moves until both confirm the choice; quote chip unchanged | [x] | [x] |
+| S126 | PayPal dispute webhook | CUSTOMER.DISPUTE.CREATED (verified, de-duplicated) matched by capture id; dispute_open freezes the holdback; banner + Inbox both sides with PayPal's reason | [x] | [ ] |
+| S127 | Evidence pack | PDF with quotes, confirmations (who/when), change cards, delivery check (frames, post link, date, #ad), release approvals, money with PayPal ids (last 4), Dubai time; creator downloads any time | [x] | [x] |
+| S128 | Send proof to PayPal | provide-evidence only after the creator's approval record, one PayPal-Request-Id, sent once on a double tap | [x] | [ ] |
+| S129 | Dispute won by the creator | freeze lifted; holdback paid on its day | [x] | [ ] |
+| S130 | Dispute won by the brand | no refund call (PayPal already moved it); recorded and funded by S98 (holdback first, then owed) | [x] | [ ] |
+| S131 | Usage-rights clock | start = post date, end = start + months; deal panel, Calendar, Earnings | [x] | [x] |
+| S132 | Usage reminder | one in-app reminder 7 days before the end | [x] | [ ] |
+| S133 | Extend usage card | on the end date, + the same months priced from her list, original words quoted | [x] | [ ] |
+| S134 | Still being used | creator raises the same card; brand confirms → new PayPal hold | [x] | [x] |
