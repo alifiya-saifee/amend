@@ -84,6 +84,9 @@ async def fake_call_json(system: str, user: str, **kw):
         lines = []
         if q := _q(text, "reel"):
             lines.append({"item_code": "reel", "qty": 1, "quote": q})
+        if q := _q(text, "usage"):  # "Paid ads usage for 3 months" → usage_rights × 3 (local tests and screenshots)
+            n = re.search(r"(\d+)\s*months?", q)
+            lines.append({"item_code": "usage_rights", "qty": int(n.group(1)) if n else 1, "quote": q})
         if q := _q(text, "story set", "story"):
             lines.append({"item_code": "story_set", "qty": 1, "quote": q})
         out = {"lines": lines, "not_on_list": [], "fields": []}

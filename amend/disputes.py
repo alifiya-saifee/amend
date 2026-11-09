@@ -217,7 +217,9 @@ def evidence_pdf(db: Database, deal_id: str) -> bytes:
                     "change.confirmed": f"confirmed a change ({e['payload'].get('side')})",
                     "change.applied": f"change applied: version {e['payload'].get('version')}",
                     "brief.submitted": "sent the brief", "draft.approved": "approved the draft",
-                    "gap.resolved": f"resolved a delivery gap ({e['payload'].get('resolution')})"}[e["type"]]
+                    "gap.resolved": "resolved a delivery gap: " + {"accept": "accepted the post date", "add": "added it to the deal",
+                                     "free": "made it a free extra", "remove": "asked for it to be removed", "drop": "removed it from the deal",
+                                     "will_deliver": "will deliver it"}.get(e["payload"].get("resolution"), "decided")}[e["type"]]
             say(f"{_dubai(e['at'])} - {who}: {what}", size=9)
     for ch in db.all("select * from changes where deal_id = :d order by created_at", {"d": deal_id}):
         lines = "; ".join(l.get("label", "") for l in json.loads(ch["lines_json"] or "[]"))
@@ -237,12 +239,21 @@ def evidence_pdf(db: Database, deal_id: str) -> bytes:
                 + (f", frame at {chk['time']:.1f}s" if chk.get("time") is not None else ""), size=9)
     if post:
         res = post.get("result") or {}
-        say(f"Posted: {post.get('post_url')} on {post.get('posted_at')}. Disclosure #ad in the caption: "
+        from datetime import date as _d
+        from amend import engine
+        try:
+            posted = engine.day_label(_d.fromisoformat(str(post.get("posted_at"))[:10])) + " " + str(post.get("posted_at"))[:4]
+        except ValueError:
+            posted = str(post.get("posted_at"))
+        names_by_code = {t["code"]: t["name"] for t in deal_terms(db, deal_id)}
+        say(f"Posted: {post.get('post_url')} on {posted}.", size=9)
+        say(f"Disclosure #ad in the caption: "
             f"{'yes' if res.get('disclosure_ok') else ('no' if res.get('disclosure_ok') is False else 'not checked')}.", size=9)
         for code, n in (res.get("delivered") or {}).items():
-            say(f"- delivered {n} x {code}", size=9)
+            if code != "usage_rights":  # usage rights are a licence, not something posted
+                say(f"- delivered {n} x {names_by_code.get(code, code)}", size=9)
         for g in res.get("gaps") or []:
-            say(f"- gap: {g.get('text')} -> {g.get('status')}" + (f" ({g.get('resolution')})" if g.get("resolution") else ""), size=9)
+            say(f"- gap: {g.get('text')} -> " + (delivery.resolution_text(db, g) if g.get("resolution") else g.get("status", "open")), size=9)
     if not draft and not post:
         say("Nothing delivered yet.", size=9)
     doc.rule()

@@ -161,6 +161,9 @@ function render() {
   panel();
   bindBrief();
   bindQuotes();
+  // bound after panel(): the desktop copy of the usage line lives in the side panel, drawn after the room
+  $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
+    try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   $$("[data-refund]").forEach(b => b.onclick = () => busy(b, async () => {
     try { V = await api(url(`/refunds/${b.dataset.refund}/approve`), { body: {} }); render(); toast("Refund sent through PayPal"); }
     catch (e) { toast(e.message, "bad"); }
@@ -223,8 +226,6 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
-  $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
-    try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   if ($("#send-proof")) $("#send-proof").onclick = e => {
     if (!confirm("Send this deal's record (the PDF from Download proof) to PayPal for the dispute? It's sent once.")) return;
     busy(e.currentTarget, async () => { try { V = await api(url("/dispute/evidence"), { body: {} }); render(); toast("Proof sent to PayPal"); } catch (er) { toast(friendlyError(er), "bad"); } });
@@ -289,6 +290,11 @@ function nextStep(d, pendingHolds) {
   const first = V.creator.name.split(" ")[0], brandName = (V.brand && V.brand.name || "the brand").split(" ")[0];
   const PP = (() => { try { return JSON.parse(d.pause_json || "{}"); } catch { return {}; } })();
   if (d.status === "paused" && PP.kind === "creator_pause") return { ic: "circle-pause", t: IS_BRAND ? `Paused by ${first}` : "You paused the deal", s: IS_BRAND ? "Answer in the chat; nothing moves until she resumes." : "Resume when you're ready. Nothing moves until then." };
+  if (V.dispute && V.dispute.open) return IS_BRAND
+    ? { ic: "shield-alert", t: "PayPal is reviewing your dispute", s: `PayPal decides; Amend follows its outcome. ${first} can send the deal record.` }
+    : V.dispute.evidence === "sent"
+      ? { ic: "shield-check", t: "Proof sent to PayPal", s: "PayPal decides. Any holdback stays frozen until then." }
+      : { ic: "shield-alert", t: "Send your proof to PayPal", s: "A PayPal dispute is open. The deal record (quotes, confirmations, delivery check) is ready to send." };
   const refundAsk = (V.money || []).find(i => i.kind === "refund" && i.status === "planned");
   if (refundAsk) return IS_BRAND
     ? { ic: "rotate-ccw", t: `Refund of ${usd(refundAsk.amount_cents)} proposed`, s: `Waiting for ${first} to approve it. It comes back to you through PayPal.`, tab: "money" }
