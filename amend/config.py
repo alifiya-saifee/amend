@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     amend_demo_password: SecretStr = SecretStr("")
     amend_session_secret: SecretStr = SecretStr("")
     amend_tick_secret: SecretStr = SecretStr("")
+    # Instagram lookup (Meta Business Discovery, Facebook Login token). Off unless enabled and both are set.
+    meta_ig_token: SecretStr = SecretStr("")
+    meta_ig_user_id: str = ""
+    ig_lookup_enabled: bool = False
+    meta_graph_version: str = "v23.0"
     whatsapp_token: SecretStr = SecretStr("")
     whatsapp_phone_id: str = ""
     sandbox_brand_email: str = ""

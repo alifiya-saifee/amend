@@ -354,12 +354,16 @@ def signup(body: SignupIn, request: Request):
     except auth.AuthError as e:
         raise HTTPException(400, str(e))
     if token and acc["kind"] == "creator":
-        invites.claim(get_db(), token, acc)  # her profile takes the invited handle; the brand sees "Joined"
+        row = invites.claim(get_db(), token, acc)  # her profile takes the invited handle; the brand sees "Joined"
+        if row:  # numbers a brand looked up become hers, marked "from Instagram, confirmed by creator"
+            from amend import iglookup
+            iglookup.adopt(get_db(), acc["creator_id"], row["handle"], acc["party_id"])
     return _set_session(JSONResponse({"ok": True, "go": "/studio" if acc["kind"] == "creator" else "/brand"}), acc["id"])
 
 
 class InviteIn(BaseModel):
     handle: str = Field(min_length=1, max_length=40)
+    save_only: bool = False  # "Save to shortlist" for someone not on Amend yet
 
 
 def _invite_out(row: dict) -> dict:
@@ -374,7 +378,7 @@ def brand_invite_creator(body: InviteIn, acc: dict = Depends(require_brand)):
     """Discover: "@handle isn't on Amend yet" → a claim link tied to this brand (14 days). Nothing is fetched from Instagram."""
     from amend import invites
     try:
-        return _invite_out(invites.create(get_db(), acc, body.handle))
+        return _invite_out(invites.create(get_db(), acc, body.handle, save_only=body.save_only))
     except invites.InviteError as e:
         raise HTTPException(400, str(e))
 
@@ -383,6 +387,18 @@ def brand_invite_creator(body: InviteIn, acc: dict = Depends(require_brand)):
 def brand_invites(acc: dict = Depends(require_brand)):
     from amend import invites
     return {"invites": invites.for_brand(get_db(), acc)}
+
+
+@app.get("/api/brand/ig-lookup")
+def brand_ig_lookup(handle: str, acc: dict = Depends(require_brand)):
+    """Discover: public Instagram numbers for a handle that isn't on Amend (Business Discovery; off unless enabled)."""
+    from amend import iglookup, invites
+    h = invites.clean_handle(handle)
+    if not h:
+        raise HTTPException(400, "That doesn't look like an Instagram handle.")
+    if get_db().one("select id from creators where lower(handle) = :h", {"h": h}):
+        raise HTTPException(400, f"@{h} is already on Amend.")
+    return {"handle": h, **iglookup.lookup(get_db(), acc, h)}
 
 
 @app.get("/api/invites/{token}")

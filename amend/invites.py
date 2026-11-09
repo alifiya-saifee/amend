@@ -33,7 +33,8 @@ def _expired(row: dict, at: datetime | None = None) -> bool:
     return (at or datetime.now(timezone.utc)) >= datetime.fromisoformat(row["expires_at"])
 
 
-def create(db: Database, account: dict, raw_handle: str) -> dict:
+def create(db: Database, account: dict, raw_handle: str, *, save_only: bool = False) -> dict:
+    """save_only: "Save to shortlist" for someone not on Amend yet (the same claim record, not shared yet)."""
     handle = clean_handle(raw_handle)
     if not handle:
         raise InviteError("That doesn't look like an Instagram handle.")
@@ -42,10 +43,13 @@ def create(db: Database, account: dict, raw_handle: str) -> dict:
     have = db.one("select * from creator_invites where brand_account_id = :a and handle = :h and claimed_at is null "
                   "order by created_at desc limit 1", {"a": account["id"], "h": handle})
     if have and not _expired(have):
+        if have.get("saved_only") and not save_only:  # saved earlier, now actually invited
+            db.update("creator_invites", "id", have["id"], {"saved_only": 0})
+            have = db.one("select * from creator_invites where id = :i", {"i": have["id"]})
         return have  # the same open invite: share it again
     row = {"id": new_id("iv"), "token": secrets.token_urlsafe(18), "handle": handle, "brand_account_id": account["id"],
            "created_at": now(), "expires_at": (datetime.now(timezone.utc) + timedelta(days=DAYS)).isoformat(),
-           "claimed_creator_id": None, "claimed_at": None}
+           "claimed_creator_id": None, "claimed_at": None, "saved_only": int(save_only)}
     db.insert("creator_invites", row)
     db.log_event("invite.created", actor=account.get("party_id") or account["id"], payload={"invite": row["id"], "handle": handle})
     return row
@@ -78,7 +82,7 @@ def for_brand(db: Database, account: dict) -> list[dict]:
     out = []
     for r in db.all("select i.*, c.display_name from creator_invites i left join creators c on c.id = i.claimed_creator_id "
                     "where i.brand_account_id = :a order by i.created_at desc", {"a": account["id"]}):
-        status = "joined" if r["claimed_at"] else ("expired" if _expired(r) else "invited")
+        status = "joined" if r["claimed_at"] else ("expired" if _expired(r) else ("saved" if r.get("saved_only") else "invited"))
         out.append({"handle": r["handle"], "status": status, "name": r.get("display_name"), "created_at": r["created_at"],
                     "expires_at": r["expires_at"]})
     return out

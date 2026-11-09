@@ -85,6 +85,10 @@ Until a template is approved, Amend shows notifications in the app only and logs
    | `GROQ_API_KEY` | |
    | `NVIDIA_API_KEY` | |
    | `NVIDIA_MODEL` | `nvidia/nemotron-3.5-bolt-e4b` (tested 8 Nov: answers in ~0.6 s with clean JSON; several listed models return 404 or time out) |
+   | `IG_LOOKUP_ENABLED` | `false` until a token exists; `true` turns on the Instagram lookup on Discover |
+   | `META_IG_TOKEN` | Facebook Login token (instagram_basic + pages_read_engagement) of an Instagram professional account linked to a Facebook Page; never in the repo |
+   | `META_IG_USER_ID` | that Instagram professional account's id |
+   | `META_GRAPH_VERSION` | optional, default `v23.0` |
    | `AMEND_DEMO_PASSWORD` | **a different one from your local password** (it goes in Devpost's private field) |
    | `AMEND_SESSION_SECRET` | a long random string |
    | `AMEND_TICK_SECRET` | a long random string, also used in step 4 |

@@ -12,7 +12,7 @@ const handle = decodeURIComponent(location.pathname.split("/")[2] || "");
 function unitText(p) { return { month: " / month", change: " per change", revision: " each" }[p.unit] || ""; }
 function fmtN(n) { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n); }
 function fmtMin(m) { return m < 60 ? Math.round(m) + " min" : m < 1440 ? Math.round(m / 60) + " h" : Math.round(m / 1440) + " d"; }
-const SRC = { verified: "Verified (connected account)", insights_screenshot: "Read from an insights screenshot · checked by the creator, not verified", demo: "Demo data", self_reported: "Self-reported" };
+const SRC = { verified: "Verified (connected account)", instagram_public: "From Instagram (public numbers), confirmed by the creator", insights_screenshot: "Read from an insights screenshot · checked by the creator, not verified", demo: "Demo data", self_reported: "Self-reported" };
 function bars(obj) {
   const rows = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
   return rows.length ? `<div class="bars">${rows.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><span class="track"><span class="fill" style="width:${Math.min(100, v)}%;display:block"></span></span><span>${Math.round(v)}%</span></div>`).join("")}</div>` : '<p class="muted small">Not shared</p>';

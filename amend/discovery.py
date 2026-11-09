@@ -18,7 +18,7 @@ from datetime import date, datetime, timezone
 from amend import ai, engine
 from amend.db import Database, new_id, now
 
-SOURCES = ("self_reported", "insights_screenshot", "verified", "demo")
+SOURCES = ("self_reported", "insights_screenshot", "verified", "demo", "instagram_public")  # instagram_public: Business Discovery numbers she confirmed by joining
 PLATFORMS = ("instagram", "tiktok", "youtube")
 NICHES = ["food", "coffee", "beauty", "fashion", "fitness", "family", "tech", "travel", "automotive", "real estate",
           "gaming", "home", "pets", "finance", "comedy"]
@@ -242,8 +242,8 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
             if privacy_of(c) == "public" else None,
             "reel_standard_cents": (reel or {}).get("standard_cents") if privacy_of(c) == "public" else None,
             "rating": record["rating"], "reviews": record["reviews"], "completed": record["completed"],
-            "source": "verified" if "verified" in sources else ("insights_screenshot" if "insights_screenshot" in sources else
-                                                                  ("demo" if "demo" in sources else ("self_reported" if sources else None))),
+            "source": next((x for x in ("verified", "instagram_public", "insights_screenshot", "demo") if x in sources),
+                           "self_reported" if sources else None),
             "stale": bool(main and main["stale"]), "as_of": (main or {}).get("as_of"),
             "permit": permit_check(c.get("permit_no"), c.get("permit_expiry")), "is_demo": bool(c.get("is_demo")),
             "tier": tier((main or {}).get("followers") or c.get("followers") or 0), "created_at": c["created_at"]}

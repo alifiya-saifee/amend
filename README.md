@@ -84,6 +84,7 @@ or the AI's answer is rejected. Only confirmed people's words can change money; 
 
 ## Discovery
 
+- **Handle not on Amend yet:** a brand can invite her with a claim link (14 days; Copy or Share on WhatsApp) or save the handle. With a Meta token, Discover also shows her **public Instagram numbers** via Business Discovery (followers, posts, median likes and comments, engagement worked out by code; cached 24 h; 30 lookups per brand per hour). Off unless `IG_LOOKUP_ENABLED=true`.
 - **Price privacy per creator:** public (exact prices), a range (her own min–max), or on request (no numbers). Hidden
   prices never appear in any response: price filters use fixed bands, a budget badge says only "fits / slightly above /
   above" (budgets are rounded to a fixed grid so it can't be used to find the price), and a brand sees an on-request
@@ -120,6 +121,7 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 - **PayPal fees are a platform cost**, never taken from the creator; in production Amend's own fee covers them.
 - **WhatsApp alerts: coming soon** (waiting for Meta template approval). Alerts appear in Amend.
 - **Free host:** Render's free plan sleeps when idle, so the first page can be slow.
+- **Instagram lookup is off** on the live demo until a Meta token is added (it's built and tested with mocked Graph responses).
 - The UAE permit check is a format and expiry check only. Collecting a usage-rights extension hold isn't built yet.
 
 ## Next

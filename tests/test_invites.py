@@ -98,7 +98,8 @@ def test_empty_states():
     assert "No creators match these filters" in run_empty({"q": "noone", "niche": "food"})
     assert "Clear filters" in run_empty({"min_views": "20000"})
     out = run_empty({"q": "@noone.here"})
-    assert "@noone.here isn't on Amend yet." in out and "Invite them" in out and "We don't pull data from Instagram" in out
+    assert "@noone.here isn't on Amend yet." in out and "Invite them" in out and "Save to shortlist" in out
+    assert "adds her own numbers and audience" in out
     assert "@noone.here isn't on Amend yet." in run_empty({"q": "noone.here", "budget": "500"})  # a budget isn't a filter
     plain = run_empty({"q": "iced coffee"})
     assert "No creators found for “iced coffee”" in plain and "Invite" not in plain

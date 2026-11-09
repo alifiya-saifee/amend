@@ -74,6 +74,6 @@ with sync_playwright() as p:
     pg.goto(BASE + "/brand/shortlist"); pg.wait_for_timeout(2000)
     body = pg.inner_text("#view")
     check("@noone.here" in body and "Joined" in body, "Shortlists: no Joined")
-    pg.locator("text=Invited creators").scroll_into_view_if_needed(); pg.screenshot(path=str(OUT / "07-shortlists-joined-1440.png"))
+    pg.locator("text=Not on Amend yet").last.scroll_into_view_if_needed(); pg.screenshot(path=str(OUT / "07-shortlists-joined-1440.png"))
     b.close()
 print("problems:", problems or "none"); print("JS errors:", errs[:3] or "none")

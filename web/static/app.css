@@ -568,3 +568,4 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .cgrid > .empty { grid-column: 1 / -1; }  /* the empty state and invite card use the whole results width */
 #invite-out .card { max-width: 560px; margin-left: auto; margin-right: auto; }
 .empty .btn svg { width: 18px; height: 18px; margin: 0; color: currentColor; }  /* an icon inside an empty-state button stays button-sized */
+.ig-card { max-width: 560px; margin: 0 auto 14px; text-align: left; } .ig-stats .tile .v { font-size: 22px; }
