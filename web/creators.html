@@ -46,21 +46,21 @@ function filtersHtml() {
     <div><label>Niche</label><div class="chips wrapx" style="flex-wrap:wrap">${NICHES.map(n => `<button type="button" data-niche="${n}" class="${niches.has(n) ? "on" : ""}">${n}</button>`).join("")}</div></div>
     <div><label>Platform</label>${sel("platform", [["instagram", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"]])}</div>
     <div><label>Followers</label>${sel("tier", [["nano", "Nano (under 10K)"], ["micro", "Micro (10K–100K)"], ["mid", "Mid (100K–500K)"], ["macro", "Macro (500K–1M)"], ["mega", "Mega (over 1M)"]])}</div>
-  <div class="row"><div class="grow"><label>Avg views from</label><input data-f="min_views" type="number" min="0" value="${v("min_views")}" placeholder="20000"></div>
-   <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="100000"></div></div>
-  <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="2"></div>
+  <div class="row"><div class="grow"><label>Avg views from</label><input data-f="min_views" type="number" min="0" value="${v("min_views")}" placeholder="e.g. 20k"></div>
+   <div class="grow"><label>to</label><input data-f="max_views" type="number" min="0" value="${v("max_views")}" placeholder="e.g. 100k"></div></div>
+  <div><label>Minimum engagement rate (%)</label><input data-f="min_er" type="number" min="0" step="0.1" value="${v("min_er")}" placeholder="e.g. 2"></div>
     <div><label>Reel price up to ($): <b id="reel-out">${Q.max_reel ? "$" + Q.max_reel : "any"}</b></label>
       <input data-f="max_reel" type="range" min="100" max="2000" step="50" value="${Q.max_reel || 2000}">
       <p class="hint">Creators who keep prices private match by price band.</p></div>
-    <div><label for="f-budget">Your budget per Reel ($)</label><input id="f-budget" data-f="budget" type="number" min="0" step="50" value="${v("budget")}" placeholder="500">
+    <div><label for="f-budget">Your budget per Reel ($)</label><input id="f-budget" data-f="budget" type="number" min="0" step="50" value="${v("budget")}" placeholder="e.g. 500">
       <p class="hint">Each card says if it fits. Private prices are never shown.</p></div>
     <div class="row"><div class="grow"><label>Audience in</label>${sel("country", [["UAE", "UAE"], ["KSA", "KSA"], ["GCC", "GCC"]])}</div>
-   <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="50"></div></div>
+   <div class="grow"><label>at least (%)</label><input data-f="min_country_pct" type="number" min="1" max="100" value="${v("min_country_pct")}" placeholder="e.g. 50"></div></div>
     <div class="row"><div class="grow"><label>Audience mostly</label>${sel("gender", [["female", "Women"], ["male", "Men"]])}</div>
       <div class="grow"><label>Age group</label>${sel("age", [["13-17", "13–17"], ["18-24", "18–24"], ["25-34", "25–34"], ["35-44", "35–44"], ["45+", "45+"]])}</div></div>
     <div><label>Language</label>${sel("language", [["English", "English"], ["Arabic", "Arabic"]])}</div>
     <div><label>Available by</label><input data-f="available_by" type="date" value="${v("available_by")}"></div>
-  <div><label>Minimum completed Amend deals</label><input data-f="min_deals" type="number" min="0" value="${v("min_deals")}" placeholder="0"></div>
+  <div><label>Minimum completed Amend deals</label><input data-f="min_deals" type="number" min="0" value="${v("min_deals")}" placeholder="e.g. 1"></div>
     <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="permit_valid" ${Q.permit_valid ? "checked" : ""} style="width:auto"> Valid UAE permit (format check)</label>
     <label class="row" style="gap:8px;color:var(--ink)"><input type="checkbox" data-f="hide_self_reported" ${Q.hide_self_reported ? "checked" : ""} style="width:auto"> Hide self-reported data</label>
     <button class="btn block" id="clear" type="button">Clear filters</button>
@@ -155,8 +155,9 @@ async function search(append = false) {
  $("#count").textContent = `${r.total} creator${r.total === 1 ? "" : "s"}`;
   const html = r.creators.map(cardHtml).join("");
   if (append) $("#results").insertAdjacentHTML("beforeend", html);
-  else $("#results").innerHTML = html || `<div class="empty"><div class="ic"><i data-lucide='search' aria-hidden='true'></i></div>No creators match these filters.<br><br><button class="btn primary" id="clear2">Clear filters</button></div>`;
+  else $("#results").innerHTML = html || emptyHtml();
   if ($("#clear2")) $("#clear2").onclick = () => { Q = {}; syncUrl(); drawFilters(); search(); };
+  if ($("#invite-go")) $("#invite-go").onclick = e => inviteCreator(e.currentTarget);
   $("#more").innerHTML = r.more ? `<button class="btn block" id="lm">Load more</button>` : "";
   if (r.more) $("#lm").onclick = () => { PAGE++; search(true); };
  $$("[data-short]").forEach(b => b.onclick = () => toggleShort(b.dataset.short, b).catch(e => toast(e.message, "bad")));
@@ -196,6 +197,40 @@ async function browse() {
   $("#ai-match").onsubmit = e => { e.preventDefault(); aiMatch(); };
   drawFilters();
   await search();
+}
+
+/* ---------- empty results: say why, and offer to invite a handle that isn't on Amend ---------- */
+const NOT_FILTERS = ["q", "sort", "page", "budget"];  // the budget only adds a badge; it never hides anyone
+function filtersActive() { return Object.keys(Q).some(k => !NOT_FILTERS.includes(k) && Q[k]); }
+function handleOf(text) {  // "@sara.eats" or "sara.eats": letters, digits, . and _ (an Instagram handle's shape)
+  const m = /^@?([a-z0-9._]{1,30})$/i.exec((text || "").trim());
+  return m && !/^[._]+$/.test(m[1]) && !m[1].includes("..") ? m[1].toLowerCase() : null;
+}
+function emptyHtml() {
+  const icon = "<div class='ic'><i data-lucide='search' aria-hidden='true'></i></div>";
+  if (filtersActive()) return `<div class="empty">${icon}<h2>No creators match these filters</h2><button class="btn primary" id="clear2">Clear filters</button></div>`;
+  const h = handleOf(Q.q);
+  if (h) return `<div class="empty" id="invite-box">${icon}<h2>@${esc(h)} isn't on Amend yet.</h2>
+    <button class="btn primary" id="invite-go" data-handle="${esc(h)}">Invite them</button>
+    <p class="small muted" style="max-width:420px;margin:12px auto 0">We don't pull data from Instagram; the creator adds her own numbers when she joins.</p>
+    <div id="invite-out"></div></div>`;
+  return `<div class="empty">${icon}<h2>No creators found for “${esc(Q.q || "")}”</h2></div>`;
+}
+async function inviteCreator(btn) {
+  if (!(window.WHO && WHO.kind === "brand")) {  // the invite is tied to a brand account
+    location.href = `/login?tab=brand&next=${encodeURIComponent(location.pathname + location.search)}`; return;
+  }
+  await busy(btn, async () => {
+    try {
+      const r = await api("/api/brand/invites", { body: { handle: btn.dataset.handle } });
+      $("#invite-out").innerHTML = `<div class="card" style="margin-top:14px;text-align:left"><label for="inv-link">Claim link for @${esc(r.handle)} (expires ${esc(fmtDate(r.expires_at))})</label>
+        <div class="row" style="gap:6px"><input id="inv-link" readonly value="${esc(r.link)}" onclick="this.select()">
+          <button class="btn small" id="inv-copy">Copy link</button></div>
+        <a class="btn small" style="margin-top:8px" href="${esc(r.whatsapp)}" target="_blank" rel="noopener">Share on WhatsApp</a>
+        <p class="tiny muted" style="margin-top:6px">When @${esc(r.handle)} signs up with this link, you'll see “Joined” in Shortlists.</p></div>`;
+      $("#inv-copy").onclick = async () => { try { await navigator.clipboard.writeText(r.link); toast("Link copied"); } catch { $("#inv-link").select(); toast("Select and copy the link"); } };
+    } catch (e) { toast(friendlyError(e), "bad"); }
+  });
 }
 
 /* ---------- AI match (Discovery v2, B): the AI reads criteria; code scores and explains ---------- */

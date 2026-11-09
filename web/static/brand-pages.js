@@ -70,7 +70,8 @@ async function brandDeals() {
 
 /* ---------- Shortlists (S94): named lists, shared with the team ---------- */
 async function brandShortlists() {
-  const [r, hearts] = await Promise.all([api("/api/brand/shortlists"), api("/api/brand/shortlist")]);
+  const [r, hearts, inv] = await Promise.all([api("/api/brand/shortlists"), api("/api/brand/shortlist"), api("/api/brand/invites")]);
+  const INV = { joined: ["collected", "Joined"], invited: ["waiting", "Invited"], expired: ["planned", "Link expired"] };
   const card = l => `<section class="card"><div class="row between wrapx" style="gap:8px"><div><h2 style="margin:0">${esc(l.name)}</h2>
       <div class="small muted">${l.items.length} creator${l.items.length === 1 ? "" : "s"} · ${l.mine ? (l.shared ? "shared with your team" : "only you") : "shared by " + esc(l.owner)}</div></div>
       <div class="row" style="gap:6px">${l.items.length >= 2 ? `<a class="btn small" href="/creators/compare?ids=${l.items.slice(0, 3).map(i => i.creator_id).join(",")}">${bI("columns-3")} Compare</a>` : ""}
@@ -89,7 +90,12 @@ async function brandShortlists() {
         <div class="grow"><b>${esc(i.display_name)}</b><div class="small muted">@${esc(i.handle)}</div></div>
         ${r.lists.length ? `<select data-add="${i.creator_id}" style="width:auto" aria-label="Add to a list"><option value="">Add to list…</option>${r.lists.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>` : ""}
         <a class="btn small" href="/c/${esc(i.handle)}">View</a></div>`).join("")}</div>`
-        : bEmpty("heart", "Nothing saved yet", "Tap the heart on a creator to save them here.", FIND)}</section>`;
+        : bEmpty("heart", "Nothing saved yet", "Tap the heart on a creator to save them here.", FIND)}</section>
+    ${inv.invites.length ? `<section class="card" style="margin-top:14px"><h2>Invited creators</h2>
+      <p class="small muted">Handles you invited from Find creators. Amend doesn't pull data from Instagram; each creator adds her own numbers when she joins.</p>
+      <div class="list">${inv.invites.map(i => `<div class="inbox-row"><div class="avatar">${initials(i.name || i.handle)}</div>
+        <div class="grow"><b>@${esc(i.handle)}</b><div class="small muted">${i.status === "joined" ? esc(i.name || "") + " joined Amend" : "Invited " + esc(fmtDate(i.created_at))}</div></div>
+        <span class="pill ${INV[i.status][0]}">${INV[i.status][1]}</span>${i.status === "joined" ? `<a class="btn small" href="/c/${esc(i.handle)}">View</a>` : ""}</div>`).join("")}</div></section>` : ""}`;
   const call = (b, path, opts) => busy(b, async () => { try { await api(path, opts); brandShortlists(); } catch (e) { toast(e.message, "bad"); } });
   $("#nl").onsubmit = e => { e.preventDefault(); call($("#nl-go"), "/api/brand/shortlists", { body: { name: e.target.name.value, shared: true } }); };
   $$("[data-share]").forEach(b => b.onclick = () => call(b, `/api/brand/shortlists/${b.dataset.share}`, { method: "PUT", body: { shared: b.dataset.on === "1" } }));

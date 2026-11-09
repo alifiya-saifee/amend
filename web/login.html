@@ -67,7 +67,8 @@ $("#f").onsubmit = e => {
   busy($("#go"), async () => {
     $("#err").hidden = true;
     try {
-      const body = SIGNUP ? { kind: KIND, name: $("#name").value, email: $("#email").value, password: $("#pw").value, company: $("#company").value || null }
+      const body = SIGNUP ? { kind: KIND, name: $("#name").value, email: $("#email").value, password: $("#pw").value, company: $("#company").value || null,
+          invite: KIND === "creator" && INVITE ? INVITE : null }
         : { kind: KIND, email: $("#email").value, password: $("#pw").value };
       const next = Q.get("next") ? `?next=${encodeURIComponent(Q.get("next"))}` : "";
       const r = await api((SIGNUP ? "/signup" : "/login") + next, { body });
@@ -75,6 +76,14 @@ $("#f").onsubmit = e => {
   } catch (err) { $("#err").textContent = err.message; $("#err").hidden = false; }
   });
 };
+// A brand's claim link (Discover: "@handle isn't on Amend yet"): say who invited her and which handle she gets
+const INVITE = SIGNUP ? Q.get("invite") : null;
+if (INVITE) {
+  api(`/api/invites/${encodeURIComponent(INVITE)}`).then(r => {
+    $("#f").insertAdjacentHTML("beforebegin", `<div class="banner gold" style="margin-bottom:12px">${esc(r.company || "A brand")} invited you to Amend.
+      Your profile will be <b>@${esc(r.handle)}</b>. Add your own prices and numbers after you join.</div>`);
+  }).catch(e => $("#f").insertAdjacentHTML("beforebegin", `<div class="banner bad" style="margin-bottom:12px">${esc(e.message)} You can still create an account.</div>`));
+}
 draw();
 </script>
 </body></html>

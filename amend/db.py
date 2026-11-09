@@ -47,7 +47,7 @@ EVENT_TYPES = {
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
-    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "prices.privacy", "discover.matched", "dispute.opened", "dispute.updated", "dispute.resolved", "dispute.evidence_sent", "dispute.unmatched", "evidence.downloaded", "usage.started", "usage.reminder", "usage.extension_proposed", "owed.deducted", "holdback.used_for_refund",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "prices.privacy", "discover.matched", "dispute.opened", "dispute.updated", "dispute.resolved", "dispute.evidence_sent", "dispute.unmatched", "evidence.downloaded", "usage.started", "usage.reminder", "usage.extension_proposed", "invite.created", "invite.claimed", "owed.deducted", "holdback.used_for_refund",
     "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
     # cancellation, calls, conflicts (Phase 7)
     "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",
@@ -151,6 +151,9 @@ create table if not exists notifications (
 create table if not exists jobs (
   id text primary key, kind text not null, status text not null, attempts integer not null default 0,
   input_json text, result_json text, error text, created_at text not null, updated_at text not null);
+create table if not exists creator_invites (
+  id text primary key, token text not null unique, handle text not null, brand_account_id text not null,
+  created_at text not null, expires_at text not null, claimed_creator_id text, claimed_at text);
 create table if not exists disputes (
   id text primary key, deal_id text not null references deals(id), paypal_dispute_id text not null unique,
   capture_id text, capture_item_id text, reason text, status text, amount_cents integer not null default 0, outcome text,

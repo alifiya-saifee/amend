@@ -279,7 +279,7 @@ def search(db: Database, q: dict) -> dict:
     modes = {c["id"]: privacy_of(c) for c in rows}
     budget = int(float(q["budget"]) * 100) if q.get("budget") else None
     full = {c["id"]: latest_metrics(db, c["id"]) for c in rows}
-    term = (q.get("q") or "").strip().lower()
+    term = (q.get("q") or "").strip().lower().lstrip("@")  # "@sara.eats" finds @sara.eats
     niches = {n.strip().lower() for n in (q.get("niche") or "").split(",") if n.strip()}
     out = []
     for c, raw in zip(cards, rows):
