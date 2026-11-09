@@ -441,7 +441,13 @@ def deal_view(db: Database, deal_id: str) -> dict:
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
         "dispute": _dispute_view(db, deal_id),
+        "usage": _usage_view(db, deal),
     }
+
+
+def _usage_view(db: Database, deal: dict) -> dict | None:
+    from amend import usage
+    return usage.view(db, deal)
 
 
 def _dispute_view(db: Database, deal_id: str) -> dict | None:

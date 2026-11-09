@@ -85,7 +85,7 @@ function linesHtml(editable = false) {
       <div class="amt">${V.price_hidden ? '<span class="small muted">On request</span>' : `${usd(t.amount_cents)}<div class="aed">${t.aed}</div>`}</div>
    ${t.quote ? `<button class="q" title="Where this was agreed" data-quote="${esc(t.quote)}" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button>` : ""}
     </div>`).join("")}
-    <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div></div>`;
+    <div class="total"><span>Total</span><span>${V.price_hidden ? `<span class="small">${esc(V.creator.name.split(" ")[0])} confirms it when she accepts</span>` : `${usd(V.total_cents)} <span class="aed">· ${V.total_aed}</span>`}</span></div>${usageHtml()}</div>`;
 }
 function bindQuotes(root = document) {
   $$("[data-quote]", root).forEach(b => b.onclick = () => quoteSheet(b.dataset.quote, `${V.brand.name} (${V.brand.org})`, "the brief", ""));
@@ -223,6 +223,8 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
+  $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
+    try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   if ($("#send-proof")) $("#send-proof").onclick = e => {
     if (!confirm("Send this deal's record (the PDF from Download proof) to PayPal for the dispute? It's sent once.")) return;
     busy(e.currentTarget, async () => { try { V = await api(url("/dispute/evidence"), { body: {} }); render(); toast("Proof sent to PayPal"); } catch (er) { toast(friendlyError(er), "bad"); } });
@@ -406,6 +408,14 @@ function panel() {
     ${IS_BRAND ? alertsHtml() : ""}`;
   bindQuotes($("#panel"));
   bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
+}
+// Lifecycle 2: the usage-rights clock (from the post date, for the months agreed)
+function usageHtml() {
+  const u = V.usage;
+  if (!u || !u.end) return u ? `<p class="small muted" style="margin-top:8px">${icon("clock")} Usage rights: ${u.months} month${u.months === 1 ? "" : "s"}, counted from the post date.</p>` : "";
+  return `<div class="usage-line small" style="margin-top:8px">${icon("clock")} <span>Usage rights ${u.ended ? "ended" : "end"} <b>${esc(u.end_label)}</b> (${u.months} month${u.months === 1 ? "" : "s"} from the post)</span>
+    ${!IS_BRAND && u.ended && !u.extension_open ? `<button class="btn small" data-usage-extend>Still being used after ${esc(u.end_label)}</button>` : ""}
+    ${u.extension_open ? `<span class="pill waiting">Extension card open</span>` : ""}</div>`;
 }
 // Lifecycle 1: a PayPal dispute is shown to both sides with PayPal's reason; the creator can send the proof (once).
 function disputeBanner() {

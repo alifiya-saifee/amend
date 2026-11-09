@@ -1589,6 +1589,18 @@ def creator_resume(deal_id: str, c: dict = Depends(require_creator)):
     return studio_deal(deal_id, c)
 
 
+@app.post("/api/deals/{deal_id}/usage/extend")
+def creator_usage_extend(deal_id: str, c: dict = Depends(require_creator)):
+    """Lifecycle 2: "Still being used after <date>" → the same Extend usage card, priced from her list."""
+    from amend import usage
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        usage.still_used(get_db(), deal, pid)
+    except usage.UsageError as e:
+        raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
 @app.get("/api/deals/{deal_id}/evidence.pdf")
 def creator_evidence(deal_id: str, c: dict = Depends(require_creator)):
     """Lifecycle 1: the deal record as a PDF for PayPal (any time, not only during a dispute)."""
@@ -2323,7 +2335,9 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     return {"ok": True, **result}
 
 
-TICK_TASKS: list = [shipping.tick, delivery.tick_silent, calls.tick_nudges]
+from amend import usage as _usage  # noqa: E402
+
+TICK_TASKS: list = [shipping.tick, delivery.tick_silent, calls.tick_nudges, _usage.tick]
 
 
 @app.post("/api/paypal/webhook")

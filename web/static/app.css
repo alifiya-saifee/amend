@@ -560,3 +560,4 @@ body.inbox-full .topsearch { display: none !important; }            /* one searc
 .why { list-style: none; padding: 0; margin: 6px 0; font-size: 14px; display: flex; flex-direction: column; gap: 3px; }
 .why li { display: flex; gap: 6px; align-items: flex-start; } .why li svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--ok, #2f7d4f); }
 .why li.gap { color: var(--muted); } .why li.gap svg { color: var(--muted); }
+.usage-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .usage-line svg { width: 16px; height: 16px; }

@@ -195,6 +195,8 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
         if deal["status"] == "in_progress":
             _move(db, deal, "delivered", creator_party)
         db.log_event("post.submitted", actor=creator_party, deal_id=deal["id"], payload={"post": row["id"], "url": post_url[:200]})
+        from amend import usage
+        usage.start_clock(db, dict(deal, posted_at=posted_on))  # lifecycle 2: usage rights run from the post date
         db.log_event("delivery.checked", actor="system", deal_id=deal["id"], payload={"post": row["id"], "gaps": len(gaps)})
     return latest(db, deal["id"], "post")
 

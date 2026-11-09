@@ -47,7 +47,7 @@ EVENT_TYPES = {
     "shipment.added", "product.received", "product.nudged", "review.left",
     # delivery, money out (Phase 6)
     "draft.uploaded", "draft.checked", "draft.approved", "draft.silently_approved", "delivery.checked",
-    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "prices.privacy", "discover.matched", "dispute.opened", "dispute.updated", "dispute.resolved", "dispute.evidence_sent", "dispute.unmatched", "evidence.downloaded", "owed.deducted", "holdback.used_for_refund",
+    "gap.resolved", "post.submitted", "money.collect_planned", "holdback.released", "holdback.returned", "refund.sent", "refund.declined", "change.choice_made", "alerts.set", "deal.flagged_test", "prices.privacy", "discover.matched", "dispute.opened", "dispute.updated", "dispute.resolved", "dispute.evidence_sent", "dispute.unmatched", "evidence.downloaded", "usage.started", "usage.reminder", "usage.extension_proposed", "owed.deducted", "holdback.used_for_refund",
     "holdback.grace", "notify.sent", "notify.failed", "demo.reset", "hold.renewal_needed",
     # cancellation, calls, conflicts (Phase 7)
     "cancel.requested", "cancel.proposed", "cancel.second_opinion", "cancel.approved", "voice.transcribed",
@@ -211,7 +211,9 @@ COLUMNS = {
               "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",
               "post_removed_at": "text", "is_try": "integer not null default 0",
               "is_test": "integer not null default 0",
-              "dispute_open": "integer not null default 0",  # a PayPal dispute is open: the holdback is frozen  # our own live test runs: kept, but out of Earnings/Ledger/Inbox
+              "dispute_open": "integer not null default 0",
+              "usage_start": "text", "usage_end": "text", "usage_months": "integer",  # lifecycle 2: usage-rights clock
+              "usage_reminded_at": "text", "usage_extension_at": "text",  # a PayPal dispute is open: the holdback is frozen  # our own live test runs: kept, but out of Earnings/Ledger/Inbox
               "is_demo": "integer not null default 0"},
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",

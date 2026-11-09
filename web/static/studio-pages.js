@@ -2,7 +2,7 @@
 // Every number comes from the API (real tables). Used by studio.html's router.
 const I = (n, cls = "") => `<i data-lucide="${n}" class="${cls}" aria-hidden="true"></i>`;
 const STAGE_LABEL = { brief: "Brief", accepted: "Accepted", held: "Held", production: "In production", delivered: "Delivered", paid: "Paid" };
-const EV_LABEL = { draft: "Draft due", post: "Posting date", product: "Product", review: "Brand review due", holdback: "Holdback release", expiry: "Hold expires" };
+const EV_LABEL = { draft: "Draft due", post: "Posting date", product: "Product", review: "Brand review due", holdback: "Holdback release", expiry: "Hold expires", usage: "Usage rights end" };
 const fmtDay = fmtDate;  // one formatter (app.js)
 function emptyState(icon, title, text, action = "") { return `<div class="empty">${I(icon)}<h2>${esc(title)}</h2><p>${esc(text)}</p>${action}</div>`; }
 function errorState(e, retry) { return `<div class="empty">${I("triangle-alert")}<h2>Something went wrong</h2><p>${esc(friendlyError(e))}</p><button class="btn" onclick="${retry}">${I("rotate-cw")} Try again</button></div>`; }
@@ -216,6 +216,10 @@ async function earningsTab(ledgerView = false) {
       ${e.holdbacks.length ? `<div class="list">${e.holdbacks.map(h => `<div class="line"><div class="grow"><b>${esc(h.brand)}</b><div class="small muted">${esc(h.why)}</div></div>
         <div class="amt">${usd(h.amount_cents)}<div class="tiny muted">until ${h.until ? fmtDay(h.until.slice(0, 10)) : "–"}</div></div></div>`).join("")}</div>`
         : '<p class="muted small">Nothing held back right now.</p>'}</section>
+    ${(e.usage || []).length ? `<section class="card" style="margin-top:16px"><h2>Usage rights</h2>
+      <p class="small muted">How long each brand may use your content. After the end, an extension card goes to the brand.</p>
+      <div class="list">${e.usage.map(u => `<div class="line"><div class="grow"><a href="/studio/deals/${u.deal}"><b>${esc(u.brand)}</b></a>
+        <div class="tiny muted">${u.months} month${u.months === 1 ? "" : "s"} from the post</div></div><div class="amt small">ends ${esc(fmtDate(u.end))}</div></div>`).join("")}</div></section>` : ""}
     ${e.owed_cents ? `<section class="card" style="margin-top:16px"><div class="row between"><h2>Owed to Amend</h2><b>${usd(e.owed_cents)}</b></div>
       <p class="small muted">A refund to a brand after you were paid, more than that deal's holdback covered. It comes off your next payout.</p>
       <div class="list">${e.owed.map(o => `<div class="line"><div class="grow"><a href="/studio/deals/${o.deal}"><b>${esc(o.brand || "Deal")}</b></a>

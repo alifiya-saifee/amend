@@ -94,6 +94,8 @@ def calendar_events(db: Database, creator_id: str) -> list[dict]:
             add("draft", date.fromisoformat(d["draft_due"][:10]), f"Draft due · {brand}")
         if d.get("holdback_release_at"):
             add("holdback", date.fromisoformat(d["holdback_release_at"][:10]), f"Holdback release · {brand}")
+        if d.get("usage_end"):
+            add("usage", date.fromisoformat(d["usage_end"][:10]), f"Usage rights end · {brand}")
         sh = db.one("select * from shipments where deal_id = :d order by added_at desc limit 1", {"d": d["id"]})
         if sh:
             add("product", date.fromisoformat((sh["received_at"] or sh["added_at"])[:10]), f"Product {'arrived' if sh['received_at'] else 'shipped'} · {brand}")
@@ -189,6 +191,8 @@ def earnings(db: Database, creator_id: str) -> dict:
                        "held_cents": tiles["held_cents"], "to_release_cents": tiles["to_release_cents"],
                        "fees_cents": sum(i["fee_cents"] or 0 for i in items if i["kind"] == "capture"), "extras_cents": tiles["extras_cents"]},
             "rows": rows, "holdbacks": holdbacks,
+            "usage": [{"deal": d["id"], "brand": d["brand_org"], "end": d["usage_end"], "months": d.get("usage_months")}
+                      for d in deals.values() if d.get("usage_end")],
             "owed_cents": money.owed_balance(db, creator_id),
             "owed": [{"deal": i["deal_id"], "brand": (deals.get(i["deal_id"]) or {}).get("brand_org"), "amount_cents": i["amount_cents"],
                       "left_cents": i["amount_cents"] - i["captured_cents"], "since": i["created_at"][:10]}
