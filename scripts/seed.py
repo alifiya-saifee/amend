@@ -199,6 +199,51 @@ TRY_HANDLE = "try.demo"
 HISTORY_BRANDS = [("Nadia", "Dune Roast Coffee", "nadia@duneroast.example"), ("Mira", "Sahara Sips", None), ("Karim", "Oud & Ember", None)]
 
 
+def repair_demo_terms(db: Database) -> int:
+    """Demo deals that went through a confirmed change are at version 2+, but the history seed only wrote version-1
+    lines, so the deal page showed "No lines yet" with money held. Rebuild each missing version the way a confirmed
+    change does: the previous version's lines, plus the change's line (same item → one more; else a new line), each
+    change line backed by a fact quoting the change. Only demo deals; safe to run on every start (does nothing twice)."""
+    fixed = 0
+    for d in db.all("select * from deals where is_demo = 1 and version >= 2"):
+        if db.one("select id from terms where deal_id = :d and version = :v", {"d": d["id"], "v": d["version"]}):
+            continue
+        plist = {p["code"]: p for p in db.all("select * from price_items where creator_id = :c", {"c": d["creator_id"]})}
+        lines = [dict(t) for t in db.all("select * from terms where deal_id = :d and version = 1 order by pos", {"d": d["id"]})]
+        if not lines:
+            continue
+        changes = db.all("select * from changes where deal_id = :d and status = 'applied' and kind = 'change' order by created_at",
+                         {"d": d["id"]})
+        v = 1
+        for ch in changes:
+            v += 1
+            if v > d["version"]:
+                break
+            label = ch["quote"] or ""
+            code = "story_set" if "story" in label.lower() else "extra_revision" if "revision" in label.lower() else None
+            item = plist.get(code) if code else None
+            if not item:
+                break
+            fid = new_id("f")
+            db.insert("facts", {"id": fid, "deal_id": d["id"], "field": "deliverable", "value": f"{code} +1", "quote": label,
+                                "source": f"change:{ch['id']}", "speaker_id": d["brand_party_id"], "said_at": ch["created_at"],
+                                "confirmed": 1, "created_at": ch["created_at"]})
+            same = next((l for l in lines if l["price_item_id"] == item["id"] and code != "extra_revision"), None)
+            if same and same["unit_price_cents"] == ch["delta_cents"]:
+                same["qty"] += 1
+                same["amount_cents"] += ch["delta_cents"]
+            else:
+                lines.append({"price_item_id": item["id"], "fact_id": fid, "qty": 1, "unit_price_cents": ch["delta_cents"],
+                              "amount_cents": ch["delta_cents"]})
+            for pos, l in enumerate(lines):
+                db.insert("terms", {"id": new_id("t"), "deal_id": d["id"], "version": v, "price_item_id": l["price_item_id"],
+                                    "fact_id": l["fact_id"], "qty": l["qty"], "unit_price_cents": l["unit_price_cents"],
+                                    "amount_cents": l["amount_cents"], "rules_json": "{}", "pos": pos})
+        if db.one("select id from terms where deal_id = :d and version = :v", {"d": d["id"], "v": d["version"]}):
+            fixed += 1
+    return fixed
+
+
 def seed_history(db: Database) -> int:
     """Realistic, clearly-labelled demo history so Home, Earnings and Calendar show real numbers from real tables.
     Written straight into the tables (no PayPal calls); IDs look like sandbox IDs but are marked demo."""
@@ -357,6 +402,7 @@ def seed_history(db: Database) -> int:
     db.update("deals", "id", did7, {"draft_due": (today + timedelta(days=6)).isoformat()})
     # 8 a draft waiting for Sara to accept
     deal("Oud & Ember", "offered", [("reel", 1), ("story_set", 1)], created=m(0), deadline=today + timedelta(days=14), offered_only=True, title="National Day")
+    repair_demo_terms(db)  # write the version-2 lines for deals with a confirmed change
     return 8
 
 

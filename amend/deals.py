@@ -211,7 +211,7 @@ def get_deal(db: Database, deal_id: str) -> dict:
 
 def deal_terms(db: Database, deal_id: str, version: int | None = None) -> list[dict]:
     v = version if version is not None else max(get_deal(db, deal_id)["version"], 0)
-    return db.all("select t.*, p.name, p.code, p.min_cents, p.max_cents, p.standard_cents, f.quote "
+    return db.all("select t.*, p.name, p.code, p.kind as item_kind, p.min_cents, p.max_cents, p.standard_cents, f.quote "
                   "from terms t join price_items p on p.id = t.price_item_id left join facts f on f.id = t.fact_id "
                   "where t.deal_id = :d and t.version = :v order by t.pos, t.id", {"d": deal_id, "v": v})
 
@@ -424,8 +424,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
         "terms": [{"id": t["id"], "name": t["name"], "code": t["code"], "qty": t["qty"], "unit_cents": t["unit_price_cents"],
                    "amount_cents": t["amount_cents"], "aed": money.fmt_aed(t["amount_cents"], compact=True),
                    "min_cents": t["min_cents"], "max_cents": t["max_cents"], "standard_cents": t["standard_cents"],
-                   "quote": t["quote"]} for t in terms],
-        "total_cents": deal["total_cents"], "total_aed": money.fmt_aed(deal["total_cents"]),
+                   "quote": t["quote"], "kind": t["item_kind"]} for t in terms],
+        "total_cents": deal["total_cents"], "total_aed": money.fmt_aed(deal["total_cents"], compact=True),  # whole dirhams, like every line and the Money card
         "brief_fields": _brief_view(db, deal_id),
         "hold": ({"id": hold["id"], "status": hold["status"], "amount_cents": hold["amount_cents"],
                   "approve_url": hold["approve_url"], "expires_at": hold["expires_at"],
@@ -439,10 +439,52 @@ def deal_view(db: Database, deal_id: str) -> dict:
                    "note": i.get("note"), "paypal_id": i["paypal_id"],
                    **({"funding": {k: v for k, v in money.refund_funding(db, deal_id, i["amount_cents"]).items() if k != "holdback_item"}}
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
-        "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
+        "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"], "text": _event_text(e, items, c["display_name"])}
+                   for e in db.events_for(deal_id)][-30:],
         "dispute": _dispute_view(db, deal_id),
+        "draft_status": _draft_status(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
         "usage": _usage_view(db, deal),
     }
+
+
+def _event_text(e: dict, items: list[dict], creator_name: str) -> str | None:
+    """History line for a money event, named from the money item it changed: "$530 held by PayPal", "$80 extra held".
+    Other events keep the page's own wording (None)."""
+    if e["type"] != "money.status":
+        return None
+    p = e.get("payload") or {}
+    it = next((i for i in items if i["id"] == p.get("item")), None)
+    if not it:
+        return None
+    amt, kind, to = money.fmt_usd(it["amount_cents"]), it["kind"], p.get("to")
+    first = (creator_name or "the creator").split(" ")[0]
+    if kind == "hold" and to in ("authorized", "paid", "voided", "expired", "failed"):
+        return {"authorized": f"{amt} extra held by PayPal" if it.get("change_id") else f"{amt} held by PayPal",
+                "paid": f"{amt} hold collected", "voided": f"{amt} hold released back to the brand",
+                "expired": f"{amt} hold expired", "failed": f"{amt} hold failed · nothing charged"}.get(to)
+    if kind == "capture" and to in ("paid", "failed"):
+        return {"paid": f"{amt} collected", "failed": f"Collecting {amt} failed · nothing charged"}.get(to)
+    if kind == "payout" and to in ("paid", "failed"):
+        return {"paid": f"{amt} paid to {first}" if (it.get("note") or "").find("editor") < 0 else f"{amt} paid to the editor",
+                "failed": f"Payout of {amt} failed"}.get(to)
+    if kind == "refund" and to in ("paid", "refunded"):
+        return f"{amt} refunded to the brand"
+    named = {"hold": "Hold", "capture": "Collection", "payout": "Payout", "refund": "Refund", "release": "Release",
+             "invoice": "Invoice", "owed_by_creator": "Amount owed"}.get(kind, "Payment")
+    word = {"sent": "sent to PayPal", "approved": "approved", "planned": "planned", "cancelled": "cancelled",
+            "voided": "released", "refunded": "refunded", "failed": "failed · nothing charged", "paid": "done",
+            "authorized": "held", "expired": "expired"}.get(to, to or "updated")
+    return f"{named} of {amt} {word}"
+
+
+def _draft_status(db: Database, deal_id: str) -> str | None:
+    r = db.one("select result_json from deliveries where deal_id = :d and kind = 'draft' order by created_at desc limit 1", {"d": deal_id})
+    if not r:
+        return None
+    try:
+        return (json.loads(r["result_json"] or "{}") or {}).get("status")
+    except ValueError:
+        return None
 
 
 def _usage_view(db: Database, deal: dict) -> dict | None:

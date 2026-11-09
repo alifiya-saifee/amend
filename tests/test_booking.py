@@ -86,7 +86,7 @@ def to_offered(c, mocks):
 def test_s1_happy_path(client, mocks):
     deal, tok, v = to_offered(client, mocks)
     assert [t["amount_cents"] for t in v["terms"]] == [45000, 8000]
-    assert v["total_cents"] == 53000 and v["total_aed"] == "AED 1,946.43"
+    assert v["total_cents"] == 53000 and v["total_aed"] == "AED 1,946"
     assert all(t["quote"] in BRIEF for t in v["terms"])
     r = client.post(f"/api/deals/{deal}/accept", headers=ORIGIN)
     assert r.status_code == 200 and r.json()["deal"]["status"] == "accepted" and r.json()["deal"]["version"] == 1

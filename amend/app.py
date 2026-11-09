@@ -44,12 +44,13 @@ from contextlib import asynccontextmanager
 async def lifespan(_app):
     get_settings()  # refuses to start unless PAYPAL_ENV=sandbox
     d = get_db()
-    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery, seed_history
+    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery, seed_history, repair_demo_terms
     seed(d)  # adds any demo creators that are missing; existing ones are left alone
     seed_discovery(d)
     ensure_exclusivity_item(d)
     ensure_demo_accounts(d)
     seed_history(d)  # Sara's demo history (skipped with AMEND_SEED_HISTORY=0, as in tests)
+    repair_demo_terms(d)  # demo deals at v2+ that were seeded without their v2 lines ("No lines yet")
     from amend import fakes
     if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
         import sys

@@ -346,3 +346,13 @@ Next: Block 7.
   - Earnings showed a two-part deal (payment, then holdback) as one row with the last date and the full amount, so the table disagreed with "This month". Now there is one row per PayPal payout, with a "What" column (Payment / Holdback / Cancellation split).
   - The Earnings buttons overflowed at 390 px; they now wrap.
 - Tests: 618 passed, 3 skipped. Browser: tests/browser/public_page.py: no problems, no JS errors.
+
+## Deal page fixes (9 Nov, Nadia × Sara "Cold brew launch", $610 held)
+1. "No lines yet" with $610 held. Cause: the demo history seed wrote only version-1 lines, and a confirmed change moves the deal to version 2. Fix: `repair_demo_terms` rebuilds each missing version (previous lines + the change's line, with a fact quoting the change). It runs in the seed and once at startup, so the live demo deals are mended on the next deploy; it touches demo deals only. Real changes already wrote their own lines.
+2. A past "best collected by" date is never shown. After PayPal's 3-day honour period: "Hold needs renewing before collecting. Amend renews it with PayPal automatically when the money is collected (allowed from day 4 of the hold, until <expiry>)." This matches what execute_release already does.
+3. Change card: a change with its own hold says "+$80.00 · held separately", not "no money changes".
+4. Next step follows the draft: brand "Review Sara's draft" / creator "Waiting for Nadia's review"; after approval, "Post it and share the link".
+5. Delivery checklist: each deliverable from the current version (1 × Reel, 2 × Story set) and "Post date", above Posted on Instagram and #ad.
+6. History (both panels) names money events: "$530.00 held by PayPal", "$80.00 extra held by PayPal", and a named fallback for every other money status.
+- Also: the deal total shows whole dirhams like the lines (AED 2,240, not 2,240.23).
+- Tests: 633 passed, 3 skipped. Browser tests/browser/deal_page.py, both roles at 390/1440: no problems.

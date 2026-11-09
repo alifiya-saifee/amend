@@ -455,7 +455,12 @@ def card(db: Database, c: dict) -> dict:
     refunds = [a for a in rip.get("affected", []) if a["action"] == "refund_proposal"]
     less = [a for a in rip.get("affected", []) if a["action"] in ("collect_less", "release", "update")]
     money_line = []
-    if new_hold:
+    # a hold already made for this change (its own PayPal hold) is named as such, never "no money changes"
+    held = sum(h["amount_cents"] for h in db.all("select amount_cents from money_items where change_id = :c and kind = 'hold' "
+                                                  "and status in ('authorized', 'paid')", {"c": c["id"]}))
+    if held:
+        money_line.append(f"+{money.fmt_usd(held)} · held separately")
+    elif new_hold:
         money_line.append(f"+{money.fmt_usd(new_hold)} new hold via PayPal")
     for a in less:
         money_line.append("release the hold" if a["action"] == "release" else f"collect {money.fmt_usd(c['delta_cents'] * -1)} less at delivery")

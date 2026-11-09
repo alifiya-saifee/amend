@@ -147,9 +147,16 @@ function extrasHtml() {
     ${d.not_on_list.map(x => `<div>• ${esc(x.what)} <span class="muted">“${esc(x.quote)}”</span></div>`).join("")}</div>`;
   return h;
 }
+// PayPal honours a hold for 3 days; after that Amend renews it (once, any time before the 29-day expiry) right before
+// collecting (delivery.execute_release). So a past "best collected by" date is never shown as advice.
+function holdNote() {
+  const h = V.hold, past = h.honor_until && new Date(h.honor_until) < new Date();
+  if (!past) return `Hold expires ${dateStr(h.expires_at)}${h.honor_until ? ` · best collected by ${dateStr(h.honor_until)}` : ""}.`;
+  return `Hold needs renewing before collecting. Amend renews it with PayPal automatically when the money is collected (allowed from day 4 of the hold, until ${dateStr(h.expires_at)}).`;
+}
 function dealSheet() {
   sheet(`<h2>The deal</h2>${linesHtml()}${extrasHtml()}
-    ${V.hold && V.hold.expires_at ? `<p class="small muted">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}</p>` : ""}
+    ${V.hold && V.hold.expires_at ? `<p class="small muted">${holdNote()}</p>` : ""}
     <button class="btn block" onclick="closeSheet()">Close</button>`, { onOpen: sh => bindQuotes(sh) });
 }
 
@@ -204,7 +211,7 @@ function activeRoom(d) {
     : d.status === "delivered" ? `<div class="banner ok"><i data-lucide='package-check' aria-hidden='true'></i> Delivered${held ? ` · ${usd(held)} still held by PayPal` : " · the held money has been collected"}</div>`
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${disputeBanner()}${banner}
-    ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">Hold expires ${dateStr(V.hold.expires_at)}${V.hold.honor_until ? ` · best collected by ${dateStr(V.hold.honor_until)}` : ""}. Nothing is collected until the delivery matches the deal.</p>` : ""}
+    ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">${holdNote()} Nothing is collected until the delivery matches the deal.</p>` : ""}
     ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     ${nextStepHtml(d, pendingHolds)}
@@ -275,7 +282,10 @@ function moneyCardHtml() {
       : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>`;
 }
 function checklistHtml(d) {
-  const items = d.done_means || [];
+  // each deliverable in the latest confirmed version, the post date, then "what done means" (Posted, #ad …)
+  const lines = (V.terms || []).filter(t => t.kind === "deliverable").map(t => ({ value: `${t.qty} × ${t.name}` }));
+  const when = d.deadline ? [{ value: `Post date: ${fmtDate(d.deadline)}` }] : [];
+  const items = lines.concat(when, d.done_means || []);
   const done = ["delivered", "completed"].includes(d.status);
   return `<div class="card"><h3>Delivery checklist</h3>
     ${items.length ? `<ul class="checklist">${items.map(x => `<li class="${done ? "done" : ""}">${icon(done ? "circle-check" : "circle")}<span class="grow">${esc(x.value)}</span></li>`).join("")}</ul>
@@ -283,8 +293,8 @@ function checklistHtml(d) {
       : `<p class="small muted">Nothing listed yet. "What done means" from the brief shows here.</p>`}</div>`;
 }
 function historyHtml() {
-  const ev = (V.events || []).filter(e => EVENT_TEXT[e.type]).slice(-20).reverse();
-  return `<div class="card"><h3>History</h3><ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
+  const ev = (V.events || []).filter(e => e.text || EVENT_TEXT[e.type]).slice(-20).reverse();
+  return `<div class="card"><h3>History</h3><ul class="events">${ev.map(e => `<li><span class="grow">${esc(e.text || EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>`;
 }
 // What should happen next, and who does it. Worked out from the deal's status and money, never from the AI.
 function nextStep(d, pendingHolds) {
@@ -308,6 +318,12 @@ function nextStep(d, pendingHolds) {
     return { ic: "circle-check", t: "Money collected", s: IS_BRAND ? "Nothing more to do. Any holdback goes to the creator later, only if the post is still live." : "Any holdback is paid on its day if the post is still live.", tab: "money" };
   if (d.status === "delivered") return IS_BRAND ? { ic: "eye", t: "Check the delivery", s: `Compare what ${first} delivered with the deal, then release.`, tab: "delivery" }
     : { ic: "hourglass", t: "Waiting for the brand's sign-off", s: "Money is released once the delivery matches the latest confirmed deal.", tab: "delivery" };
+  if (d.status === "in_progress" && V.draft_status === "submitted") return IS_BRAND
+    ? { ic: "eye", t: `Review ${first}'s draft`, s: "Approve it or ask for changes. The checks against the deal are under Delivery.", tab: "delivery" }
+    : { ic: "hourglass", t: `Waiting for ${brandName}'s review`, s: "You'll see their answer here. Changes they ask for become a card you both confirm.", tab: "delivery" };
+  if (d.status === "in_progress" && V.draft_status === "approved") return IS_BRAND
+    ? { ic: "send", t: `Draft approved · ${first} posts next`, s: "Once it's live, the post check compares it with the deal.", tab: "delivery" }
+    : { ic: "send", t: "Post it and share the link", s: "The draft is approved. Paste the post link under Delivery.", tab: "delivery" };
   if (d.status === "in_progress") return IS_BRAND ? { ic: "messages-square", t: `${first} is working on it`, s: "Changes you ask for in chat become change cards you both confirm.", tab: "chat" }
     : { ic: "upload", t: "Send your draft", s: "Upload the draft or post link. The delivery check runs against the deal.", tab: "delivery" };
   return null;
@@ -404,14 +420,14 @@ const EVENT_TEXT = { "deal.created": "Deal link made", "link.created": "Link mad
   "term.price_edited": "Price edited", "deal.declined": "Declined", "deal.status": "Deal status changed", "money.planned": "Hold planned" };
 function panel() {
   const h = V.hold;
-  const ev = (V.events || []).filter(e => EVENT_TEXT[e.type] && e.type !== "fact.added").slice(-12).reverse();
+  const ev = (V.events || []).filter(e => (e.text || EVENT_TEXT[e.type]) && e.type !== "fact.added").slice(-12).reverse();
   $("#panel").innerHTML = `
     <div class="card"><div class="row between"><h3>The deal</h3>${dealPill(V.deal.status)}</div>
       ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is priced.</p>`}</div>
     <div style="margin-top:14px">${moneyCardHtml()}</div>
     ${["accepted", "in_progress", "delivered", "completed", "paused"].includes(V.deal.status) ? `<div style="margin-top:14px">${checklistHtml(V.deal)}</div>` : ""}
     <div class="card" style="margin-top:14px"><h3>History</h3>
-      <ul class="events">${ev.map(e => `<li><span class="grow">${esc(EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>
+      <ul class="events">${ev.map(e => `<li><span class="grow">${esc(e.text || EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>
     ${IS_BRAND ? alertsHtml() : ""}`;
   bindQuotes($("#panel"));
   bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
