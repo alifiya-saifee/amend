@@ -10,7 +10,7 @@
  },
  {
   "screen": "02-brand-offer-390-light",
-  "cls": 0,
+  "cls": 0.003,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -28,7 +28,7 @@
  },
  {
   "screen": "04-creator-deal-chat-390-light",
-  "cls": 0,
+  "cls": 0.001,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -55,7 +55,7 @@
  },
  {
   "screen": "07-creator-completed-money-390-light",
-  "cls": 0.001,
+  "cls": 0.002,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -109,7 +109,7 @@
  },
  {
   "screen": "03-brand-held-chat-1440-light",
-  "cls": 0.001,
+  "cls": 0,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -127,7 +127,7 @@
  },
  {
   "screen": "05-brand-delivery-1440-light",
-  "cls": 0.001,
+  "cls": 0.002,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -136,7 +136,7 @@
  },
  {
   "screen": "06-creator-delivery-1440-light",
-  "cls": 0.005,
+  "cls": 0.001,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -145,7 +145,7 @@
  },
  {
   "screen": "07-creator-completed-money-1440-light",
-  "cls": 0.01,
+  "cls": 0.006,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -163,7 +163,7 @@
  },
  {
   "screen": "09-creator-ledger-1440-light",
-  "cls": 0.009,
+  "cls": 0,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -223,7 +223,7 @@
  },
  {
   "screen": "07-creator-completed-money-390-dark",
-  "cls": 0.001,
+  "cls": 0.002,
   "shifted": [],
   "sideways": false,
   "js_errors": []
@@ -251,14 +251,14 @@
  },
  {
   "screen": "01-marketing-1440-dark",
-  "cls": 0.003,
+  "cls": 0.004,
   "shifted": [],
   "sideways": false,
   "js_errors": []
  },
  {
   "screen": "02-brand-offer-1440-dark",
-  "cls": 0.001,
+  "cls": 0,
   "shifted": [],
   "sideways": false,
   "js_errors": []
@@ -286,14 +286,14 @@
  },
  {
   "screen": "06-creator-delivery-1440-dark",
-  "cls": 0.005,
+  "cls": 0.001,
   "shifted": [],
   "sideways": false,
   "js_errors": []
  },
  {
   "screen": "07-creator-completed-money-1440-dark",
-  "cls": 0.01,
+  "cls": 0,
   "shifted": [],
   "sideways": false,
   "js_errors": []
@@ -307,7 +307,7 @@
  },
  {
   "screen": "09-creator-ledger-1440-dark",
-  "cls": 0.009,
+  "cls": 0,
   "shifted": [],
   "sideways": false,
   "js_errors": []
