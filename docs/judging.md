@@ -1,7 +1,7 @@
 # Judging Amend
 
 **Live app:** https://amend-r7le.onrender.com
-It runs on Render's free plan, so **the first page can take up to a minute to wake up**. After that it's quick.
+It runs on Render's free plan and loads in **a few seconds** (measured 0.4 s after 25 minutes idle on 9 Nov; an uptime monitor keeps it awake).
 Everything runs on the **PayPal sandbox**, so no real money moves. All people and brands are made up.
 
 ---
@@ -16,10 +16,10 @@ Everything runs on the **PayPal sandbox**, so no real money moves. All people an
    **PayPal sandbox buyer password:** `PASTE-SANDBOX-BUYER-PASSWORD-HERE`
    *(This is a PayPal sandbox test account. It works only on sandbox.paypal.com and holds only test money.)*
 4. **Change the deal in the chat.** As the brand, type: **"Add a Story and post Monday"**. Within a few seconds the AI posts a **change card**:
-   - priced from the creator's own price list (+$20 Story set, plus a $5 date-change fee because Monday is under 48 hours' notice);
+   - priced from the creator's own price list (+$20 Story set; moving the post date is free with 48 hours' notice, $5 with less, so it depends on the day you try it);
    - the exact words it came from (tap the quote chip);
    - how many other items are **untouched**.
-5. **Confirm as the creator.** Tap *Open as the creator* → Chat → *Confirm*. The deal goes to version 2, and the brand is asked to **hold the extra $25** with PayPal. Only confirmed words move money.
+5. **Confirm as the creator.** Tap *Open as the creator* → Chat → *Confirm*. The deal goes to version 2, and the brand is asked to **hold the extra $20** (or $25 if Monday was under 48 hours away) with PayPal. Only confirmed words move money.
 6. **Deliver and get paid.** As the creator: upload any short video (Amend takes 6–8 frames *in your browser*), then mark it posted. Amend's **delivery check** compares the post with the latest confirmed deal. Resolve any gap, then **both approve the release**. PayPal collects, and the creator is paid by Payouts.
 7. *Reset* gives you a fresh deal any time.
 
@@ -53,4 +53,4 @@ A brand never needs an account to do a deal: the **deal link** is enough (Option
 
 - **Money flow:** the brand pays Amend's sandbox business account and the creator is paid by Payouts. PayPal's marketplace setup (where the brand pays the creator directly with delayed release) needs PayPal to switch on partner features; it's the production design.
 - **WhatsApp alerts: coming soon** (waiting for Meta template approval). Alerts appear in Amend: in the Inbox and on each deal.
-- The free host sleeps when idle, which is why the first page can be slow.
+- The free host could sleep if the uptime monitor stopped; the first page would then take longer.

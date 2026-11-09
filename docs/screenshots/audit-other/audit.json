@@ -5,7 +5,7 @@
   "shifted": [],
   "sideways": false,
   "js_errors": [],
-  "loading_text": "Amend Sign in Sign in to your studio Creator Brand Email Password Sign in New here? Create a creator account Demo accounts (made up) use the shared demo passw",
+  "loading_text": "Amend Sign in Sign in to your studio Creator Brand Email Password Sign in New here? Create a creator account PayPal sandbox. No real money.",
   "error_text": "Amend Sign in Sign in to your studio Creator Brand Email Password Sign in New here? Create a creator account PayPal sandbox. No real money."
  },
  {
@@ -24,7 +24,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Find creators PayPal sandbox. No real money.",
-  "error_text": "Amend Find creators Sign in Filters Sort Best match Price: low to high Average views Engagement rate Rating Newest boom Try again PayPal sandbox. No real money."
+  "error_text": "Amend Find creators Sign in Describe your campaign The AI only reads your words into criteria. Amend scores every creator the same way and shows why. Find matches Filters Sort Best match Price: low to"
  },
  {
   "screen": "o04-public-creator-390-light",
@@ -33,7 +33,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend PayPal sandbox. No real money.",
-  "error_text": "Amend Sign in boom PayPal sandbox. No real money."
+  "error_text": "Amend Sign in Couldn't load this profile Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
  },
  {
   "screen": "o10-studio--390-light",
@@ -121,7 +121,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Home Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Home Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Home Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o21-brand-inbox-390-light",
@@ -130,7 +130,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Inbox Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Inbox Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Inbox Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o22-brand-deals-390-light",
@@ -139,13 +139,13 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Deals Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Deals Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Deals Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o23-brand-shortlist-390-light",
   "cls": 0.034,
   "shifted": [
-   "#me 0.034",
+   "#me 0",
    "h2 0.034",
    "p 0.034",
    "section.card 0.034"
@@ -153,7 +153,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Shortlists Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Shortlists Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Shortlists Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o24-brand-payments-390-light",
@@ -162,7 +162,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Payments Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Payments Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Payments Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o25-brand-team-390-light",
@@ -171,7 +171,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Team Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Team Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Team Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o26-brand-settings-390-light",
@@ -180,7 +180,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Settings Account Home Discover Deals Inbox More PayPal sandbox. No real money.",
-  "error_text": "Amend Settings Account boom Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
+  "error_text": "Amend Settings Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Deals Inbox More PayPal sandbox. No real money."
  },
  {
   "screen": "o01-login-1440-light",
@@ -216,7 +216,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend PayPal sandbox. No real money.",
-  "error_text": "Amend Sign in boom PayPal sandbox. No real money."
+  "error_text": "Amend Sign in Couldn't load this profile Amend didn't answer just now. Nothing has changed; try again in a moment. Try again PayPal sandbox. No real money."
  },
  {
   "screen": "o10-studio--1440-light",
@@ -229,7 +229,7 @@
  },
  {
   "screen": "o11-studio-inbox-1440-light",
-  "cls": 0.012,
+  "cls": 0.007,
   "shifted": [],
   "sideways": false,
   "js_errors": [],
@@ -297,7 +297,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Home Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Home Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Home Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign"
  },
  {
   "screen": "o21-brand-inbox-1440-light",
@@ -306,7 +306,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Inbox Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Inbox Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Inbox Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sig"
  },
  {
   "screen": "o22-brand-deals-1440-light",
@@ -315,7 +315,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Deals Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Deals Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Deals Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sig"
  },
  {
   "screen": "o23-brand-shortlist-1440-light",
@@ -324,7 +324,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Shortlists Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Shortlists Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Shortlists Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Setting"
  },
  {
   "screen": "o24-brand-payments-1440-light",
@@ -333,7 +333,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Payments Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Payments Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Payments Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings"
  },
  {
   "screen": "o25-brand-team-1440-light",
@@ -342,7 +342,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Team Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Team Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Team Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign"
  },
  {
   "screen": "o26-brand-settings-1440-light",
@@ -351,7 +351,7 @@
   "sideways": false,
   "js_errors": [],
   "loading_text": "Amend Settings Search Account Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money.",
-  "error_text": "Amend Settings Search Account boom Try again Home Discover Shortlists Deals Inbox Payments Team Settings Sign out PayPal sandbox. No real money."
+  "error_text": "Amend Settings Search Account Couldn't load this page Amend didn't answer just now. Nothing has changed; try again in a moment. Try again Home Discover Shortlists Deals Inbox Payments Team Settings"
  },
  {
   "screen": "o01-login-390-dark",
@@ -404,7 +404,7 @@
  },
  {
   "screen": "o12-studio-deals-390-dark",
-  "cls": 0.006,
+  "cls": 0.005,
   "shifted": [],
   "sideways": false,
   "js_errors": []
@@ -467,9 +467,10 @@
  },
  {
   "screen": "o23-brand-shortlist-390-dark",
-  "cls": 0.034,
+  "cls": 0.035,
   "shifted": [
    "#me 0",
+   "#me 0.034",
    "h2 0.034",
    "p 0.034",
    "section.card 0.034"
