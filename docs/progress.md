@@ -327,3 +327,10 @@ Next: Block 7.
   usage clock, extension card both sides; 390/1440, light/dark; no problems, no JS errors).
 - **Needs Alifiya:** tick CUSTOMER.DISPUTE.CREATED / UPDATED / RESOLVED on the PayPal webhook; Manual Deploy; then the live check.
 - **Deadline:** tests + live check by Wed 11 Nov 12:00, else revert to be3d089 and list both in README "Next".
+
+## Instagram lookup: live check (9 Nov)
+- Done: Amend's lookup ran against real Meta locally using Diwan's token, read from Diwan's config and never printed. Results: @natgeo and @instagram returned numbers; an unknown handle got the plain message; the second call came from the cache; no token in any output or log.
+- The token is a USER token: it never expires; data access runs until 28 Jan 2027. Scopes include instagram_basic and pages_read_engagement.
+- Wording: an unknown or personal handle now shows "Couldn't find @<handle> on Instagram, or it's a personal account. Instagram only shares numbers for professional accounts." Invite shows below it.
+- Next: Alifiya sets META_IG_TOKEN, META_IG_USER_ID and IG_LOOKUP_ENABLED=true on Render, then runs Manual Deploy. Then live checks: lookup, dispute banner and Send proof, invite flow.
+- Open: before 28 Jan 2027, re-log in to Diwan's Meta app to renew data access (after submission; not urgent).
