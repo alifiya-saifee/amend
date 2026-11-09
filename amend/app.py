@@ -340,16 +340,58 @@ class SignupIn(BaseModel):
     email: str = Field(max_length=120)
     password: str = Field(max_length=200)
     company: str | None = Field(None, max_length=120)
+    invite: str | None = Field(None, max_length=60)  # a brand's claim link for a handle not on Amend yet
 
 
 @app.post("/signup")
 def signup(body: SignupIn, request: Request):
     rate_limit(f"signup:{request.client.host if request.client else '?'}", 10, 3600)
+    from amend import invites
+    data = body.model_dump()
+    token = data.pop("invite", None)
     try:
-        acc = auth.signup(get_db(), **body.model_dump())
+        acc = auth.signup(get_db(), **data)
     except auth.AuthError as e:
         raise HTTPException(400, str(e))
+    if token and acc["kind"] == "creator":
+        invites.claim(get_db(), token, acc)  # her profile takes the invited handle; the brand sees "Joined"
     return _set_session(JSONResponse({"ok": True, "go": "/studio" if acc["kind"] == "creator" else "/brand"}), acc["id"])
+
+
+class InviteIn(BaseModel):
+    handle: str = Field(min_length=1, max_length=40)
+
+
+def _invite_out(row: dict) -> dict:
+    from urllib.parse import quote
+    link = f"{get_settings().base_url.rstrip('/')}/signup?kind=creator&invite={row['token']}"
+    text = f"Hi @{row['handle']}! We'd like to work with you on a brand deal through Amend. Your profile is waiting for you: {link}"
+    return {"handle": row["handle"], "link": link, "expires_at": row["expires_at"], "whatsapp": f"https://wa.me/?text={quote(text)}"}
+
+
+@app.post("/api/brand/invites")
+def brand_invite_creator(body: InviteIn, acc: dict = Depends(require_brand)):
+    """Discover: "@handle isn't on Amend yet" → a claim link tied to this brand (14 days). Nothing is fetched from Instagram."""
+    from amend import invites
+    try:
+        return _invite_out(invites.create(get_db(), acc, body.handle))
+    except invites.InviteError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/brand/invites")
+def brand_invites(acc: dict = Depends(require_brand)):
+    from amend import invites
+    return {"invites": invites.for_brand(get_db(), acc)}
+
+
+@app.get("/api/invites/{token}")
+def invite_lookup(token: str):
+    from amend import invites
+    row = invites.lookup(get_db(), token)
+    if not row:
+        raise HTTPException(404, "This invite link has expired or was already used.")
+    return {"handle": row["handle"], "company": row.get("company")}
 
 
 @app.get("/api/whoami")
