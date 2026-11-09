@@ -62,7 +62,8 @@ def test_personal_or_unknown_account(client, mocks, on):
         "message": "Invalid user id", "type": "OAuthException", "code": 110, "error_subcode": 2207013}}))
     brand_in(client)
     r = look(client, "private.person")
-    assert r["status"] == "not_professional" and r["message"] == "Instagram only shares numbers for professional accounts."
+    assert r["status"] == "not_professional" and r["message"] == ("Couldn't find @private.person on Instagram, or it's a personal account. "
+                                                         "Instagram only shares numbers for professional accounts.")
 
 
 @pytest.mark.parametrize("status,error", [

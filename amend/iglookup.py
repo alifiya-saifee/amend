@@ -5,8 +5,8 @@
 - The numbers are worked out by code: median likes, median comments, engagement = median(likes + comments) / followers.
   No AI does the maths.
 - Results are cached 24 h per handle; at most 30 Graph calls per brand per hour (cache hits are free).
-- Errors never show raw: a personal/private/unknown account → "Instagram only shares numbers for professional
-  accounts"; an expired token, a rate limit or the kill switch → "Instagram lookup unavailable right now". The token is
+- Errors never show raw: a personal/private/unknown account → "Couldn't find @handle on Instagram, or it's a personal
+  account. Instagram only shares numbers for professional accounts."; an expired token, a rate limit or the kill switch → "Instagram lookup unavailable right now". The token is
   sent in a header, never in a URL, and never logged.
 - Audience (age, city, gender) isn't public: "Added when she joins Amend".
 """
@@ -27,7 +27,7 @@ CACHE_HOURS = 24
 PER_BRAND_PER_HOUR = 30
 FIELDS = ("username,name,biography,profile_picture_url,followers_count,media_count,"
           "media.limit(12){like_count,comments_count,timestamp,media_type,permalink}")
-NOT_PRO = "Instagram only shares numbers for professional accounts."
+NOT_PRO = "Couldn't find @{handle} on Instagram, or it's a personal account. Instagram only shares numbers for professional accounts."
 UNAVAILABLE = "Instagram lookup unavailable right now."
 RATE_CODES = {4, 17, 32, 613, 80001, 80002}  # Graph API rate-limit error codes
 TOKEN_CODES = {102, 190}                      # session / access token invalid or expired
@@ -97,10 +97,10 @@ def lookup(db: Database, account: dict, handle: str, *, transport: httpx.BaseTra
         log.info("instagram lookup refused status=%s code=%s subcode=%s", r.status_code, code, sub)  # codes only
         if code in TOKEN_CODES or code in RATE_CODES or r.status_code in (401, 429) or r.status_code >= 500:
             return {"status": "unavailable", "message": UNAVAILABLE}
-        return {"status": "not_professional", "message": NOT_PRO}  # 100 / 110 / 2207013: unknown, personal or private
+        return {"status": "not_professional", "message": NOT_PRO.format(handle=handle)}  # 100 / 110 / 2207013: unknown, personal or private
     bd = data.get("business_discovery")
     if not bd:
-        return {"status": "not_professional", "message": NOT_PRO}
+        return {"status": "not_professional", "message": NOT_PRO.format(handle=handle)}
     nums = numbers(bd)
     at = now()
     if db.one("select handle from ig_lookups where handle = :h", {"h": handle}):
