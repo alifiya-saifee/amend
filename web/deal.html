@@ -161,6 +161,11 @@ function render() {
   panel();
   bindBrief();
   bindQuotes();
+  // bound here, after every view (active, cancelled…): a dispute can come after a cancellation too
+  if ($("#send-proof")) $("#send-proof").onclick = e => {
+    if (!confirm("Send this deal's record (the PDF from Download proof) to PayPal for the dispute? It's sent once.")) return;
+    busy(e.currentTarget, async () => { try { V = await api(url("/dispute/evidence"), { body: {} }); render(); toast("Proof sent to PayPal"); } catch (er) { toast(friendlyError(er), "bad"); } });
+  };
   // bound after panel(): the desktop copy of the usage line lives in the side panel, drawn after the room
   $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
     try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
@@ -226,10 +231,6 @@ function activeRoom(d) {
  if ($("#del-media")) $("#del-media").onclick = e => { if (confirm("Delete your voice notes, call transcripts, screenshots and files on this deal? A record that they were deleted stays.")) busy(e.currentTarget, async () => {
   const r = await api(url("/media/delete-mine"), { method: "POST" }); toast(`Deleted ${r.deleted} file${r.deleted === 1 ? "" : "s"}`); Chat.reload(); }); };
   if ($("#cancel-deal")) $("#cancel-deal").onclick = cancelSheet;
-  if ($("#send-proof")) $("#send-proof").onclick = e => {
-    if (!confirm("Send this deal's record (the PDF from Download proof) to PayPal for the dispute? It's sent once.")) return;
-    busy(e.currentTarget, async () => { try { V = await api(url("/dispute/evidence"), { body: {} }); render(); toast("Proof sent to PayPal"); } catch (er) { toast(friendlyError(er), "bad"); } });
-  };
   if ($("#pause-deal")) $("#pause-deal").onclick = e => {
     const reason = prompt("Why are you pausing? The brand sees this. Nothing moves until you resume.", "Waiting for an answer on the open change.");
     if (reason === null) return;
@@ -547,7 +548,7 @@ function brand(d) {
   }
   if (["in_progress", "delivered", "paused", "completed"].includes(d.status)) return activeRoom(d);
   if (d.status === "cancelled") {
-    $("#view").innerHTML = `<div class="banner bad">This deal was ${d.decline_reason ? "declined" : "cancelled"}.</div>
+    $("#view").innerHTML = `${disputeBanner()}<div class="banner bad">This deal was ${d.decline_reason ? "declined" : "cancelled"}.</div>
       ${d.decline_reason ? `<div class="card" style="margin-top:12px"><p class="muted small">${esc(first)}'s reason</p><blockquote>${esc(d.decline_reason)}</blockquote></div>` : ""}`;
     return;
   }
@@ -661,7 +662,10 @@ function creator(d) {
   }
   if (["in_progress", "delivered", "paused", "completed"].includes(d.status)) return activeRoom(d);
   if (d.status === "cancelled") {
-    $("#view").innerHTML = `<div class="banner bad">Declined.</div>${d.decline_reason ? `<blockquote>${esc(d.decline_reason)}</blockquote>` : ""}`;
+    // a cancelled deal can still get a PayPal dispute (money was collected): show it, and keep the proof one tap away
+    $("#view").innerHTML = `${disputeBanner()}<div class="banner bad">This deal was ${d.decline_reason ? "declined" : "cancelled"}.</div>
+      ${d.decline_reason ? `<blockquote>${esc(d.decline_reason)}</blockquote>` : ""}
+      <div class="row wrapx" style="margin-top:12px;gap:8px"><a class="btn small" href="/api/deals/${KEY}/evidence.pdf" download><i data-lucide='file-check' aria-hidden='true'></i> Download proof</a></div>`;
     return;
   }
   $("#view").innerHTML = `<div class="card">${dealPill(d.status)}${linesHtml()}</div>`;

@@ -131,3 +131,13 @@ def test_s130_resolved_for_brand_follows_s98(client, mocks, paid):
     # resolved twice (a repeat with a new event id) changes nothing more
     send(client, dispute("WH-D3", "CUSTOMER.DISPUTE.RESOLVED", status="RESOLVED", outcome="RESOLVED_BUYER_FAVOUR", refunded="100.00"))
     assert len(d.all("select id from money_items where note like 'dispute:%'")) == 1
+
+
+def test_cancelled_deal_still_shows_the_dispute_and_the_proof():
+    """Live check 9 Nov: the disputed deal had been cancelled, and the creator's cancelled view said "Declined." and
+    showed no dispute banner or proof button. A cancelled deal (money was collected) can still be disputed."""
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "web" / "deal.html").read_text()
+    assert '<div class="banner bad">Declined.</div>' not in html
+    assert html.count("${disputeBanner()}<div class=\"banner bad\">This deal was") == 2  # brand and creator views
+    assert html.index('if ($("#send-proof"))') > html.index("bindQuotes();")  # bound after every view is drawn
