@@ -19,7 +19,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
@@ -810,7 +810,8 @@ def brand_inbox(acc: dict = Depends(require_brand)):
     read = {r["event_id"] for r in d.all("select event_id from inbox_reads where party_id = :p", {"p": acc["id"]})}
     text = {"deal.drafted": "Offer ready · priced from their list", "deal.accepted": "The creator accepted the deal",
             "deal.declined": "The creator declined", "money.status": None, "term.price_edited": "The creator edited a price",
-            "message.sent": "New message", "change.detected": "A change card needs you", "change.applied": "A change was applied"}
+            "message.sent": "New message", "change.detected": "A change card needs you", "change.applied": "A change was applied",
+            "dispute.opened": "PayPal dispute opened", "dispute.resolved": "PayPal decided the dispute"}
     items = []
     for did in ids:
         deal = deals.get_deal(d, did)
@@ -1585,6 +1586,30 @@ def creator_resume(deal_id: str, c: dict = Depends(require_creator)):
         changes.resume_by_creator(get_db(), deal, pid)
     except changes.ChangeError as e:
         raise HTTPException(400, str(e))
+    return studio_deal(deal_id, c)
+
+
+@app.get("/api/deals/{deal_id}/evidence.pdf")
+def creator_evidence(deal_id: str, c: dict = Depends(require_creator)):
+    """Lifecycle 1: the deal record as a PDF for PayPal (any time, not only during a dispute)."""
+    from amend import disputes
+    _creator_ctx(deal_id, c)
+    get_db().log_event("evidence.downloaded", actor=c["party_id"], deal_id=deal_id, payload={})
+    return Response(disputes.evidence_pdf(get_db(), deal_id), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="amend-deal-record-{deal_id[-6:]}.pdf"'})
+
+
+@app.post("/api/deals/{deal_id}/dispute/evidence")
+async def creator_send_evidence(deal_id: str, c: dict = Depends(require_creator)):
+    """Send the deal record to PayPal for an open dispute: a PayPal write, only on the creator's explicit tap."""
+    from amend import disputes
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        await disputes.submit_evidence(get_db(), rail().pp, deal, pid)
+    except disputes.DisputeError as e:
+        raise HTTPException(400, str(e))
+    except PayPalError as e:
+        raise HTTPException(502, f"PayPal didn't take the proof ({e.name}). Nothing was sent twice; try again.")
     return studio_deal(deal_id, c)
 
 

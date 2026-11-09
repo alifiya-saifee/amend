@@ -486,7 +486,8 @@ async def tick_holdback(db: Database, rail: money.PlatformRail, at: datetime | N
     from amend.deals import _move, get_deal
     at = at or datetime.now(timezone.utc)
     paid = returned = 0
-    for deal in db.all("select * from deals where holdback_release_at is not null and status = 'delivered'"):
+    # a deal with an open PayPal dispute is skipped: its holdback stays frozen until PayPal decides
+    for deal in db.all("select * from deals where holdback_release_at is not null and status = 'delivered' and dispute_open = 0"):
         hb = db.one("select * from money_items where deal_id = :d and note like 'holdback:%' and status = 'approved'", {"d": deal["id"]})
         if not hb:
             continue

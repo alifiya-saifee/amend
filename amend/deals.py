@@ -440,7 +440,18 @@ def deal_view(db: Database, deal_id: str) -> dict:
                    **({"funding": {k: v for k, v in money.refund_funding(db, deal_id, i["amount_cents"]).items() if k != "holdback_item"}}
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"]} for e in db.events_for(deal_id)][-30:],
+        "dispute": _dispute_view(db, deal_id),
     }
+
+
+def _dispute_view(db: Database, deal_id: str) -> dict | None:
+    from amend import disputes
+    d = db.one("select * from disputes where deal_id = :d order by created_at desc limit 1", {"d": deal_id})
+    if not d:
+        return None
+    return {"open": not d["status_closed"], "why": disputes.REASONS.get(d["reason"], disputes.REASONS["OTHER"]),
+            "amount_cents": d["amount_cents"], "status": d["status"], "outcome": d["outcome"], "evidence": d["evidence_status"],
+            "opened_at": d["created_at"]}
 
 
 # ---------- Discovery v2 (A): a private price list stays private in the deal room too ----------

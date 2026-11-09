@@ -44,6 +44,9 @@ def _move(db: Database, item: dict | None, new: str, event_id: str, extra: dict 
 def apply(db: Database, event: dict) -> str:
     t, r, eid = event.get("event_type", ""), event.get("resource") or {}, event.get("id", "")
     rel = _related(r)
+    if t.startswith("CUSTOMER.DISPUTE."):  # lifecycle 1: the dispute shield
+        from amend import disputes
+        return disputes.on_webhook(db, event)
     if t == "CHECKOUT.ORDER.APPROVED":
         return "noted (the return page authorises)"
     if t == "PAYMENT.AUTHORIZATION.CREATED":

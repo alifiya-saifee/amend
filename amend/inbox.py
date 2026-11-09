@@ -19,6 +19,8 @@ KINDS = {
     "deal.drafted": ("pen-line", "needs_me"),
     "approval.recorded": ("handshake", "money"),
     "money.status": ("wallet", "money"),
+    "dispute.opened": ("shield-alert", "needs_me"),
+    "dispute.resolved": ("shield-check", "money"),
     "message.sent": ("message-circle", "messages"),
     "change.detected": ("lightbulb", "needs_me"),
     "change.suggested": ("lightbulb", "messages"),
@@ -64,6 +66,10 @@ def _line(e: dict, deal: dict, brand: str) -> str | None:
         return f"Change confirmed · version {p.get('version')}"
     if t == "change.expired":
         return "A change card expired"
+    if t == "dispute.opened":
+        return "PayPal dispute opened · send your proof"
+    if t == "dispute.resolved":
+        return "PayPal dispute decided " + ("in your favour" if p.get("for") == "creator" else "for the brand")
     if t == "money.status":
         if p.get("to") == "authorized":
             return f"PayPal is holding {amt()}"
