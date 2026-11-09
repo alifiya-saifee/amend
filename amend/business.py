@@ -138,7 +138,7 @@ def save_note(db: Database, creator_id: str, brand_org: str, notes: str) -> None
         db.insert("brand_notes", {"creator_id": creator_id, "brand_org": brand_org, "notes": notes[:2000], "updated_at": now()})
 
 
-SETTINGS_DEFAULTS = {"notify": {"change": "whatsapp", "money": "whatsapp", "message": "in-app", "delivery": "in-app"},
+SETTINGS_DEFAULTS = {"notify": {"change": "in-app", "money": "in-app", "message": "in-app", "delivery": "in-app"},  # in-app by default; WhatsApp waits on Meta
                      "language": "en", "theme": "system"}
 
 

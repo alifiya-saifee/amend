@@ -52,5 +52,5 @@ A brand never needs an account to do a deal: the **deal link** is enough (Option
 ## Demo-only parts (honest limits)
 
 - **Money flow:** the brand pays Amend's sandbox business account and the creator is paid by Payouts. PayPal's marketplace setup (where the brand pays the creator directly with delayed release) needs PayPal to switch on partner features; it's the production design.
-- **WhatsApp alerts** are built, but only send once Meta approves the message templates. Until then, alerts appear in Amend.
+- **WhatsApp alerts: coming soon** (waiting for Meta template approval). Alerts appear in Amend: in the Inbox and on each deal.
 - The free host sleeps when idle, which is why the first page can be slow.
