@@ -47,3 +47,16 @@ def test_creator_pauses_and_resumes(client, mocks, held):
     assert d.one("select status from deals where id = :d", {"d": deal})["status"] == "in_progress"
     msgs = [m["body"] for m in d.all("select body from messages where deal_id = :d and kind = 'system'", {"d": deal})]
     assert any(m.startswith("Paused by Sara") for m in msgs) and any(m.startswith("Resumed by Sara") for m in msgs)
+
+
+def test_whatsapp_never_looks_live_on_screen():
+    """Submission rule: WhatsApp waits on Meta. The code stays; nothing on screen may look live, in-app is the default."""
+    from pathlib import Path
+    from amend.business import SETTINGS_DEFAULTS
+    web = Path(__file__).resolve().parents[1] / "web"
+    settings = (web / "static" / "studio-pages.js").read_text()
+    assert "WhatsApp alerts: coming soon</b> (waiting for Meta template approval)" in settings
+    assert "WhatsApp + in-app" not in settings and 'id="s-phone"' not in settings
+    deal = (web / "deal.html").read_text()
+    assert "al-phone" not in deal and "WhatsApp alerts: coming soon" in deal
+    assert set(SETTINGS_DEFAULTS["notify"].values()) == {"in-app"}

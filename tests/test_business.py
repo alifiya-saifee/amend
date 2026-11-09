@@ -69,7 +69,7 @@ def test_s92_brands_crm_and_notes(client, monkeypatch):
 def test_settings_save_and_validation(client):
     login(client)
     s = client.get("/api/studio/settings").json()
-    assert s["notify"]["change"] == "whatsapp" and s["theme"] == "system"
+    assert s["notify"]["change"] == "in-app" and s["theme"] == "system"  # in-app by default (WhatsApp waits on Meta)
     r = client.put("/api/studio/settings", json={"theme": "dark", "notify": {"message": "off", "bogus": "x"}, "paypal_email": "sara@pp.example"},
                    headers=ORIGIN)
     j = r.json()

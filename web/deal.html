@@ -434,19 +434,13 @@ function disputeBanner() {
       : `<div class="row wrapx" style="gap:6px;margin-top:8px"><button class="btn small primary" id="send-proof">Send proof to PayPal</button>
          <a class="btn small" href="/api/deals/${KEY}/evidence.pdf" download>See the proof (PDF)</a></div>`) : ""}</div></div>`;
 }
-// The brand needs no account: a WhatsApp number on the link is enough to be told when something needs them.
+// Alerts on the brand's link: updates show on this page. WhatsApp (code kept, /alerts API) stays off the screen until
+// Meta approves the templates (submission rule: nothing may look live that isn't).
 function alertsHtml() {
-  const ph = V.me.phone;
   return `<div class="card" style="margin-top:14px"><h3>${icon("bell")} Alerts</h3>
-    <p class="small muted">${ph ? `WhatsApp alerts go to +${esc(ph.slice(0, 3))} ••• ${esc(ph.slice(-3))}.` : "Get a WhatsApp alert when something here needs you. Otherwise alerts stay on this page."}</p>
-    <div class="row" style="gap:6px"><input class="al-phone" type="tel" inputmode="tel" placeholder="+971 50 123 4567" value="" aria-label="WhatsApp number">
-      <button class="btn small al-save">${ph ? "Change" : "Save"}</button></div></div>`;
+    <p class="small muted">Updates about this deal show on this page. <b>WhatsApp alerts: coming soon</b> (waiting for Meta template approval).</p></div>`;
 }
-function bindAlerts(root) {
-  $$(".al-save", root).forEach(b => b.onclick = () => busy(b, async () => {
-    try { V = await api(url("/alerts"), { body: { phone: b.parentElement.querySelector(".al-phone").value } }); render(); toast(V.me.phone ? "WhatsApp alerts on" : "Alerts stay on this page"); }
-    catch (e) { toast(e.message, "bad"); }
-  }));
+function bindAlerts(root) {  // nothing to bind while WhatsApp alerts are "coming soon"
 }
 
 /* ---------- brand side (3.8) ---------- */
