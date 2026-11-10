@@ -856,3 +856,21 @@ question wasn't answered, so the recommended option was taken.
 - Tests: `tests/test_draft_polish.py` (17, incl. the page's suggest() run in Node). Browser: `tests/browser/draft_polish.py`
   (390 + 1440, real library on a real WebM for "no credential", reader stubbed to an Adobe Firefly credential for
   "detected"): problems none, no JS errors. Shots in `docs/screenshots/draft/`. **Tests: 855 passed, 3 skipped.**
+
+## Who paid (10 Nov, optional, before the freeze)
+- After the brand approves at PayPal, Amend reads the payer details in PayPal's answer to the authorize call it already
+  makes (no new call): payer name, business name, email **domain** only (the full email is never kept).
+- Code compares with the brief's brand (`amend/payer.py`): case, accents, punctuation and legal forms (LLC, FZ-LLC,
+  L.L.C., FZE, FZCO, DMCC, Ltd, Inc…) ignored; one name inside the other counts; the brand's own email domain counts
+  (not gmail/outlook…).
+- Creator only, on the Money card: "Held by PayPal account <name>: matches the brief" or "Paid by <name>: the brief
+  says <brand>. Check before you start." or "PayPal didn't share the payer's name, so Amend can't compare it with the
+  brief." Never "verified"; **never blocks money** (the hold, the deal status and every money rule are unchanged; if
+  the check itself fails, the hold is untouched). The brand's page doesn't get it.
+- Receipt chain: event `paypal.payer_checked` (result, payer, email domain, brand, the line), once per hold.
+- Tests: `tests/test_payer.py` (13: match, mismatch, missing name, legal forms, domain, no full email, brand doesn't
+  see it, never blocks, once per hold). Browser `tests/browser/who_paid.py` 390 + 1440: problems none, no JS errors
+  (local fake PayPal sends no payer, so match / mismatch shots rewrite the deal JSON in the browser: UI only).
+  **Tests: 868 passed, 3 skipped.**
+- Open question: on live, the sandbox buyer is a personal account, so judges will likely see "Paid by <buyer name>:
+  the brief says Judge Brand. Check before you start." That's honest, but it shows on every /try deal.

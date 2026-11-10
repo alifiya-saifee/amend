@@ -334,6 +334,7 @@ function moneyCardHtml() {
           <div class="row" style="margin-top:6px;gap:6px"><button class="btn small primary" data-refund="${p.id}">Approve refund ${usd(p.amount_cents)}</button>
           <button class="btn small" data-refund-no="${p.id}">Decline</button></div>`}</div></div>`).join("")}
       ${h && h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : ""}
+      ${!IS_BRAND && V.who_paid ? `<p class="small who-paid ${V.who_paid.result === "mismatch" ? "warn" : ""}" data-who-paid="${esc(V.who_paid.result)}">${icon(V.who_paid.result === "match" ? "user-check" : V.who_paid.result === "mismatch" ? "triangle-alert" : "user")} ${esc(V.who_paid.text)}</p>` : ""}
       ${!IS_BRAND ? `<a class="small" href="/studio/ledger">See every payment with the words behind it</a>` : ""}`
       : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}${aedNote()}</div>`;
 }

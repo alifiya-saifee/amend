@@ -32,7 +32,7 @@ EVENT_TYPES = {
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
     # money
     "money.planned", "money.approved", "money.sent", "money.status", "money.failed", "approval.recorded",
-    "approval.refused", "paypal.called", "paypal.error", "paypal.returned",
+    "approval.refused", "paypal.called", "paypal.error", "paypal.returned", "paypal.payer_checked",
     # ai
     "ai.called", "ai.fallback", "ai.rejected",
     # system

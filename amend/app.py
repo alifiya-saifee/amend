@@ -956,6 +956,7 @@ def _brand_view(token: str) -> dict:
     ctx = deals.open_link(get_db(), token)
     v = deals.deal_view(get_db(), ctx["deal"]["id"])
     v["viewer"] = "brand"
+    v.pop("who_paid", None)  # the "who paid" hint is the creator's
     v["me"] = {"name": ctx["party"]["name"], "org": ctx["party"]["org"], "role": ctx["role"],
                "confirmed_link": bool(ctx["link"]["opened_at"]),
                "phone": (get_db().one("select phone from parties where id = :p", {"p": ctx["party"]["id"]}) or {}).get("phone")}

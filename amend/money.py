@@ -241,7 +241,7 @@ class PlatformRail:
         r = await self.pp.authorize_order(item["paypal_id"], request_id=f"{item['request_id']}-auth", approval=approval)
         a = r["purchase_units"][0]["payments"]["authorizations"][0]
         detail = await self.pp.get_authorization(a["id"])
-        return {"auth_id": a["id"], "status": detail.get("status") or a.get("status"),
+        return {"auth_id": a["id"], "status": detail.get("status") or a.get("status"), "order": r,  # payer details: who paid
                 "expires_at": detail.get("expiration_time") or a.get("expiration_time"),
                 "created_at": detail.get("create_time") or a.get("create_time")}
 
@@ -329,6 +329,12 @@ async def finish_hold(db: Database, rail: PlatformRail, item_id: str, order_id: 
                      payload={"item": item_id, "call": "authorize_order", "authorization": r["auth_id"],
                               "expires_at": r["expires_at"], "request_id": f"{item['request_id']}-auth"},
                      key=f"paypal.authorize:{item_id}")
+    try:  # who paid: a hint for the creator, compared by code; never blocks or changes money
+        from amend import payer
+        deal = db.one("select brand_org from deals where id = :d", {"d": item["deal_id"]}) or {}
+        payer.record(db, item, deal.get("brand_org"), r.get("order"), actor="system")
+    except Exception as e:  # noqa: BLE001  the hold is already safe; the hint is optional
+        db.log_event("paypal.error", actor="system", deal_id=item["deal_id"], payload={"item": item_id, "call": "payer_check", "error": type(e).__name__})
     return get_item(db, item_id)
 
 

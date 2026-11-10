@@ -442,6 +442,7 @@ def deal_view(db: Database, deal_id: str) -> dict:
                   "honor_until": hold["honor_until"], "paypal_id": hold["paypal_id"],
                   "authorization": hold["paypal_parent_id"]} if hold else None),
         "money_held": bool(hold and hold["status"] == "authorized"),
+        "who_paid": __import__("amend.payer", fromlist=["latest"]).latest(db, deal_id),  # creator's hint, never a gate
         "extra_holds": [{"id": i["id"], "status": i["status"], "amount_cents": i["amount_cents"], "approve_url": i["approve_url"],
                          "change": i["change_id"]} for i in extra_holds],
         "held_cents": sum(i["amount_cents"] - i["captured_cents"] for i in items if i["kind"] == "hold" and i["status"] == "authorized"),
