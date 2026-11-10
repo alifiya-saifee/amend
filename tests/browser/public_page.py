@@ -66,9 +66,10 @@ with sync_playwright() as p:
         body = pg.inner_text("#view")
         # 2: header % = gender chart %
         g = prof["metrics"][0]["audience"]["gender"]
-        hdr = re.search(r"(\d+)% women", prof["audience"] or "")
-        check(hdr and int(hdr.group(1)) == round(g["female"]), f"{w}: header {prof['audience']} vs gender {g}")
-        check(f"{round(g['female'])}%" in body, f"{w}: gender chart missing")
+        hdr = re.search(r"(\d+)% (women|men)", prof["audience"] or "")
+        key = "female" if hdr and hdr.group(2) == "women" else "male"
+        check(hdr and int(hdr.group(1)) == round(g[key]), f"{w}: header {prof['audience']} vs gender {g}")
+        check(f"{round(g[key])}%" in body, f"{w}: gender chart missing")
         # 3: stars
         rating = prof["track_record"]["rating"]
         on = pg.evaluate("document.querySelectorAll('.stars-r svg.st-on').length")

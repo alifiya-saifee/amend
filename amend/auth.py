@@ -44,9 +44,10 @@ def verify(db: Database, email: str, password: str, kind: str | None = None) -> 
     if acc:
         if acc["password_hash"]:
             ok = check_password(password, acc["password_hash"])
-        else:
-            demo = get_settings().amend_demo_password.get_secret_value()
-            ok = bool(demo) and hmac.compare_digest(password.encode(), demo.encode())
+        else:  # seeded accounts: the shared demo password; judges' accounts (judge.*): their own password only
+            s = get_settings()
+            shared = (s.judge_password if acc["email"].lower().startswith("judge.") else s.amend_demo_password).get_secret_value()
+            ok = bool(shared) and hmac.compare_digest(password.encode(), shared.encode())
     if not acc or not ok:
         raise AuthError("That email or password isn't right.")
     if kind and acc["kind"] != kind:

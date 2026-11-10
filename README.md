@@ -49,6 +49,47 @@ flowchart LR
 
 Every payment is in a **ledger** with the words behind it.
 
+## Built on PayPal: the deal's spine
+
+Every version of a deal maps to PayPal objects, and every PayPal object leads back to the deal. Open any deal's **PayPal
+spine** panel to see them, with the status read from PayPal (a GET, "Check PayPal now") or from a verified webhook.
+
+| Deal | PayPal object | What Amend writes into PayPal |
+|---|---|---|
+| Version accepted, money held | Orders v2 order → Payments v2 **authorization** | `custom_id` = `amend:<deal>:v<version>:<receipt hash>`, `invoice_id` = `AMEND-<deal>-v<version>-<item>` |
+| Change confirmed (+$) | comes out of the existing hold, or a **new order + authorization** | the new version's receipt hash |
+| Delivery matches, both approve | **captures** (partial, `final_capture`) | `PayPal-Request-Id` per capture |
+| Creator (and editor) paid | **Payouts** batch + item | `sender_item_id` = `<deal>-v<version>-<item>` |
+| Price lowered after payment | **refund** of the capture (never a cancel) | `PayPal-Request-Id` |
+| Brand disputes | **dispute** → evidence `PROOF_OF_FULFILLMENT` | the deal record PDF |
+
+**What's new here (and why PayPal is the backbone, not a checkout button):**
+
+- **Hold clock and headroom on screen.** Day N of PayPal's 29-day authorization, the 3-day honour period (after it,
+  Amend re-authorises once, automatically, right before collecting), and PayPal's capture headroom (115% or +$75,
+  whichever is less). A change card says either "comes out of the existing PayPal hold" or "needs a new PayPal approval
+  from the brand".
+- **A signed brand mandate bound to the hold (AP2-style).** At hold time the brand can pre-approve up to 3 checkable
+  things (an extra item up to $X, a post-date window, #ad). Their browser signs it with an Ed25519 key made on the device;
+  Amend verifies the exact text. The PayPal hold becomes the cap (deal + allowed extras), and the mandate's hash is in
+  the receipt carried by the PayPal order. A change inside the mandate counts as the brand's confirmation, signed in
+  advance; the creator still confirms, and the money comes out of the existing hold with no new PayPal step.
+- **A receipt chain.** Every deal event (mandate, change card, each confirmation, each PayPal request ID and response ID,
+  webhook, evidence) stores the hash of the previous one. The panel shows it verified; one changed byte breaks it.
+- **Disputes answered from the record.** On `CUSTOMER.DISPUTE.CREATED`, Amend builds the evidence pack at once (mandate,
+  confirmed version, delivery check, post link, chain). The creator taps once, and it goes to PayPal as
+  `PROOF_OF_FULFILLMENT`. [`scripts/dispute_sandbox_run.py`](scripts/dispute_sandbox_run.py) runs the sandbox path:
+  require-evidence → provide-evidence → adjudicate `SELLER_FAVOR` → `RESOLVED` on the panel.
+
+**Honest limits of this part:**
+- Capturing into PayPal's headroom (over-capture) is built but **off** (`PAYPAL_OVERCAPTURE=false`) until a sandbox
+  probe confirms the account allows it. Until then the meter is informational, and a change beyond what's held needs a
+  new PayPal approval.
+- The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
+- On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without
+  pre-approvals and confirm each change live.
+- Sending dispute evidence always needs the creator's tap (every PayPal write needs a human approval record).
+
 ## PayPal APIs used
 
 | API | Used for |
@@ -61,7 +102,9 @@ Every payment is in a **ledger** with the words behind it.
 | Payments v2: refund capture | A correction after payment: refund, never a cancel |
 | Payouts | Pay the creator (and an editor's share) |
 | Webhooks: verify-webhook-signature | Every webhook is verified, de-duplicated by event id, and never moves a status backwards |
-| Disputes: provide-evidence | Send the deal record for a PayPal dispute, only after the creator approves |
+| Disputes: get, provide-evidence (`PROOF_OF_FULFILLMENT`) | Read the dispute; send the deal record, only after the creator approves |
+| Disputes: require-evidence, adjudicate (sandbox simulation) | The scripted sandbox run of a dispute won by the seller |
+| Orders / Payments / Payouts GETs | "Check PayPal now" on the spine panel (read-only, no money moves) |
 | Invoicing v2 | Tried in the day-1 sandbox probe only; not used in the app |
 
 **Idempotency:** every PayPal write carries its own `PayPal-Request-Id`, stored on the money item, so a retry or a double
@@ -110,7 +153,7 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 | Discover AI match with reasons; no hidden price in any response | ✅ |
 | PayPal dispute shield | Tested with PayPal mocked (S126–S130); see live-walk for the sandbox status |
 
-**Tests:** 570 automated tests (PayPal and every AI provider mocked; no test calls a real service).
+**Tests:** 694 automated tests (PayPal and every AI provider mocked; no test calls a real service), plus browser runs at 390 and 1440 px.
 
 ## Honest limits
 
@@ -120,8 +163,8 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
   delayed release) needs PayPal partner approval (the sandbox returned 403 / 422 on 7 Nov). Only the "rail" changes.
 - **PayPal fees are a platform cost**, never taken from the creator; in production Amend's own fee covers them.
 - **WhatsApp alerts: coming soon** (waiting for Meta template approval). Alerts appear in Amend.
-- **Free host:** Render's free plan sleeps when idle, so the first page can be slow.
-- **Instagram lookup is off** on the live demo until a Meta token is added (it's built and tested with mocked Graph responses).
+- **Hosting:** Render (free plan, Docker) with Postgres on Supabase; the free plan can sleep when idle, so the first page can be slow.
+- **Instagram lookup** uses Meta Business Discovery with a test app's token: public numbers for business and creator accounts only.
 - The UAE permit check is a format and expiry check only. Collecting a usage-rights extension hold isn't built yet.
 
 ## Next
@@ -129,7 +172,6 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 - Retainers with a monthly PayPal hold.
 - Usage-rights and Partnership Ads clock with paid extensions collected automatically.
 - AI use and likeness as priced deal terms.
-- Add a creator by @handle, with an invite to claim her profile.
 - Barter deals with an optional cash top-up.
 - A reference Reel → a shot list checked at delivery.
 - Multi-creator campaigns and quote requests.

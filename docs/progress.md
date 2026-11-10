@@ -393,3 +393,18 @@ Next: Block 7.
   Sara taps Send proof (her approval record), and Amend sends it as PROOF_OF_FULFILLMENT, once. It isn't sent automatically, because rule 3 needs a human approval for every PayPal write.
 - scripts/dispute_sandbox_run.py: require-evidence → provide-evidence → adjudicate SELLER_FAVOR, then reads the dispute back. Dry run by default; `--run` only with Alifiya's go. Every write has its own approval record and a fixed request ID. The RESOLVED webhook then shows on the spine.
 - Open: run the script against the live sandbox dispute (needs your OK; uses the Render DATABASE_URL and PayPal env).
+
+## PayPal spine, part 5: baseline docs + judges' login (10 Nov)
+- SANDBOX_TESTING.md:
+  - judges' logins, a walk through the spine, the dispute run, and the safety rules;
+  - placeholders only, no passwords.
+- Judges-only accounts:
+  - judge.sara@creators.example (a clean copy of Sara) and judge.brand@amend.example;
+  - they open only with JUDGE_PASSWORD (Render env), never with the demo password;
+  - they're created only when JUDGE_PASSWORD is set, and are hidden from Discover (as is sara.video).
+- README "Built on PayPal: the deal's spine":
+  - the object map, what's new, and honest limits;
+  - Render + Supabase hosting, and the API table now lists the dispute and GET calls.
+- .env.example: JUDGE_PASSWORD=, PAYPAL_OVERCAPTURE=false.
+- Part 4 (signed delivery verdict) not built yet. MCP server deferred until after the freeze.
+- Tests: 694 passed, 3 skipped. Browser checks: deal page, mandate flow and dashboards at 390/1440, no problems.

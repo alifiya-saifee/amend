@@ -476,6 +476,31 @@ def ensure_demo_accounts(db: Database) -> int:
 VIDEO_HANDLE = "sara.video"
 
 
+JUDGE_HANDLE = "judge.sara"
+JUDGE_BRAND = ("Judge", "Judges' Test Brand", "judge.brand@amend.example")
+
+
+def ensure_judge_accounts(db: Database) -> int:
+    """Judges-only logins, separate from the demo accounts: judge.sara@creators.example (a clean copy of Sara, no history)
+    and judge.brand@amend.example. They sign in only with JUDGE_PASSWORD (Render env; never in the repo), never with the
+    shared demo password. Nothing is created unless JUDGE_PASSWORD is set. Idempotent."""
+    if not get_settings().judge_password.get_secret_value():
+        return 0
+    made = 0
+    if not db.one("select id from creators where handle = :h", {"h": JUDGE_HANDLE}):
+        _clone_sara(db, JUDGE_HANDLE, "judges")
+        made += 1
+    name, company, email = JUDGE_BRAND
+    if not db.one("select id from accounts where email = :e", {"e": email}):
+        pid, aid = new_id("p"), new_id("acc")
+        db.insert("parties", {"id": pid, "name": name, "role": "brand_main", "org": company, "confirmed": 1, "email": email,
+                              "account_id": aid, "created_at": now()})
+        db.insert("accounts", {"id": aid, "kind": "brand", "email": email, "name": name, "company": company,
+                               "password_hash": None, "party_id": pid, "created_at": now()})
+        made += 1
+    return made
+
+
 def ensure_video_creator(db: Database) -> tuple[str, bool]:
     """A clean Sara for the demo video (Block 7): same made-up person, price list and limits as @sara.eats, but its own
     login (sara.video@creators.example, demo password) and no history, so no leftover holds or owed balances.
@@ -483,11 +508,18 @@ def ensure_video_creator(db: Database) -> tuple[str, bool]:
     have = db.one("select id from creators where handle = :h", {"h": VIDEO_HANDLE})
     if have:
         return have["id"], False
+    return _clone_sara(db, VIDEO_HANDLE, "demo video"), True
+
+
+def _clone_sara(db: Database, handle: str, why: str) -> str:
+    have = db.one("select id from creators where handle = :h", {"h": handle})
+    if have:
+        return have["id"]
     base = dict(CREATORS[0])
     t, pid, cid = now(), new_id("p"), new_id("c")
-    db.insert("parties", {"id": pid, "name": base["name"], "role": "creator", "handle": VIDEO_HANDLE, "confirmed": 1,
+    db.insert("parties", {"id": pid, "name": base["name"], "role": "creator", "handle": handle, "confirmed": 1,
                           "paypal_email": get_settings().sandbox_creator_email, "created_at": t})
-    db.insert("creators", {"id": cid, "party_id": pid, "handle": VIDEO_HANDLE, "display_name": base["name"], "bio": base["bio"],
+    db.insert("creators", {"id": cid, "party_id": pid, "handle": handle, "display_name": base["name"], "bio": base["bio"],
                            "followers": base["followers"], "audience": base["audience"], "niche": base["niche"],
                            "permit_no": base["permit_no"], "permit_expiry": base["permit_expiry"],
                            "limits_json": json.dumps(base["limits"]), "created_at": t})
@@ -495,9 +527,9 @@ def ensure_video_creator(db: Database) -> tuple[str, bool]:
         db.insert("price_items", {"id": new_id("pi"), "creator_id": cid, "code": code, "name": name, "kind": kind,
                                   "min_cents": lo, "max_cents": hi, "standard_cents": std, "unit": unit,
                                   "rules_json": json.dumps(rules), "hidden": 0, "active": 1, "created_at": f"{t}-{i:02d}"})
-    db.log_event("creator.created", actor="seed", payload={"creator": cid, "handle": VIDEO_HANDLE, "why": "demo video"})
+    db.log_event("creator.created", actor="seed", payload={"creator": cid, "handle": handle, "why": why})
     ensure_demo_accounts(db)
-    return cid, True
+    return cid
 
 
 if __name__ == "__main__":

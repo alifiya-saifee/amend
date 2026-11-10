@@ -592,7 +592,7 @@ function spineHtml(S) {
       : "honour period over: Amend re-authorises once, automatically, before collecting"} · expires ${esc(fmtDate(C.expires_at))}
       <div class="meter" aria-hidden="true"><span style="width:${pct(C.day, C.of)}%"></span></div></div>` : ""}
     ${H ? `<div class="sp-head"><b>Headroom</b> · held ${usd(H.held_cents)} for a ${usd(H.deal_total_cents)} deal${H.spare_cents ? ` (${usd(H.spare_cents)} spare)` : ""}
-      · PayPal headroom on the ${usd(H.hold_cents)} hold: +${usd(H.headroom_cents).slice(1)} (115% or +$75, whichever is less), so up to ${usd(H.ceiling_cents)} in all
+      · PayPal headroom on the ${usd(H.hold_cents)} hold: +${usd(H.headroom_cents)} (115% or +$75, whichever is less), so up to ${usd(H.ceiling_cents)} in all
       <div class="meter two" aria-hidden="true"><span style="width:${pct(H.deal_total_cents, H.ceiling_cents)}%"></span><i style="left:${pct(H.held_cents, H.ceiling_cents)}%"></i></div>
       <div class="tiny muted">${H.overcapture_on ? "A change inside the headroom comes out of this hold." : "Amend uses only what is held: a change beyond it needs a new PayPal approval from the brand."}</div></div>` : ""}
     ${M ? `<div class="sp-mandate"><b>${icon("pen-line")} Brand mandate</b> <code>${esc(M.hash.slice(0, 12))}…</code> · cap ${usd(M.cap_cents)} · until ${esc(fmtDate(M.expires_at))} · ${esc(M.status)}

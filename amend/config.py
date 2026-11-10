@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     nvidia_api_key: SecretStr = SecretStr("")
     nvidia_model: str = ""
     amend_demo_password: SecretStr = SecretStr("")
+    judge_password: SecretStr = SecretStr("")  # judges-only logins (judge.*): Render env only, never the demo password
     amend_session_secret: SecretStr = SecretStr("")
     amend_tick_secret: SecretStr = SecretStr("")
     # Instagram lookup (Meta Business Discovery, Facebook Login token). Off unless enabled and both are set.
