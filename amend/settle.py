@@ -8,7 +8,9 @@
 - Both tap Confirm on that exact proposal (bound by its hash). It never executes on silence: an untouched proposal
   just stays open.
 - Then PayPal: collect the creator's amount from the hold with final_capture (the rest goes back to the brand), void
-  any hold that isn't needed (including a bonus hold), pay the creator by Payouts. Open gaps close as "settled".
+  any hold that isn't needed (including a bonus hold), and pay the creator and her team (the deal's team split, one
+  Payouts batch; no holdback on a settlement). Open gaps close as "settled".
+- "Stuck revision": the draft isn't approved and the deal's included revision rounds are used up.
 """
 from __future__ import annotations
 
@@ -18,7 +20,17 @@ import json
 from amend import ai, money
 from amend.db import Database, new_id, now
 
-STUCK_REVISIONS = 2
+def included_revisions(db: Database, deal: dict) -> int:
+    """The revision rounds the deal includes, from her price list rules on the deal's deliverables."""
+    from amend.deals import deal_terms
+    best = 0
+    for t in deal_terms(db, deal["id"]):
+        r = db.one("select rules_json from price_items where id = :i", {"i": t["price_item_id"]}) or {}
+        try:
+            best = max(best, int(json.loads(r.get("rules_json") or "{}").get("included_revisions") or 0))
+        except (TypeError, ValueError):
+            pass
+    return best
 
 
 class SettleError(ValueError):
@@ -33,8 +45,9 @@ def eligible(db: Database, deal: dict) -> str | None:
     if delivery.open_gaps(db, deal["id"]):
         return "an open delivery gap"
     d = delivery.latest(db, deal["id"], "draft")
-    if d and (d["result"] or {}).get("status") != "approved" and (deal.get("revisions_used") or 0) >= STUCK_REVISIONS:
-        return "a stuck revision"
+    used = deal.get("revisions_used") or 0
+    if d and (d["result"] or {}).get("status") != "approved" and used >= 1 and used >= included_revisions(db, deal):
+        return "a stuck revision"  # the deal's included revision rounds are used up and the draft still isn't approved
     return None
 
 
@@ -201,14 +214,12 @@ async def _execute(db: Database, rail: money.PlatformRail, deal: dict, cur: dict
             money.approve(db, vd["id"], brand_p); money.approve(db, vd["id"], creator_p)
             await delivery._void_unused(db, pp, money.get_item(db, vd["id"]), deal, actor)
     paid = cur["split"]["creator_cents"] - left
-    if paid > 0:
-        net = money.deduct_owed(db, deal["creator_id"], paid, deal_id=deal["id"], actor="system")
-        if net > 0:
-            po = money.plan_item(db, deal["id"], "payout", net, json.loads(holds[0]["depends_on_fact_ids"]), actor="system")
-            email = (db.one("select paypal_email from parties where id = :p", {"p": creator_p}) or {}).get("paypal_email")
-            db.update("money_items", "id", po["id"], {"note": "settle:creator payout", "payee_email": email})
-            money.approve(db, po["id"], creator_p)
-            await delivery._payout(db, pp, money.get_item(db, po["id"]), deal, actor)
+    if paid > 0:  # her part and the team's shares (the deal's team split; no holdback on a settlement)
+        from amend import team
+        pos = team.plan_payouts(db, deal, paid, json.loads(holds[0]["depends_on_fact_ids"]), "settle")
+        for it in pos:
+            money.approve(db, it["id"], creator_p)
+        await team.pay(db, pp, deal, pos, actor)
     for it in money.items_for(db, deal["id"]):  # nothing left planned: anything never sent is cancelled
         if it["status"] in ("planned", "approved") and it["kind"] != "hold":
             money._set_status(db, it, "cancelled", "system")

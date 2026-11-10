@@ -115,15 +115,54 @@ def split_refund(db: Database, deal: dict, refund: dict, owed_cents: int) -> int
 
 def is_batch_item(it: dict) -> bool:
     n = it.get("note") or ""
-    return n == "release:creator payout" or n.startswith("release:team ")
+    return n.endswith(":creator payout") and not n.startswith("holdback:") or ":team " in n
+
+
+def _payee_of(note: str) -> str | None:
+    return note.split(":team ", 1)[1] if ":team " in (note or "") else None
+
+
+def plan_payouts(db: Database, deal: dict, base_cents: int, facts: list[str], prefix: str, actor: str = "system") -> list[dict]:
+    """Her payout and the team's shares of base_cents (code, to the cent), one money item each, notes
+    "<prefix>:creator payout" / "<prefix>:team <payee>". What anyone owes from an earlier refund comes off first."""
+    out = []
+    party = db.one("select paypal_email from parties where id = (select party_id from creators where id = :c)", {"c": deal["creator_id"]})
+    shares = [(m, base_cents * m["pct"] // 100) for m in members(db, deal["id"])]
+    creator = base_cents - sum(c for _, c in shares)
+    creator = money.deduct_owed(db, deal["creator_id"], creator, deal_id=deal["id"], actor=actor) if creator > 0 else 0
+    if creator > 0:
+        po = money.plan_item(db, deal["id"], "payout", creator, facts, actor=actor)
+        db.update("money_items", "id", po["id"], {"note": f"{prefix}:creator payout", "payee_email": (party or {}).get("paypal_email")})
+        out.append(money.get_item(db, po["id"]))
+    for m, cents in shares:
+        net = deduct_owed(db, m["email"], cents, deal_id=deal["id"])
+        if net > 0:
+            pt = money.plan_item(db, deal["id"], "payout", net, facts, actor=actor)
+            db.update("money_items", "id", pt["id"], {"note": f"{prefix}:team {m['id']}", "payee_email": m["email"]})
+            db.update("payees", "id", m["id"], {"money_item_id": pt["id"]})
+            out.append(money.get_item(db, pt["id"]))
+    return out
+
+
+async def pay(db: Database, pp, deal: dict, items: list[dict], actor: str) -> None:
+    """Approved payouts out: one Payouts batch when there's a team, else the usual single payout."""
+    from amend import delivery
+    ready = [money.get_item(db, i["id"]) for i in items]
+    ready = [i for i in ready if i["status"] in ("approved", "failed")]
+    if members(db, deal["id"]) and ready:
+        await pay_batch(db, pp, deal, [i for i in ready if i["status"] == "approved"], actor)
+        return
+    for it in ready:
+        await delivery._payout(db, pp, it, deal, actor)
 
 
 async def pay_batch(db: Database, pp, deal: dict, items: list[dict], actor: str) -> None:
     """The creator's payout and every team member's, in one Payouts batch (its PayPal-Request-Id is the creator item's)."""
     from amend import spine
-    pos = {f"release:team {m['id']}": m["pos"] for m in members(db, deal["id"])}
-    items = sorted(items, key=lambda i: -1 if i["note"] == "release:creator payout" else pos.get(i["note"], 99))  # her first
-    lead = next((i for i in items if i["note"] == "release:creator payout"), items[0])
+    pos = {m["id"]: m["pos"] for m in members(db, deal["id"])}
+    her = lambda i: (i.get("note") or "").endswith(":creator payout")
+    items = sorted(items, key=lambda i: -1 if her(i) else pos.get(_payee_of(i.get("note")), 99))  # her first, then the team in order
+    lead = next((i for i in items if her(i)), items[0])
     approvals = {i["id"]: money.approval_record(db, i) for i in items}
     if not all(approvals.values()):
         raise money.ApprovalError("every payout in the batch needs its approval")
