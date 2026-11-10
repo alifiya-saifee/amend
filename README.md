@@ -8,6 +8,10 @@ Entry for the PayPal AI Hackathon. **PayPal sandbox only. All people and brands 
 
 **Live:** https://amend-r7le.onrender.com · **Try it in 2 minutes:** https://amend-r7le.onrender.com/try · **Judging guide:** [docs/judging.md](docs/judging.md)
 
+**Judges: start at [/try](https://amend-r7le.onrender.com/try).** It makes a fresh deal for you, with a real PayPal
+sandbox hold, and a reset button. A hold made today expires after **29 days** (PayPal's limit), so make a new one
+from /try any time. **The first load can take up to 50 s:** Amend runs on Render's free plan, which sleeps when idle.
+
 ## The problem
 
 - **Late payment.** 48% of creators said they'd been paid late for work that year ([Lumanu, survey of 500+ creators](https://www.lumanu.com/blog/insights-from-500-influencers-on-their-payment-experience)).
@@ -147,13 +151,14 @@ tap never creates a second payment. **No PayPal write happens without an approva
 **Webhook events handled:** `CHECKOUT.ORDER.APPROVED`, `PAYMENT.AUTHORIZATION.CREATED / VOIDED`, `PAYMENT.CAPTURE.COMPLETED /
 REFUNDED / REVERSED / DENIED`, `PAYMENT.PAYOUTSBATCH.*`, `PAYMENT.PAYOUTS-ITEM.*`, `CUSTOMER.DISPUTE.CREATED / UPDATED / RESOLVED`.
 
-## AI
+## AI tools used
 
-| Provider | Job |
+| Tool | Job |
 |---|---|
-| **Gemini** (main) | Brief → deal lines; chat, voice-note and call text → change cards; draft frames → delivery check; "Describe your campaign" → search criteria |
-| **Groq** | Whisper speech-to-text for voice notes and call timings; backup chat model if Gemini is busy |
-| **NVIDIA** | An independent second opinion on the cancellation split; if it disagrees, both views are shown and people decide |
+| **Gemini** (main) | Briefs → deal lines; chat, voice-note and call text → change cards; draft frames → delivery check; reading the caption when the post can't be read from Instagram; "Describe your campaign" → search criteria |
+| **Groq Whisper** | Speech-to-text: voice notes and call transcripts. Groq's chat model is the backup if Gemini is busy |
+| **NVIDIA** | An independent second opinion on money decisions (the cancellation split); if it disagrees, both views are shown and people decide |
+| **Claude Code** | Used to build the app (code, tests, browser checks). It isn't part of the running product |
 
 **The AI never does the maths.** It returns item codes, quantities and quotes; every price, total, split and score is
 worked out by code from the creator's list. **No quote, no money:** every quote must appear word for word in its source,
@@ -213,23 +218,36 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 
 ## Run it locally
 
-Prerequisites: Python 3.12, a PayPal developer sandbox app, and sandbox accounts (a business account, plus personal
-accounts for the brand, the creator and an editor).
+Prerequisites: Python 3.12 and git. For real PayPal calls: a [PayPal developer](https://developer.paypal.com) account.
 
 ```bash
+git clone https://github.com/alifiya-saifee/amend.git && cd amend
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-cp .env.example .env      # fill in the values; never commit them
+cp .env.example .env      # fill in your own values; never commit .env
 .venv/bin/uvicorn amend.app:app --port 8000
-# open http://localhost:8000 (demo creators are seeded on first start)
+# open http://localhost:8000 (demo creators are seeded on first start; SQLite is used when DATABASE_URL is empty)
 ```
 
-Without PayPal or AI keys, `AMEND_FAKE=1` runs a fake PayPal and a rule-based AI for local browser tests.
+**No keys at all?** Run with `AMEND_FAKE=1 PAYPAL_ENV=sandbox BASE_URL=http://localhost:8000` for a fake PayPal and a
+rule-based AI (local only: it refuses to turn on unless `BASE_URL` is localhost).
+
+**Sandbox setup (real PayPal sandbox calls):**
+1. In the PayPal developer dashboard → Apps & Credentials (Sandbox) → create an app. Put its client ID and secret in
+   `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`, and set `PAYPAL_ENV=sandbox` (the app refuses to start otherwise).
+2. Sandbox → Accounts: use the business account as the platform, and create personal accounts for the brand (the
+   buyer), the creator and an editor. Put their emails in `SANDBOX_BRAND_EMAIL`, `SANDBOX_CREATOR_EMAIL`, `SANDBOX_EDITOR_EMAIL`.
+3. Make sure Payouts is enabled for the app (sandbox). For webhooks, add a webhook to `<BASE_URL>/api/paypal/webhook`
+   (`CHECKOUT.ORDER.*`, `PAYMENT.AUTHORIZATION.*`, `PAYMENT.CAPTURE.*`, `PAYMENT.PAYOUTSBATCH.*`, `CUSTOMER.DISPUTE.*`) and put its ID in `PAYPAL_WEBHOOK_ID`.
+4. Set `AMEND_DEMO_PASSWORD`, `AMEND_SESSION_SECRET` and `AMEND_TICK_SECRET` to long random strings, and
+   `VERDICT_SIGNING_KEY` with `python -m scripts.verdict_key`. AI keys (`GEMINI_API_KEY`, `GROQ_API_KEY`,
+   `NVIDIA_API_KEY`) are optional; without them, the AI features say they're busy.
+5. Step-by-step sandbox walks are in [SANDBOX_TESTING.md](SANDBOX_TESTING.md).
 
 Environment variables (values never go in the repo): `PAYPAL_ENV`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
 `PAYPAL_WEBHOOK_ID`, `DATABASE_URL`, `BASE_URL`, `MONEY_RAIL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GROQ_API_KEY`,
 `GROQ_MODEL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL`, `AMEND_DEMO_PASSWORD`, `AMEND_SESSION_SECRET`, `AMEND_TICK_SECRET`, `VERDICT_SIGNING_KEY`,
-`SANDBOX_BRAND_EMAIL`, `SANDBOX_CREATOR_EMAIL`, `SANDBOX_EDITOR_EMAIL`.
+`SANDBOX_BRAND_EMAIL`, `SANDBOX_CREATOR_EMAIL`, `SANDBOX_EDITOR_EMAIL`, `IG_LOOKUP_ENABLED`, `META_IG_TOKEN`, `META_IG_USER_ID`.
 
 **Tests:** `.venv/bin/pytest -q` (PayPal and AI mocked). Browser checks live in `tests/browser/`.
 **How to judge it:** [docs/judging.md](docs/judging.md).
@@ -247,6 +265,11 @@ Environment variables (values never go in the repo): `PAYPAL_ENV`, `PAYPAL_CLIEN
 
 Python 3.12 · FastAPI · httpx · Pydantic v2 · SQLite locally, Postgres (Supabase) on Render · plain HTML + JS (mobile-first,
 installable) · GSAP on the marketing page · pytest + respx + Playwright.
+
+**Built with AG Grid Community** (MIT, v32.2.0 from jsdelivr, pinned): the Ledger, Earnings and each deal's PayPal
+objects table. Sorting, column filters, quick search, CSV export, and a row tap that opens the receipt hash and the
+PayPal IDs. Columns: date, deal, version, PayPal step, PayPal ID, amount, status, and source (PayPal's **reply** to
+Amend's call, a **GET** Amend made, or a verified **webhook**). The totals are worked out by the server, not the grid.
 
 The same engine powers **Diwan**, an AI back office for Dubai brokerages.
 

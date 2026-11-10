@@ -2047,21 +2047,24 @@ def _ledger_label(it: dict) -> str:
 def ledger(c: dict = Depends(require_creator)):
     d = get_db()
     rows = []
-    for it in d.all("select m.*, d.brand_org, d.version as deal_version, d.holdback_release_at, d.posted_at, d.holdback_days "
+    hc: dict = {}
+    for it in d.all("select m.*, d.brand_org, d.title as deal_title, d.holdback_release_at, d.posted_at, d.holdback_days "
                     "from money_items m join deals d on d.id = m.deal_id "
                     "where d.creator_id = :c and d.is_test = 0 order by m.created_at desc", {"c": c["id"]}):
         facts = json.loads(it["depends_on_fact_ids"] or "[]")
         q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
-        rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "brand": it["brand_org"], "item": _ledger_label(it),
+        f = spine.row_facts(d, it, hc)  # the money line's own version (not the deal's current one), receipt hash, source
+        rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "deal_name": it["deal_title"] or it["brand_org"],
+                     "brand": it["brand_org"], "item": _ledger_label(it),
                      "kind": it["kind"], "amount_usd": it["amount_cents"] / 100, "aed": money.aed_cents(it["amount_cents"]) / 100,
                      "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
-                     "version": it["deal_version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
-                     "step": spine.step(it),
-                     "updated": it["updated_at"]})
+                     "version": f["version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
+                     "step": spine.step(it), "source": f["source"], "seen_at": f["seen_at"], "receipt_hash": f["receipt_hash"],
+                     "custom_id": it.get("custom_id"), "updated": it["updated_at"]})
         if it["kind"] == "capture" and (it["fee_cents"] or 0) > 0:  # PayPal's fee is a platform cost: never taken from the creator
             rows.append({**rows[-1], "item": "Platform cost: PayPal fee (Amend pays, not you)", "kind": "platform_cost",
                          "amount_usd": it["fee_cents"] / 100, "aed": money.aed_cents(it["fee_cents"]) / 100, "status": "paid",
-                         "fee_usd": 0, "request_id": None, "step": "PayPal fee on the capture"})
+                         "fee_usd": 0, "request_id": None, "step": "PayPal fee on the capture", "source": None})
     return {"rows": rows, "fees_usd": sum(r["amount_usd"] for r in rows if r["kind"] == "platform_cost")}
 
 

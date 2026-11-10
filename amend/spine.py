@@ -144,11 +144,29 @@ def _version_of(db: Database, item: dict) -> int:
     return 1
 
 
+SOURCE_LABEL = {"response": "reply", "get": "GET", "webhook": "webhook"}
+
+
+def row_facts(db: Database, item: dict, cache: dict | None = None) -> dict:
+    """For a grid row: the version this money line belongs to, its receipt hash (what was written into PayPal), and
+    where the last PayPal status came from (PayPal's reply to our call, a GET we made, or a verified webhook)."""
+    cache = {} if cache is None else cache
+    v = _version_of(db, item)
+    key = (item["deal_id"], v)
+    if key not in cache:
+        cache[key] = receipt_hash(db, item["deal_id"], v)
+    seen = [o["seen"] for o in objects_for(db, item) if o.get("seen")]
+    last = max(seen, key=lambda x: x.get("at") or "") if seen else None
+    return {"version": v, "receipt_hash": cache[key], "source": SOURCE_LABEL.get((last or {}).get("source"), None),
+            "seen_at": (last or {}).get("at"), "seen_status": (last or {}).get("status")}
+
+
 def view(db: Database, deal_id: str) -> dict:
     from amend import money
     items = money.items_for(db, deal_id)
     deal = db.one("select * from deals where id = :d", {"d": deal_id})
     versions: dict[int, list] = {}
+    hcache: dict = {}
     for it in items:
         if it["kind"] == "owed_by_creator":
             continue
@@ -158,8 +176,10 @@ def view(db: Database, deal_id: str) -> dict:
                   f"{money.fmt_usd(it['released_cents'])} released back")
         line = {"item": it["id"], "kind": it["kind"], "status": it["status"], "amount_cents": it["amount_cents"],
                 "step": st, "note": it.get("note"), "request_id": it["request_id"], "custom_id": it.get("custom_id"),
-                "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it), "released_cents": it.get("released_cents") or 0}
-        versions.setdefault(_version_of(db, it), []).append(line)
+                "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it), "released_cents": it.get("released_cents") or 0,
+                "paypal_id": it.get("paypal_id") or it.get("paypal_parent_id"), "date": (it.get("updated_at") or it["created_at"])[:10],
+                **row_facts(db, it, hcache)}
+        versions.setdefault(line["version"], []).append(line)
     dispute = db.one("select paypal_dispute_id, status, outcome, reason, amount_cents, evidence_status from disputes "
                      "where deal_id = :d order by created_at desc limit 1", {"d": deal_id})
     if dispute:
@@ -185,7 +205,8 @@ def view(db: Database, deal_id: str) -> dict:
                 if back else None)
     return {"deal": deal_id, "version": deal["version"], "receipt_hash": receipt_hash(db, deal_id),
             "chain": {"ok": ch["ok"], "events": ch["events"], "head": ch["head"]},
-            "versions": [{"version": v, "lines": versions[v]} for v in sorted(versions)],
+            "versions": [{"version": v, "receipt_hash": hcache.get((deal_id, v)) or receipt_hash(db, deal_id, v), "lines": versions[v]}
+                         for v in sorted(versions)],
             "clock": hold_clock(main) if main else None, "headroom": meter, "dispute": dispute, "released_back": released,
             "mandate": ({"hash": m["hash"], "cap_cents": m["cap_cents"], "expires_at": m["expires_at"], "status": m["status"],
                          "conditions": json.loads(m["body"]).get("conditions", [])} if m else None)}

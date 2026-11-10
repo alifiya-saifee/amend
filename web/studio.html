@@ -4,7 +4,7 @@
 <title>Studio · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
 <link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/shell.js"></script>
-<script src="/static/chat.js"></script><script src="/static/studio-pages.js"></script>
+<script src="/static/chat.js"></script><script src="/static/grid.js"></script><script src="/static/studio-pages.js"></script>
 </head><body class="studio">
 <main class="wrap" id="view"></main>
 <script>
@@ -43,49 +43,48 @@ async function route() {
 }
 function soon(name) { $("#view").innerHTML = `<div class="empty">${icon("hammer", "big")}<h2>${esc(name)} is coming soon</h2><p class="muted">It's being built.</p><a class="btn" href="/studio">Back to Home</a></div>`; }
 
-/* ---------- Ledger tab (AG Grid) ---------- */
-function loadGrid() {
-  if (window.agGrid) return Promise.resolve();
-  return new Promise((res, rej) => {
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/ag-grid-community@32.2.0/dist/ag-grid-community.min.js";
-    s.onload = res; s.onerror = () => rej(new Error("The ledger grid couldn't load. Check your connection."));
-    document.head.appendChild(s);
-  });
+/* ---------- Ledger tab (AG Grid Community, web/static/grid.js) ---------- */
+const KIND_LABEL = { hold: "Hold", capture: "Collected", release: "Release", refund: "Refund", payout: "Payout", invoice: "Invoice",
+  owed_by_creator: "Owed", platform_cost: "Platform cost" };
+// same chips as Earnings; "paid" means different things per kind (collected, paid out, refunded, settled)
+function ledgerPill(r) {
+  return r.status === "approved" && r.kind === "payout" && /^Holdback/.test(r.item || "") ? `<span class="pill held">Scheduled</span>`
+    : r.status !== "paid" ? moneyPill(r.status)
+    : `<span class="pill collected">${{ payout: "Paid", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" }[r.kind] || "Collected"}</span>`;
+}
+function moneyRowDetail(r, title) {
+  AGrid.detail(title || r.item || "Payment", [
+    ["Receipt hash (version " + (r.version || "–") + ")", r.receipt_hash, true], ["Date", fmtDate(r.date)], ["Deal", r.deal_name || r.brand],
+    ["Amount", r.amount_usd != null ? "$" + Number(r.amount_usd).toFixed(2) : r.net_cents != null ? usd(r.net_cents) : null],
+    ["PayPal step", r.step], ["PayPal ID", r.paypal_id, true], ["PayPal-Request-Id", r.request_id, true], ["custom_id", r.custom_id, true],
+    ["Status", r.status], ["Status from", r.source ? `${r.source}${r.seen_at ? " · " + fmtDate(r.seen_at) : ""}` : "not checked at PayPal yet"],
+    ["The words behind it", r.quote]],
+    [["Open the money story", `/story/${r.deal}`], ["Open the deal", `/studio/deals/${r.deal}`], ["Receipt (PDF)", `/api/deals/${r.deal}/receipt.pdf`]]);
 }
 async function ledger() {
   const r = await api("/api/studio/ledger");
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-  $("#view").innerHTML = `<div class="row between wrapx" style="gap:8px"><h1>Ledger</h1>
-   <div class="row" style="gap:8px"><input id="lg-q" placeholder="Filter" style="max-width:200px"><button class="btn small" id="lg-csv">Export CSV</button></div></div>
-    <p class="muted small">Every payment with the words behind it. PayPal fees so far: <b>$${r.fees_usd.toFixed(2)}</b>, a platform cost Amend pays (never taken from you). Tap a row for its money story.</p>
-    ${r.rows.length ? `<div id="grid" class="ag-wrap ${dark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}"></div>`
+  $("#view").innerHTML = `<h1>Ledger</h1>
+    <p class="muted small">Every payment with the words behind it. PayPal fees so far: <b>$${r.fees_usd.toFixed(2)}</b>, a platform cost Amend pays (never taken from you). Tap a row for its receipt hash and PayPal details.</p>
+    ${r.rows.length ? `<div id="lg"></div><p class="tiny muted">Built with AG Grid Community. Source: <b>reply</b> = PayPal's answer to Amend's call, <b>GET</b> = Amend checked at PayPal, <b>webhook</b> = PayPal told Amend.</p>`
       : `<div class="empty"><div class="ic"><i data-lucide='book-open' aria-hidden='true'></i></div>No payments yet. They appear here once a brand holds money.</div>`}`;
   if (!r.rows.length) return;
-  await loadGrid();
-  const money = p => p.value == null ? "" : "$" + Number(p.value).toFixed(2);
-  // same chips as Earnings; "paid" means different things per kind (collected, paid out, refunded, settled)
-  const ledgerPill = r => r.status === "approved" && r.kind === "payout" && /^Holdback/.test(r.item || "") ? `<span class="pill held">Scheduled</span>`
-    : r.status !== "paid" ? moneyPill(r.status)
-    : `<span class="pill collected">${{ payout: "Paid", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" }[r.kind] || "Collected"}</span>`;
-  const KIND_LABEL = { hold: "Hold", capture: "Collected", release: "Release", refund: "Refund", payout: "Payout", invoice: "Invoice",
-    owed_by_creator: "Owed", platform_cost: "Platform cost" };
-  const grid = agGrid.createGrid($("#grid"), {
-    rowData: r.rows, pagination: true, paginationPageSize: 50, paginationPageSizeSelector: [20, 50, 100],
-    defaultColDef: { sortable: true, filter: true, resizable: true },
-    columnDefs: [
-      { field: "date", width: 120, valueFormatter: p => fmtDate(p.value) }, { field: "brand", width: 150 }, { field: "item", flex: 2, minWidth: 300, tooltipField: "item" },
-      { field: "kind", width: 120, valueFormatter: p => KIND_LABEL[p.value] || p.value },
-      { field: "amount_usd", headerName: "Amount", valueFormatter: money, width: 110 }, { field: "aed", headerName: "AED", width: 100 },
+  await AGrid.mount($("#lg"), { narrowFirst: ["amount_usd", "status"], rows: r.rows, file: "amend-ledger.csv", placeholder: "Search brand, PayPal ID, quote…", label: "Ledger", pageSize: 20,
+    onRow: row => moneyRowDetail(row),
+    columns: [
+      { field: "date", width: 115, valueFormatter: p => fmtDate(p.value), sort: "desc" },
+      { field: "deal_name", headerName: "Deal", width: 160, tooltipField: "deal_name" },
+      { field: "version", width: 95, filter: "agNumberColumnFilter" },
+      { field: "step", headerName: "PayPal step", width: 230, tooltipField: "step" },
+      { field: "paypal_id", headerName: "PayPal ID", width: 170 },
+      { field: "amount_usd", headerName: "Amount", width: 115, valueFormatter: AGrid.usdCell, filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 130, cellRenderer: p => ledgerPill(p.data) },
-      { field: "step", headerName: "PayPal step", width: 240, tooltipField: "step" }, { field: "paypal_id", headerName: "PayPal ID", width: 160 },
-      { field: "quote", headerName: "Quote", flex: 1, minWidth: 180, tooltipField: "quote" }, { field: "version", width: 90 },
-      { field: "request_id", headerName: "Request ID", hide: true },
-      { field: "updated", width: 170, hide: true }],
-    onRowClicked: e => { location.href = `/story/${e.data.deal}`; },
-  });
-  $("#lg-q").oninput = e => grid.setGridOption("quickFilterText", e.target.value);
-  $("#lg-csv").onclick = () => grid.exportDataAsCsv({ fileName: "amend-ledger.csv" });
+      { field: "source", width: 105, cellRenderer: AGrid.source },
+      { field: "item", headerName: "What", flex: 2, minWidth: 240, tooltipField: "item" },
+      { field: "aed", headerName: "AED", width: 95, type: "rightAligned" },
+      { field: "kind", width: 120, valueFormatter: p => KIND_LABEL[p.value] || p.value },
+      { field: "quote", headerName: "Quote", flex: 1, minWidth: 180, tooltipField: "quote" },
+      { field: "receipt_hash", headerName: "Receipt hash", hide: true }, { field: "request_id", headerName: "Request ID", hide: true },
+      { field: "custom_id", headerName: "custom_id", hide: true }, { field: "updated", hide: true }] });
 }
 
 /* ---------- Inbox tab (D4) ---------- */

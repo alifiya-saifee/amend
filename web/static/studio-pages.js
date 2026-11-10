@@ -195,7 +195,6 @@ async function earningsTab(ledgerView = false) {
   $("#view").innerHTML = `
     <div class="row between wrapx" style="gap:8px"><h1>Earnings</h1>
       <div class="row wrapx" style="gap:8px"><a class="btn small" href="/studio/ledger">${I("table")} Full ledger</a>
-        <button class="btn small" id="e-csv">${I("download")} CSV</button>
         ${e.months.length ? `<select id="e-month" aria-label="Statement month" style="width:auto">${e.months.map(m => `<option value="${m}">${new Date(m + "-15T12:00:00").toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</option>`).join("")}</select>
           <a class="btn small primary" id="e-pdf" href="/api/studio/earnings/statement.pdf?month=${e.months[0]}">${I("file-text")} Monthly statement</a>` : ""}</div></div>
     <div class="grid4" style="margin:16px 0">
@@ -206,12 +205,7 @@ async function earningsTab(ledgerView = false) {
     </div>
     <p class="small muted">PayPal fees so far: <b>${usd(t.fees_cents)}</b> (a platform cost Amend pays, never taken from you) · Extras earned with Amend: <b>${usd(t.extras_cents)}</b></p>
     <section style="margin-top:16px"><h2>Payout history</h2>
-      ${e.rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Brand</th><th>What</th><th class="n">Gross</th><th class="n" title="Paid by Amend, not deducted from you">PayPal fee (Amend pays)</th><th class="n">Editor</th><th class="n">Net to you</th><th>PayPal ID</th><th>Status</th><th></th></tr></thead>
-        <tbody>${e.rows.map(r => `<tr><td>${esc(fmtDate(r.date))}</td><td><a href="/studio/deals/${r.deal}">${esc(r.brand)}</a></td><td>${esc(r.part)}</td><td class="n">${dash(r.gross_cents)}</td><td class="n">${dash(r.fee_cents)}</td>
-          <td class="n">${dash(r.editor_cents)}</td><td class="n"><b>${usd(r.net_cents)}</b></td><td class="tiny">${esc(r.paypal_id || "–")}<div class="muted">${esc(r.step || "")}</div></td>
-          <td>${r.status === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${esc(r.status.charAt(0).toUpperCase() + r.status.slice(1))}</span>`}</td>
-          <td><a class="btn small ghost" href="/api/deals/${r.deal}/receipt.pdf" aria-label="Receipt PDF">${I("receipt")}</a></td></tr>`).join("")}</tbody></table></div>`
-        : emptyState("wallet", "No payouts yet", "When a deal is released, PayPal pays you and it shows up here.")}</section>
+      ${e.rows.length ? `<div id="e-grid"></div>` : emptyState("wallet", "No payouts yet", "When a deal is released, PayPal pays you and it shows up here.")}</section>
     <section class="card" style="margin-top:16px"><h2>Holdbacks</h2>
       ${e.holdbacks.length ? `<div class="list">${e.holdbacks.map(h => `<div class="line"><div class="grow"><b>${esc(h.brand)}</b><div class="small muted">${esc(h.why)}</div></div>
         <div class="amt">${usd(h.amount_cents)}<div class="tiny muted">until ${h.until ? fmtDay(h.until.slice(0, 10)) : "–"}</div></div></div>`).join("")}</div>`
@@ -228,13 +222,23 @@ async function earningsTab(ledgerView = false) {
     <p class="small muted" style="margin-top:16px">Payouts go to your PayPal email (${esc(ME.paypal_email_masked || "not set")}). Change it in <a href="/studio/settings">Settings</a>.</p>`;
   const sel = $("#e-month");
   if (sel) sel.onchange = () => { $("#e-pdf").href = "/api/studio/earnings/statement.pdf?month=" + sel.value; };
-  $("#e-csv").onclick = () => {
-    const head = ["date", "brand", "what", "gross_usd", "fee_usd", "editor_usd", "net_usd", "paypal_id", "status"];
-    const c = v => v == null ? "" : v / 100;
-    const csv = [head.join(",")].concat(e.rows.map(r => [r.date, `"${(r.brand || "").replace(/"/g, '""')}"`, r.part, c(r.gross_cents), c(r.fee_cents),
-      c(r.editor_cents), c(r.net_cents), r.paypal_id || "", r.status].join(","))).join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "amend-payouts.csv"; a.click();
-  };
+  if (e.rows.length) await AGrid.mount($("#e-grid"), { narrowFirst: ["net_cents", "status"], rows: e.rows, file: "amend-earnings.csv", placeholder: "Search brand, PayPal ID…", label: "Payout history",
+    onRow: r => moneyRowDetail({ ...r, item: `${r.part} · ${r.brand}` }, `${r.part} · ${r.brand}`),
+    columns: [
+      { field: "date", width: 115, valueFormatter: p => fmtDate(p.value), sort: "desc" },
+      { field: "deal_name", headerName: "Deal", width: 160, tooltipField: "deal_name" },
+      { field: "version", width: 95, filter: "agNumberColumnFilter" },
+      { field: "step", headerName: "PayPal step", width: 140 },
+      { field: "paypal_id", headerName: "PayPal ID", width: 165 },
+      { field: "net_cents", headerName: "Net to you", width: 120, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
+      { field: "status", width: 105, cellRenderer: p => p.value === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${AGrid.E(p.value.charAt(0).toUpperCase() + p.value.slice(1))}</span>` },
+      { field: "source", width: 100, cellRenderer: AGrid.source },
+      { field: "part", headerName: "What", width: 140 },
+      { field: "gross_cents", headerName: "Gross", width: 105, valueFormatter: p => p.value == null ? "–" : usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
+      { field: "fee_cents", headerName: "PayPal fee (Amend pays)", width: 130, valueFormatter: p => p.value == null ? "–" : usd(p.value), type: "rightAligned" },
+      { field: "editor_cents", headerName: "Editor", width: 100, valueFormatter: p => p.value == null ? "–" : usd(p.value), type: "rightAligned" },
+      { field: "receipt_hash", headerName: "Receipt hash", hide: true }, { field: "request_id", headerName: "Request ID", hide: true },
+      { field: "brand", hide: true }] });
 }
 
 function dash(cents) { return cents == null ? '<span class="muted">–</span>' : usd(cents); }

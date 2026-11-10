@@ -165,7 +165,8 @@ def earnings(db: Database, creator_id: str) -> dict:
     # One row per PayPal payout (the main payment and the holdback are paid on different days), so the dates, the
     # "This month" tile, Lifetime and the monthly statement all add up from the same rows. The deal's gross, fee and
     # editor share sit on its first payout row only, so every column sums correctly.
-    rows = []
+    from amend import spine
+    rows, hc = [], {}
     for did, d in deals.items():
         di = [i for i in items if i["deal_id"] == did]
         payouts = sorted((i for i in di if i["kind"] == "payout" and (i.get("note") or "") in CREATOR_PAYOUT_NOTES
@@ -178,7 +179,10 @@ def earnings(db: Database, creator_id: str) -> dict:
         editor = sum(i["amount_cents"] for i in di if i["kind"] == "payout" and (i.get("note") or "").startswith("release:editor"))
         for n, i in enumerate(payouts):
             note = i.get("note") or ""
-            rows.append({"date": i["updated_at"][:10], "deal": did, "brand": d["brand_org"], "item": i["id"],
+            f = spine.row_facts(db, i, hc)
+            rows.append({"date": i["updated_at"][:10], "deal": did, "deal_name": d.get("title") or d["brand_org"],
+                         "version": f["version"], "source": f["source"], "seen_at": f["seen_at"], "receipt_hash": f["receipt_hash"],
+                         "request_id": i["request_id"], "brand": d["brand_org"], "item": i["id"],
                          "part": "Holdback" if note.startswith("holdback") else "Cancellation split" if note.startswith("cancel") else "Payment",
                          "gross_cents": gross - refunds if n == 0 else None, "fee_cents": fee if n == 0 else None,
                          "editor_cents": editor if n == 0 else None,

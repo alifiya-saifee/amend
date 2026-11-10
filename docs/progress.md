@@ -504,3 +504,28 @@ She deployed with VERDICT_SIGNING_KEY. Asked: read the post from Instagram, the 
 
 ### Open questions
 - Amend doesn't verify that the creator owns the Instagram account she names (that would need Instagram Login).
+
+## AG Grid tables, README for judges, keep-alive (10 Nov)
+### Done
+- **AG Grid Community** (MIT, 32.2.0 from jsdelivr, pinned) is now shared in `web/static/grid.js` and used by the
+  **Ledger**, **Earnings** (replaces the hand-made table and CSV) and each deal's **PayPal objects** (a "Table" button
+  on the spine opens it).
+  - Columns: date, deal, version, PayPal step, PayPal ID, amount, status, source (reply / GET / webhook).
+  - Sorting, column filters, quick search, CSV export (with the hidden receipt hash and request ID), and a row tap that
+    opens the details with the receipt hash.
+  - Follows the light/dark theme. On phones, amount and status come right after the date. Totals stay the server's.
+- **Data fix:** the Ledger's "version" was the deal's *current* version. It's now each money line's own version, with
+  that version's receipt hash and where PayPal's last status came from (`spine.row_facts`). Spine lines carry the same.
+- **README:** "Judges: start at /try" (29-day hold, first load up to 50 s), "Run it locally" (clone, .env.example,
+  install, run, fake mode, sandbox setup), "AI tools used" (Gemini, Groq Whisper, NVIDIA, Claude Code), "Built with
+  AG Grid Community".
+- **Licence:** `LICENSE` (MIT) is at the root, and GitHub detects it (`licenseInfo: MIT License`).
+- **Keep-alive:** `/internal/tick` reads money_items and writes a `tick.ran` event every call (a real DB round trip;
+  a test checks it). `/healthz` also runs `select 1`.
+- Dark theme: the page behind the app is dark too.
+- **Tests: 726 passed, 3 skipped.** New `test_grid_rows.py` (5). Browser: `tests/browser/grids.py` (light + dark,
+  390 + 1440: columns, search, CSV, row detail, no sideways scroll), shots in `docs/screenshots/grids/`. mandate_flow,
+  walk_full, deal_page, public_page: no problems.
+
+### Next
+- Alifiya: Manual Deploy. Keep cron-job.org on `/internal/tick` every 10 minutes until 21 Dec.

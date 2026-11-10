@@ -643,3 +643,35 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .vtag.ai { background: var(--gold-soft); color: var(--gold-ink); }
 .vtag.code.ok { background: var(--ok-bg); color: var(--ok); }
 .vtag.code.bad { background: var(--bad-bg); color: var(--bad); }
+
+/* AG Grid Community tables (Ledger, Earnings, PayPal objects) */
+.grid-tools { gap: 8px; margin: 10px 0; }
+.grid-tools .grid-q { min-width: 0; max-width: 360px; }
+.grid-box { width: 100%; }
+.grid-box.ag-theme-quartz, .grid-box.ag-theme-quartz-dark { --ag-font-family: var(--font); --ag-font-size: 13px; --ag-background-color: var(--surface);
+  --ag-header-background-color: var(--surface-2); --ag-border-color: var(--border); --ag-foreground-color: var(--ink);
+  --ag-secondary-foreground-color: var(--muted); --ag-row-hover-color: var(--gold-soft); --ag-selected-row-background-color: var(--gold-soft);
+  --ag-active-color: var(--gold-ink); --ag-wrapper-border-radius: 12px; }
+.grid-box .ag-row { cursor: pointer; }
+.grid-box .pill { font-size: 11px; }
+.src-chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--wait-bg); color: var(--wait); }
+.src-chip.src-webhook { background: var(--teal-bg); color: var(--teal); }
+.src-chip.src-get { background: var(--blue-bg); color: var(--blue); }
+.src-chip.src-reply { background: var(--ok-bg); color: var(--ok); }
+dialog.grid-detail, dialog.grid-sheet { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--ink);
+  padding: 16px; box-shadow: var(--shadow); max-height: 90vh; overflow: auto; }
+dialog.grid-detail { width: min(560px, calc(100vw - 32px)); }
+dialog.grid-sheet { width: min(1200px, calc(100vw - 32px)); }
+dialog.grid-detail::backdrop, dialog.grid-sheet::backdrop { background: rgba(0, 0, 0, .45); }
+.gd-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gd-head h3 { margin: 0; }
+dialog.grid-detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 12px 0 0; font-size: 14px; }
+dialog.grid-detail dt { color: var(--muted); }
+dialog.grid-detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { dialog.grid-detail dl { grid-template-columns: 1fr; } dialog.grid-detail dt { margin-top: 6px; }
+  dialog.grid-sheet { width: calc(100vw - 16px); padding: 12px; } }
+@media (max-width: 600px) { .grid-box .ag-paging-page-size, .grid-box .ag-paging-row-summary-panel { display: none; }
+  .grid-box .ag-paging-panel { justify-content: center; } }
+/* dark theme: the page behind the app is dark too (seen below short pages and on overscroll) */
+@media (prefers-color-scheme: dark) { html:not(.theme-light):has(body:not(.marketing)) { background: #0E1013; } }
+html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }

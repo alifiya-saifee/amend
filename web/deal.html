@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script><script src="/static/shell.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script><script src="/static/grid.js"></script><script src="/static/shell.js"></script>
 </head><body class="dealroom">
 <header class="top">
   <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
@@ -582,6 +582,38 @@ async function loadSpine(refresh = false) {
   catch (e) { if (refresh) toast(friendlyError(e), "bad"); if (!SPINE) return; }
   $$(".spine-slot").forEach(s => { s.innerHTML = spineHtml(SPINE); });
   $$("[data-spine-refresh]").forEach(b => b.onclick = () => busy(b, () => loadSpine(true)));
+  $$("[data-spine-table]").forEach(b => b.onclick = () => busy(b, spineTable));
+}
+// The spine's PayPal objects as a table (AG Grid Community): every money line of every version, with where PayPal's
+// last status came from. A row opens its receipt hash, request ID and each PayPal object.
+async function spineTable() {
+  const S = SPINE, name = V.deal.title || V.deal.brand_org || "This deal";
+  const rows = S.versions.flatMap(v => v.lines.map(l => ({ ...l, version: v.version, receipt_hash: v.receipt_hash, deal_name: name })));
+  let d = document.getElementById("spine-sheet");
+  if (!d) {
+    d = document.createElement("dialog"); d.id = "spine-sheet"; d.className = "grid-sheet";
+    d.addEventListener("click", e => { if (e.target === d) d.close(); });
+    document.body.appendChild(d);
+  }
+  d.innerHTML = `<div class="gd-head"><h3>${icon("route")} PayPal objects · ${esc(name)}</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+    <p class="tiny muted">Version ${S.version} receipt <code>${esc(S.receipt_hash.slice(0, 16))}…</code>. Source: reply = PayPal's answer to Amend's call, GET = Amend checked at PayPal, webhook = PayPal told Amend.</p><div id="spine-grid"></div>`;
+  d.querySelector("[data-close]").onclick = () => d.close();
+  d.showModal ? d.showModal() : d.setAttribute("open", "");
+  await AGrid.mount($("#spine-grid"), { narrowFirst: ["amount_cents", "status"], narrowHide: ["deal_name"], rows, file: `amend-paypal-${KEY}.csv`.replace(/[^\w.-]/g, ""), placeholder: "Search PayPal ID, step…", label: "PayPal objects", pageSize: 10,
+    onRow: r => AGrid.detail(r.step, [["Receipt hash (version " + r.version + ")", r.receipt_hash, true], ["Amount", usd(r.amount_cents)],
+      ["Status in Amend", r.status], ["PayPal-Request-Id", r.request_id, true], ["custom_id", r.custom_id, true], ["invoice_id", r.invoice_id, true],
+      ...r.objects.map(o => [`${o.type} (${o.api})`, `${o.id}${o.seen ? ` · ${o.seen.status} · from ${o.seen.source === "get" ? "GET" : o.seen.source === "response" ? "reply" : o.seen.source}` : " · not checked yet"}`, true])]),
+    columns: [
+      { field: "date", width: 115, valueFormatter: p => fmtDate(p.value) },
+      { field: "deal_name", headerName: "Deal", width: 150 },
+      { field: "version", width: 95, sort: "asc", filter: "agNumberColumnFilter" },
+      { field: "step", headerName: "PayPal step", flex: 2, minWidth: 220, tooltipField: "step" },
+      { field: "paypal_id", headerName: "PayPal ID", width: 170 },
+      { field: "amount_cents", headerName: "Amount", width: 110, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
+      { field: "status", width: 120, cellRenderer: p => moneyPill(p.value) },
+      { field: "source", width: 105, cellRenderer: AGrid.source },
+      { field: "receipt_hash", headerName: "Receipt hash", hide: true }, { field: "request_id", headerName: "Request ID", hide: true },
+      { field: "custom_id", hide: true }] });
 }
 function spineHtml(S) {
   const ago2 = t => t ? ago(t) : "";
@@ -592,7 +624,8 @@ function spineHtml(S) {
   const C = S.clock, H = S.headroom, M = S.mandate;
   const pct = (a, b) => Math.max(0, Math.min(100, Math.round(100 * a / Math.max(b, 1))));
   return `<div class="card spine"><div class="row between"><h3>${icon("route")} PayPal spine</h3>
-      <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div>
+      <div class="row" style="gap:6px"><button class="btn small ghost" data-spine-table>${icon("table")} Table</button>
+      <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div></div>
     <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
       <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>
     ${S.chain && S.chain.events ? `<p class="tiny ${S.chain.ok ? "muted" : "err"}" style="margin:0 0 6px">${icon(S.chain.ok ? "link" : "unlink")}
