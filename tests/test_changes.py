@@ -9,7 +9,7 @@ import pytest
 from amend import changes
 from amend.db import get_db
 
-from .test_booking import GEMINI, ORIGIN, PP, ai_reply, client, mocks, to_offered  # noqa: F401
+from .test_booking import GEMINI, ORIGIN, PP, ai_reply, auth_times, client, mocks, to_offered  # noqa: F401
 
 MON = "2026-12-14"  # a Monday far enough ahead to be free (48 h notice)
 SAT = "2026-12-12"
@@ -74,7 +74,7 @@ def test_s16_both_confirm_new_version_and_extra_hold(client, mocks, held):
     mocks.post(f"{PP}/v2/checkout/orders/ORDER2/authorize").mock(return_value=httpx.Response(201, json={
         "purchase_units": [{"payments": {"authorizations": [{"id": "AUTH2", "status": "CREATED"}]}}]}))
     mocks.get(f"{PP}/v2/payments/authorizations/AUTH2").mock(return_value=httpx.Response(200, json={
-        "id": "AUTH2", "status": "CREATED", "create_time": "2026-11-08T10:00:00Z", "expiration_time": "2026-12-07T10:00:00Z"}))
+        "id": "AUTH2", "status": "CREATED", **auth_times()}))
     p = client.post(f"/api/d/{tok}/pay-hold/{extra['id']}", headers=ORIGIN).json()
     assert p["approve_url"].endswith("ORDER2")
     client.get(f"/paypal/return?t={tok}&token=ORDER2", follow_redirects=False)

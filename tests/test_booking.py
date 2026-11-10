@@ -42,6 +42,21 @@ def client():
     appmod.set_rail(None)
 
 
+def _paypal_time(delta) -> str:
+    from datetime import datetime, timezone
+    return (datetime.now(timezone.utc) + delta).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def auth_times() -> dict:
+    """A hold authorised an hour ago: inside PayPal's 3-day honour period and its 29-day life, on any day the tests run
+    (fixed dates made the tests fail once the real clock passed the honour period)."""
+    from datetime import timedelta
+    return {"create_time": _paypal_time(timedelta(hours=-1)), "expiration_time": _paypal_time(timedelta(days=29, hours=-1))}
+
+
+AUTH_TIMES = auth_times()
+
+
 @pytest.fixture
 def mocks():
     with respx.mock(assert_all_called=False) as m:
@@ -54,7 +69,7 @@ def mocks():
             "purchase_units": [{"payments": {"authorizations": [{"id": "AUTH1", "status": "CREATED"}]}}]}))
         m.capture = m.post(re.compile(rf"{PP}/v2/payments/authorizations/.*/capture"))
         m.get(f"{PP}/v2/payments/authorizations/AUTH1").mock(return_value=httpx.Response(200, json={
-            "id": "AUTH1", "status": "CREATED", "create_time": "2026-11-07T12:28:25Z", "expiration_time": "2026-12-06T12:28:25Z"}))
+            "id": "AUTH1", "status": "CREATED", **AUTH_TIMES}))
         m.ai = m.post(GEMINI).mock(return_value=ai_reply(GOOD))
         yield m
 
@@ -102,7 +117,7 @@ def test_s1_happy_path(client, mocks):
     assert back.status_code == 303 and back.headers["location"].endswith("?held=1")
     v = client.get(f"/api/d/{tok}").json()
     assert v["deal"]["status"] == "in_progress" and v["hold"]["status"] == "authorized" and v["money_held"]
-    assert v["hold"]["expires_at"] == "2026-12-06T12:28:25Z"
+    assert v["hold"]["expires_at"] == AUTH_TIMES["expiration_time"]
     assert not mocks.capture.called  # the return URL authorises only, never captures
     types = [e["type"] for e in client.get(f"/api/deals/{deal}").json()["events"]]
     for t in ("deal.created", "link.opened", "brief.submitted", "deal.drafted", "deal.accepted", "approval.recorded",

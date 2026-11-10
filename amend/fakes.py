@@ -65,7 +65,10 @@ class FakePayPal(PayPalClient):
     async def _get(self, path):
         if "/v2/payments/authorizations/" in path:
             aid = path.rsplit("/", 1)[1]
-            return {"id": aid, "status": "CREATED", "create_time": "2026-11-07T12:00:00Z", "expiration_time": "2026-12-06T12:00:00Z"}
+            from datetime import datetime, timedelta, timezone
+            t = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=1)  # authorised an hour ago, on any day
+            return {"id": aid, "status": "CREATED", "create_time": t.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "expiration_time": (t + timedelta(days=29)).strftime("%Y-%m-%dT%H:%M:%SZ")}
         if "/v2/checkout/orders/" in path:
             return {"id": path.rsplit("/", 1)[1], "status": "APPROVED"}
         if path.startswith("/v1/payments/payouts/"):

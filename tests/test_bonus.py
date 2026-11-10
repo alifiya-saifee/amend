@@ -11,7 +11,7 @@ import httpx
 from amend import bonus
 from amend.db import get_db
 
-from .test_booking import ORIGIN, PP, client, mocks  # noqa: F401
+from .test_booking import ORIGIN, PP, auth_times, client, mocks  # noqa: F401
 from .test_delivery import held, set_deadline  # noqa: F401
 from .test_igdata import INSIGHTS, graph, insights
 from .test_igpost import on, submit  # noqa: F401
@@ -33,7 +33,7 @@ def pay_bonus_hold(client, mocks, tok):
     mocks.post(f"{PP}/v2/checkout/orders/ORDER9/authorize").mock(return_value=httpx.Response(201, json={
         "purchase_units": [{"payments": {"authorizations": [{"id": "AUTH9", "status": "CREATED"}]}}]}))
     mocks.get(f"{PP}/v2/payments/authorizations/AUTH9").mock(return_value=httpx.Response(200, json={
-        "id": "AUTH9", "status": "CREATED", "create_time": "2026-11-10T10:00:00Z", "expiration_time": "2026-12-09T10:00:00Z"}))
+        "id": "AUTH9", "status": "CREATED", **auth_times()}))
     p = client.post(f"/api/d/{tok}/pay-hold/{h['id']}", headers=ORIGIN).json()
     assert p["approve_url"].endswith("ORDER9")
     client.get(f"/paypal/return?t={tok}&token=ORDER9", follow_redirects=False)
