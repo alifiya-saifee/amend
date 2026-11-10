@@ -78,7 +78,7 @@ def test_scene_numbers_match_the_price_list_story():
 
 
 def test_scene_fallbacks_and_text_first():
-    assert "Brand deals change." in INDEX and "does too." in INDEX and "I'm a creator: start free" in INDEX
+    assert "Brand deals change." in INDEX and "does too." in INDEX and "Try the demo" in INDEX and "Create a test account (sandbox)" in INDEX
     assert "js-anim" in INDEX and "prefers-reduced-motion: reduce" in INDEX and "saveData" in INDEX  # only animates without them
     assert "afterLoad(startHero)" in CINE_JS and "showFinal" in CINE_JS  # GSAP after load; final state if it can't load
     assert "visibilitychange" in CINE_JS and "IntersectionObserver" in CINE_JS  # paused when hidden or off-screen

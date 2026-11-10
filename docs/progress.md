@@ -790,3 +790,14 @@ question wasn't answered, so the recommended option was taken.
 - Final audit items were already in 28a931f.
 - **Tests: 828 passed, 3 skipped.** Browser: mandate + `map_shot.py` (390 + 1440): problems none.
 - **FEATURE FREEZE from here: only fixes from Alifiya's real run.**
+
+## Live-page copy fixes (10 Nov, freeze: copy only)
+- Step 4 and the FAQ "How is the post checked?": one honest sentence whether Instagram reading is on or off ("…and
+  reads it from Instagram when the creator's account is connected").
+- CTAs: "Try the demo" (/try) and "Create a test account (sandbox)" everywhere (hero, header, mobile, pricing, bottom);
+  the sandbox banner stays.
+- Hero card note: "Made-up example, shown after one change (+1 Story set: $530 → $610)", so a still frame doesn't
+  contradict the animation.
+- FAQ currencies: the official peg line. "Planned: after the beta, …".
+- Rendered home page checked in a browser (`tests/browser/home_copy.py`, 390 + 1440, FAQ opened): no "---", markers,
+  template text or old CTAs. **Tests: 827 passed, 3 skipped.**

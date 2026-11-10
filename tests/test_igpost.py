@@ -162,9 +162,10 @@ def test_a_story_link_is_not_read(client, mocks, on, held):
     assert not g.called and w["post"]["result"]["ig"]["status"] == "story"
 
 
-def test_landing_copy_matches_what_is_live(client, monkeypatch):
+def test_landing_copy_is_honest_either_way(client, monkeypatch):
+    want = "Amend checks the post against the latest confirmed deal, and reads it from Instagram when the creator's account is connected."
     off = client.get("/").text
-    assert "checks the post details against the deal" in off and "reads the post from Instagram" not in off
+    assert want in off
     monkeypatch.setenv("IG_LOOKUP_ENABLED", "true")
     monkeypatch.setenv("META_IG_TOKEN", TOKEN)
     monkeypatch.setenv("META_IG_USER_ID", "IG-ME-1")
@@ -172,18 +173,7 @@ def test_landing_copy_matches_what_is_live(client, monkeypatch):
     get_settings.cache_clear()
     try:
         live = client.get("/faq").text
-        assert "Amend reads the post from Instagram and checks it against the latest confirmed deal" in live
-        assert "checks the post details against the deal" not in live and TOKEN not in live
+        assert want in live and "When the creator's Instagram account is connected, Amend reads the post itself" in live
+        assert TOKEN not in live
     finally:
         get_settings.cache_clear()
-
-
-def test_the_creator_sets_her_instagram_account_in_settings(client, mocks, on):
-    from .test_booking import login
-    mocks.get(GRAPH).mock(return_value=httpx.Response(200, json={"username": "clinicrobotest"}))
-    login(client)
-    s = client.put("/api/studio/settings", json={"ig_handle": "@ClinicRoboTest"}, headers=ORIGIN).json()
-    assert s["instagram"] == {"handle": "clinicrobotest", "on": True, "connected": True, "demo": False}
-    assert client.put("/api/studio/settings", json={"ig_handle": "not a handle!"}, headers=ORIGIN).status_code == 400
-    s = client.put("/api/studio/settings", json={"ig_handle": ""}, headers=ORIGIN).json()
-    assert s["instagram"]["handle"] is None

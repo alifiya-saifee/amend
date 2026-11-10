@@ -207,7 +207,7 @@ BRAND_TABS = {"inbox", "deals", "shortlist", "searches", "payments", "team", "se
 
 
 POST_CHECK_LIVE = {
-    "PC1": "Amend reads the post from Instagram and checks it against the latest confirmed deal.",
+    "PC1": "Amend checks the post against the latest confirmed deal, and reads it from Instagram when the creator's account is connected.",
     "PC2": "Amend reads the post from Instagram and checks it against the latest confirmed deal: its type, when it went "
            "up and the caption (#ad). Stories can't be read for other accounts, so they come from the creator's upload. "
            "If the post can't be read (a personal account, or Instagram is down), it checks the details the creator "

@@ -160,7 +160,7 @@ async function fillAuthSlots() {
     s.innerHTML = w.signed_in
       ? (mk ? `<a class="btn primary small" href="${w.home}">${w.kind === "brand" ? "Go to my workspace" : "Go to my studio"}</a>`
       : `<a class="who" href="${w.home}" title="${w.kind === "brand" ? "Brand workspace" : "Your studio"}">${esc(w.name || "Account")}${w.company ? " · " + esc(w.company) : ""}</a>`)
-      : (mk ? `<a class="btn small ghost" href="/login?next=${next}">Sign in</a><a class="btn small primary" href="/signup">Get started</a>`
+      : (mk ? `<a class="btn small ghost" href="/login?next=${next}">Sign in</a><a class="btn small primary" href="/try">Try the demo</a>`
             : `<a class="btn small" href="/login?next=${next}">Sign in</a>`);
   });
 }
