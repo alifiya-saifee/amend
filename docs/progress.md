@@ -816,3 +816,17 @@ question wasn't answered, so the recommended option was taken.
   draft → approve → post with today's date, no date card → verdict Pass → both confirm → $90 captured, $81 paid,
   $9 holdback → both balance lines on the spine): problems none. Shots in `docs/screenshots/try/`.
 - **Tests: 829 passed, 3 skipped.**
+
+## Judges' demo history (10 Nov, freeze: judge fix)
+- On start-up (only when JUDGE_PASSWORD is set, once ever) judge.sara and judge.brand get one **completed** deal,
+  "Demo history: cold brew launch": brief → accept → hold → +1 Story set confirmed by both (v2, $610) → post → release
+  → holdback paid. Built by the real engine with the **fake** PayPal (never the real one); afterwards every PayPal ID on
+  that deal is prefixed DEMO, so screens say "Demo · not checked at PayPal" and the per-hold balance check skips it.
+- Only this deal's holdback is paid (the holdback tick is not used: it scans every deal). A failure never stops start-up.
+- Checked in a browser on a fresh DB: creator Inbox, Earnings, Ledger (AG Grid, 8 rows) and the deal page; brand Inbox,
+  Payments ($610 paid). No JS errors. Brand deal cards show the creator name, not the "Demo history" title.
+- Judge guide Option B now says the account starts with this one demo deal.
+- `tests/test_judge_history.py` (4): nothing without JUDGE_PASSWORD; one completed deal, once (restart adds nothing);
+  both accounts see it in studio deals/earnings/ledger/inbox and brand deals/payments/inbox, plus the PayPal map; DEMO
+  label. **Tests: 833 passed, 3 skipped.**
+- Next: Manual Deploy, then sign in as judge.sara / judge.brand on the live site to confirm.

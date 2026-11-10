@@ -38,7 +38,7 @@ Other lines to try in the chat: "Can you also show the kitchen?" (new work, pric
 - Email: `judge.sara@creators.example`
 - Password: JUDGE_PASSWORD
 
-It starts clean (no history): make a deal from *Deals → New deal* and the Inbox, Earnings and Ledger fill as you go. What to look at: **Inbox** (three panes: each brand, the chat with change cards, the deal panel) · **Deals** · **Earnings** (payouts, holdbacks, "Owed to Amend") · **Ledger** (every payment with the exact words behind it, PayPal IDs, and "Platform cost: PayPal fee" lines) · **Price list** · **Settings**.
+It starts with one completed deal labelled **"Demo history: cold brew launch"** ($530 Reel + $80 Story set, one confirmed change, collected and paid out, holdback paid), so the Inbox, Earnings, Ledger and PayPal map aren't empty. It is made-up history: its PayPal IDs start with DEMO and every screen marks it "Demo · not checked at PayPal". Make your own from *Deals → New deal*. What to look at: **Inbox** (three panes: each brand, the chat with change cards, the deal panel) · **Deals** · **Earnings** (payouts, holdbacks, "Owed to Amend") · **Ledger** (every payment with the exact words behind it, PayPal IDs, and "Platform cost: PayPal fee" lines) · **Price list** · **Settings**.
 
 **Brand (judges' brand account):** https://amend-r7le.onrender.com/login → *Brand*
 - Email: `judge.brand@amend.example`

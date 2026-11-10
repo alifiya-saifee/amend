@@ -534,6 +534,64 @@ def ensure_judge_accounts(db: Database) -> int:
     return made
 
 
+JUDGE_DEMO_TITLE = "Demo history: cold brew launch"
+
+
+async def ensure_judge_demo_history(db: Database) -> int:
+    """One completed deal between the judges' Sara and the judges' brand, labelled "Demo history", so Inbox, Earnings,
+    the Ledger, the AG Grid tables and the PayPal map aren't empty on first login. Built by Amend's real engine (brief,
+    accept, hold, one change, post, signed verdict, release, holdback) with a fake PayPal whose IDs all start with DEMO,
+    so every screen labels it "Demo · not checked at PayPal". Nothing reaches PayPal. Idempotent: once per judge pair."""
+    if not get_settings().judge_password.get_secret_value():
+        return 0
+    c = db.one("select * from creators where handle = :h", {"h": JUDGE_HANDLE})
+    brand = db.one("select party_id from accounts where email = :e", {"e": JUDGE_BRAND[2]})
+    if not c or not brand or db.one("select id from deals where creator_id = :c and title = :t", {"c": c["id"], "t": JUDGE_DEMO_TITLE}):
+        return 0
+    from datetime import datetime, timedelta as _td, timezone
+    from amend import ai, delivery, engine, money
+    from amend import deals as D
+    from amend import simulate
+    from amend.fakes import FakePayPal
+
+    rail = money.PlatformRail(FakePayPal(get_settings()))  # never the real PayPal
+    deal, token = D.create_deal(db, c["id"], brand_org=JUDGE_BRAND[1], contact_name=JUDGE_BRAND[0], actor="seed")
+    temp = deal["brand_party_id"]
+    db.update("deals", "id", deal["id"], {"brand_party_id": brand["party_id"], "title": JUDGE_DEMO_TITLE, "is_demo": 1})
+    db.update("deal_links", "token", token, {"party_id": brand["party_id"], "opened_at": now()})
+    db.execute("delete from parties where id = :p", {"p": temp})  # the placeholder contact create_deal made; never used
+    plist = {p["code"]: p for p in engine.price_items(db, c["id"])}
+    today = (datetime.now(timezone.utc) + _td(hours=4)).date().isoformat()
+    brief = "Demo history: 1 Reel of our cold brew at home, plus 1 Story set. Post today. #ad."
+    lines = [ai.DraftLine("reel", plist["reel"]["id"], plist["reel"]["name"], 1, "1 Reel of our cold brew at home",
+                          plist["reel"]["standard_cents"], plist["reel"]["standard_cents"]),
+             ai.DraftLine("story_set", plist["story_set"]["id"], plist["story_set"]["name"], 1, "plus 1 Story set",
+                          plist["story_set"]["standard_cents"], plist["story_set"]["standard_cents"])]
+    total = sum(l.amount_cents for l in lines)
+    draft = ai.Draft(lines=lines, not_on_list=[], post_date={"value": today, "quote": "Post today"}, done_means=[],
+                     total_cents=total, provider="demo", attempts=0, fell_back=False, fields=[])
+    D.store_draft(db, token, brief, draft)
+    for step in ({"t": "change", "item": "story_set", "qty": 1}, {"t": "post"}, {"t": "release"}):
+        if step["t"] == "change":
+            await simulate._hold_everything(db, rail, deal["id"], token)
+        await simulate._step(db, rail, deal["id"], token, step)
+    d = D.get_deal(db, deal["id"])
+    hb = db.one("select * from money_items where deal_id = :d and note like 'holdback:%' and status = 'approved'", {"d": d["id"]})
+    if hb and d["status"] == "delivered":  # the post stayed live: pay this deal's holdback only (never the tick: it scans every deal)
+        await delivery._payout(db, rail.pp, hb, d, "seed")
+        db.update("deals", "id", d["id"], {"completed_at": now()})
+        D._move(db, D.get_deal(db, d["id"]), "completed", "seed")
+    for it in db.all("select id, paypal_id, paypal_parent_id, original_auth_id from money_items where deal_id = :d", {"d": d["id"]}):
+        ch = {k: "DEMO" + it[k] for k in ("paypal_id", "paypal_parent_id", "original_auth_id") if it[k] and not str(it[k]).startswith("DEMO")}
+        if ch:  # labelled demo on every screen ("Demo · not checked at PayPal")
+            db.update("money_items", "id", it["id"], ch)
+    from amend.changes import post_message
+    post_message(db, deal["id"], None, "Demo history: a made-up completed deal, so the judges' accounts aren't empty. "
+                                       "Its PayPal objects were never real (IDs start with DEMO).", kind="system")
+    db.log_event("creator.created", actor="seed", payload={"creator": c["id"], "handle": JUDGE_HANDLE, "why": "judges' demo history"})
+    return 1
+
+
 def ensure_video_creator(db: Database) -> tuple[str, bool]:
     """A clean Sara for the demo video (Block 7): same made-up person, price list and limits as @sara.eats, but its own
     login (sara.video@creators.example, demo password) and no history, so no leftover holds or owed balances.

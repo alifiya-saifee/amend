@@ -53,6 +53,11 @@ async def lifespan(_app):
     seed_history(d)  # Sara's demo history (skipped with AMEND_SEED_HISTORY=0, as in tests)
     repair_demo_terms(d)  # demo deals at v2+ that were seeded without their v2 lines ("No lines yet")
     ensure_judge_accounts(d)  # judges-only logins, only when JUDGE_PASSWORD is set
+    from scripts.seed import ensure_judge_demo_history
+    try:
+        await ensure_judge_demo_history(d)  # one completed "Demo history" deal for the judges' accounts, once
+    except Exception as e:  # never stops the app starting
+        log.warning("judge demo history not seeded: %s", type(e).__name__)
     ensure_test_creator(d)  # "Test creator · @clinicrobotest": real Instagram numbers only; Sara stays demo-only
     from amend import fakes
     if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
