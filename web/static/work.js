@@ -47,7 +47,7 @@ const Work = (() => {
     if (!brand && w.status === "in_progress" && d && d.result.status === "approved") {
       parts.push(`<div class="card"><h3>Mark posted</h3>
     <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/reel/…">
-        ${w.ig && w.ig.on ? `<label>Your Instagram account</label><input id="w-ig" placeholder="@yourhandle" value="${esc(w.ig.handle ? "@" + w.ig.handle : "")}">
+        ${w.ig && w.ig.on && !w.ig.demo ? `<label>Your Instagram account</label><input id="w-ig" placeholder="@yourhandle" value="${esc(w.ig.handle ? "@" + w.ig.handle : "")}">
         <div class="hint">Amend reads the post from Instagram (professional accounts) and checks it against the latest confirmed deal. Stories can't be read for other accounts, so they come from what you enter.</div>` : ""}
         <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
@@ -187,7 +187,7 @@ const Work = (() => {
   function bonusHtml(b, w, main) {
     const canOffer = ctx.IS_BRAND && main && ["accepted", "in_progress"].includes(ctx.V.deal.status) && !ctx.V.deal.posted_at;
     const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
-    const rules = `<p class="tiny muted" style="margin:6px 0 0">Held by PayPal as its own hold. On day D after the post, Amend reads the views from Instagram insights and code decides. No screenshots as proof: if Instagram can't be read, the bonus goes back to the brand. Both of you confirm before PayPal moves it.</p>`;
+    const rules = `<p class="tiny muted" style="margin:6px 0 0">Held by PayPal as its own hold. On day D after the post, Amend reads the views from Instagram insights and code decides. No screenshots as proof: if Instagram can't be read by day D + 2, you both decide by hand; if you haven't agreed by day D + 7, it goes back to the brand. Both of you confirm before PayPal moves it.</p>`;
     if (!b || b.status === "withdrawn") {
       if (!canOffer) return "";
       return `<details class="card"><summary><b>${icon("trophy")} Add a performance bonus</b> <span class="small muted">(optional)</span></summary>
@@ -211,8 +211,17 @@ const Work = (() => {
       body = `<p class="small" style="margin-top:6px">${held ? `${icon("lock")} ${usd(b.amount_cents)} held by PayPal` : `Waiting for ${esc(b.brand)} to hold ${usd(b.amount_cents)} with PayPal`}
         ${b.due ? ` · read on <b>${esc(fmtDate(b.due))}</b>` : " · read on day " + b.read_day + " after the post"}</p>
         ${b.hold_too_short ? `<div class="banner bad small">The PayPal hold expires before day ${b.read_day}: PayPal holds last 29 days.</div>` : ""}
-        ${b.last_try ? `<p class="tiny muted">Last try: ${esc(b.last_try.why || "")}. Amend tries again; after day ${b.read_day} + 2 with no reading, the bonus goes back to the brand.</p>` : ""}
+        ${b.last_try ? `<p class="tiny muted">Last try: ${esc(b.last_try.why || "")}. Amend tries again; after day ${b.read_day} + 2 with no reading, you both decide by hand.</p>` : ""}
         ${held && b.due && new Date(b.due) <= new Date() ? `<button class="btn small" id="w-bn-read" style="margin-top:6px">${icon("refresh-cw")} Read from Instagram now</button>` : ""}`;
+    } else if (b.status === "unverifiable") {
+      const mine = (b.by_hand || {})[ctx.IS_BRAND ? "brand" : "creator"], theirs = (b.by_hand || {})[ctx.IS_BRAND ? "creator" : "brand"];
+      const label = c => c === "release" ? `release it back to ${esc(b.brand)}` : `pay ${usd(+c.slice(4))}`;
+      body = `<div class="banner bad small" style="margin-top:8px">${icon("circle-alert")}<div><b>Results can't be verified from Instagram.</b>${b.reading && b.reading.why ? ` <span>Why: ${esc(b.reading.why)}.</span>` : ""}</div></div>
+        <p class="small" style="margin:6px 0 0">You can agree by hand: you both pick the same choice, then PayPal runs it. Screenshots aren't proof here. If you haven't agreed by <b>${esc(fmtDate(b.hand_deadline))}</b>, the bonus hold goes back to ${esc(b.brand)}.</p>
+        ${theirs ? `<p class="small">${ctx.IS_BRAND ? esc(first()) : esc(b.brand)} picked: <b>${label(theirs)}</b></p>` : ""}
+        ${mine ? `<p class="small">You picked: <b>${label(mine)}</b>${theirs && theirs !== mine ? " (different: nothing moves until you both pick the same)" : ""}</p>` : ""}
+        ${!ctx.IS_BRAND || main ? `<div class="row wrapx" style="gap:8px;margin-top:8px">${(b.choices || []).map(c => `<button class="btn small ${mine === "pay:" + c ? "primary" : ""}" data-bn-hand="pay:${c}">Pay ${usd(c)}</button>`).join("")}
+          <button class="btn small ${mine === "release" ? "primary" : ""}" data-bn-hand="release">Release it back</button></div>` : ""}`;
     } else {
       const r = b.reading || {};
       const met = b.status === "met" || b.status === "paid", decided = ["met", "missed", "unproven"].includes(b.status);
@@ -233,7 +242,7 @@ const Work = (() => {
   function bonusPill(b) {
     return { offered: '<span class="pill waiting">Offered</span>', agreed: b.hold && b.hold.status === "authorized" ? '<span class="pill held">Held</span>' : '<span class="pill waiting">Agreed</span>',
       met: '<span class="pill collected">Met</span>', missed: '<span class="pill failed">Missed</span>', unproven: '<span class="pill failed">Not proven</span>',
-      paid: '<span class="pill collected">Paid</span>', released: '<span class="pill">Released back</span>' }[b.status] || "";
+      unverifiable: '<span class="pill waiting">Can\'t be verified</span>', paid: '<span class="pill collected">Paid</span>', released: '<span class="pill">Released back</span>' }[b.status] || "";
   }
   // Results report: Instagram's numbers (with their source and time) and the cost per 1,000 views, worked out by code.
   const srcLine = (src, at, stale) => `<p class="tiny muted" style="margin:6px 0 0">${icon("clock")} ${esc(src)} · updated ${esc(ago(at))}${stale ? ' <span class="pill waiting">Stale: older than 7 days</span>' : ""}</p>`;
@@ -324,6 +333,7 @@ const Work = (() => {
     on("w-bn-offer", b => go(b, () => api(ctx.url("/bonus"), { body: { threshold: +$("#w-bn-t", el).value, amount_cents: Math.round(+$("#w-bn-a", el).value * 100), read_day: +$("#w-bn-d", el).value } }), "Bonus offered"));
     on("w-bn-confirm", b => go(b, () => api(ctx.url("/bonus/confirm"), { method: "POST" }), "Bonus confirmed"));
     on("w-bn-read", b => go(b, () => api(ctx.url("/bonus/read"), { method: "POST" }), "Read from Instagram"));
+    $$("[data-bn-hand]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url("/bonus/by-hand"), { body: { choice: b.dataset.bnHand } }), "Saved"));
     on("w-bn-tap", b => go(b, () => api(ctx.url("/bonus/approve"), { body: { decision_hash: b.dataset.hash } }), "Confirmed"));
     on("w-res-refresh", b => go(b, () => api(ctx.url("/results/refresh"), { method: "POST" }), "Refreshed from Instagram"));
     on("w-comp-save", b => go(b, () => api(ctx.url("/competitors"), { body: { names: $("#w-comp", el).value.split(",").map(x => x.trim()).filter(Boolean) } }), "Saved"));

@@ -474,6 +474,34 @@ def ensure_demo_accounts(db: Database) -> int:
 
 
 VIDEO_HANDLE = "sara.video"
+TEST_HANDLE = "clinicrobotest"  # the test creator: Alifiya's own test Instagram account, real numbers only
+
+
+def ensure_test_creator(db: Database) -> str:
+    """"Test creator · @clinicrobotest": the account linked to Amend's Instagram token, so every number on it is
+    Instagram's own (nothing seeded: no demo metrics, no history). Same price list as Sara so a deal reads the same.
+    Login clinicrobotest@creators.example (demo password). Hidden from Discover unless the handle is searched. The
+    demo video deal uses it. Demo creators (Sara and the others) never use Instagram: any handle on them is cleared."""
+    db.execute("update creators set ig_handle = null where is_demo = 1 and ig_handle is not null")
+    have = db.one("select id from creators where handle = :h", {"h": TEST_HANDLE})
+    if have:
+        return have["id"]
+    base = dict(CREATORS[0])
+    t, pid, cid = now(), new_id("p"), new_id("c")
+    db.insert("parties", {"id": pid, "name": "Test Creator", "role": "creator", "handle": TEST_HANDLE, "confirmed": 1,
+                          "paypal_email": get_settings().sandbox_creator_email, "created_at": t})
+    db.insert("creators", {"id": cid, "party_id": pid, "handle": TEST_HANDLE, "display_name": "Test Creator",
+                           "bio": "Amend's test creator: a real, professional Instagram account connected to Amend. Every "
+                                  "number here comes from Instagram.",
+                           "followers": None, "audience": None, "niche": "Test account", "permit_no": None, "permit_expiry": None,
+                           "limits_json": json.dumps(base["limits"]), "is_demo": 0, "ig_handle": TEST_HANDLE, "created_at": t})
+    for i, (code, name, kind, lo, hi, std, unit, rules) in enumerate(base["items"]):
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": cid, "code": code, "name": name, "kind": kind,
+                                  "min_cents": lo, "max_cents": hi, "standard_cents": std, "unit": unit,
+                                  "rules_json": json.dumps(rules), "hidden": 0, "active": 1, "created_at": f"{t}-{i:02d}"})
+    db.log_event("creator.created", actor="seed", payload={"creator": cid, "handle": TEST_HANDLE, "why": "test creator (real Instagram)"})
+    ensure_demo_accounts(db)
+    return cid
 
 
 JUDGE_HANDLE = "judge.sara"

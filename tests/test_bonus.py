@@ -15,6 +15,9 @@ from .test_booking import ORIGIN, PP, client, mocks  # noqa: F401
 from .test_delivery import held, set_deadline  # noqa: F401
 from .test_igdata import INSIGHTS, graph, insights
 from .test_igpost import on, submit  # noqa: F401
+import pytest  # noqa: E402
+
+pytestmark = pytest.mark.usefixtures("as_test_creator")  # Instagram: the test creator, never demo Sara
 
 
 def offer(client, tok, **kw):
@@ -140,21 +143,54 @@ def test_missed_target_releases_the_bonus_hold_back(client, mocks, on, held):
     assert not any("AUTH9" in str(c.request.url) for c in mocks.capture.calls)
 
 
-def test_no_instagram_reading_is_unproven_after_two_days_and_goes_back(client, mocks, on, held):
+def _unverifiable(client, mocks, held):
     graph(mocks, owner="someone.else")  # not connected: Instagram won't share views
     deal, tok = agreed_and_held(client, mocks, held)
+    void = money_mocks(mocks)
     set_deadline(deal)
     submit(client, deal)
     day_d(deal, 7)
     b = client.post(f"/api/d/{tok}/bonus/read", headers=ORIGIN).json()["bonus"]
-    assert b["status"] == "agreed" and "isn't connected" in b["last_try"]["why"]  # keeps trying
+    assert b["status"] == "agreed" and "isn't connected" in b["last_try"]["why"]  # keeps trying until D+2
     day_d(deal, 9)
     t = client.post("/internal/tick", headers={"x-amend-tick": "test-tick-secret"}).json()
     assert t["bonuses_decided"] == 1
     b = client.get(f"/api/d/{tok}/work").json()["bonus"]
-    assert b["status"] == "unproven" and b["reading"]["views"] is None
-    rel = get_db().one("select * from money_items where note like 'bonus:void%'")
-    assert rel and rel["kind"] == "release" and rel["amount_cents"] == 15000
+    assert b["status"] == "unverifiable" and b["reading"]["views"] is None and b["choices"] == [15000]
+    assert not get_db().one("select id from money_items where note like 'bonus:void%'")  # nothing returned automatically
+    return deal, tok, void
+
+
+def test_cant_be_verified_by_d2_both_agree_by_hand_to_pay(client, mocks, on, held):
+    deal, tok, void = _unverifiable(client, mocks, held)
+    assert client.post(f"/api/d/{tok}/bonus/by-hand", json={"choice": "pay:99999"}, headers=ORIGIN).status_code == 400  # not a tier
+    w = client.post(f"/api/d/{tok}/bonus/by-hand", json={"choice": "pay:15000"}, headers=ORIGIN).json()
+    assert w["bonus"]["status"] == "unverifiable" and w["bonus"]["by_hand"] == {"brand": "pay:15000"}
+    w = client.post(f"/api/deals/{deal}/bonus/by-hand", json={"choice": "release"}, headers=ORIGIN).json()
+    assert w["bonus"]["status"] == "unverifiable" and not any("AUTH9" in str(c.request.url) for c in mocks.capture.calls)  # they differ
+    w = client.post(f"/api/deals/{deal}/bonus/by-hand", json={"choice": "pay:15000"}, headers=ORIGIN).json()
+    assert w["bonus"]["status"] == "paid"
+    cap = next(c for c in mocks.capture.calls if "AUTH9" in str(c.request.url))
+    assert json.loads(cap.request.content)["amount"]["value"] == "150.00"
+
+
+def test_cant_be_verified_both_agree_by_hand_to_release(client, mocks, on, held):
+    deal, tok, void = _unverifiable(client, mocks, held)
+    client.post(f"/api/d/{tok}/bonus/by-hand", json={"choice": "release"}, headers=ORIGIN)
+    w = client.post(f"/api/deals/{deal}/bonus/by-hand", json={"choice": "release"}, headers=ORIGIN).json()
+    assert w["bonus"]["status"] == "released" and void.call_count == 1
+
+
+def test_nobody_acts_by_d7_the_bonus_hold_goes_back(client, mocks, on, held):
+    deal, tok, void = _unverifiable(client, mocks, held)
+    day_d(deal, 13)  # D+6: still waiting
+    assert client.post("/internal/tick", headers={"x-amend-tick": "test-tick-secret"}).json()["bonuses_returned"] == 0
+    assert not void.called
+    day_d(deal, 14)  # D+7
+    t = client.post("/internal/tick", headers={"x-amend-tick": "test-tick-secret"}).json()
+    assert t["bonuses_returned"] == 1 and void.call_count == 1
+    assert get_db().one("select status from money_items where note like 'bonus:hold%'")["status"] == "voided"
+    assert any(e["type"] == "approval.from_terms" for e in get_db().events_for(deal))
 
 
 def test_a_cancellation_voids_the_bonus_hold_never_splits_it(client, mocks, held):

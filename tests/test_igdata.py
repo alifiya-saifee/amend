@@ -15,6 +15,8 @@ from .test_delivery import held, set_deadline  # noqa: F401
 from .test_igpost import GRAPH, LINK, TOKEN, media, on, submit  # noqa: F401
 from .test_unused_release import _mock_out
 
+pytestmark = pytest.mark.usefixtures("as_test_creator")  # Instagram: the test creator, never demo Sara
+
 INSIGHTS = "https://graph.facebook.com/v23.0/1790000000000002/insights"
 
 
@@ -176,20 +178,18 @@ def test_connected_profile_shows_disclosure_with_source_and_time(client, mocks, 
     graph(mocks, extra_posts=[{"id": "9", "caption": "Morning at Bean Bros", "timestamp": "2026-11-08T07:00:00+0000",
                                "permalink": "https://www.instagram.com/p/X/"}])
     mocks.ai.mock(return_value=ai_reply({"posts": [{"i": 2, "brands": [{"name": "Bean Bros", "quote": "Bean Bros"}]}]}))
-    get_db().update("creators", "handle", "sara.eats", {"ig_handle": "clinicrobotest"})
-    g = client.get("/api/c/sara.eats").json()["instagram"]
+    g = client.get("/api/c/clinicrobotest").json()["instagram"]
     assert g["handle"] == "clinicrobotest" and g["followers"]["value"] == 12480 and g["followers"]["source"]
     d = g["disclosure"]
     assert d["data"]["line"] == "#ad on 0 of 1 posts that mention a brand" and d["fetched_at"] and "AI" in d["source"]
     n = mocks.ai.call_count
-    client.get("/api/c/sara.eats")
+    client.get("/api/c/clinicrobotest")
     assert mocks.ai.call_count == n  # cached a day: the profile doesn't ask the AI on every view
 
 
 def test_unconnected_profile_has_no_instagram_block(client, mocks, on):
     graph(mocks, owner="someone.else")
-    get_db().update("creators", "handle", "sara.eats", {"ig_handle": "clinicrobotest"})
-    assert client.get("/api/c/sara.eats").json()["instagram"] is None
+    assert client.get("/api/c/clinicrobotest").json()["instagram"] is None
 
 
 # ---------- 3. competitor check ----------

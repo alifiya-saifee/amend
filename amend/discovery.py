@@ -283,7 +283,9 @@ def _sort_price(mode: str, cents: int | None) -> int:
 
 
 def search(db: Database, q: dict) -> dict:
+    term0 = (q.get("q") or "").strip().lower().lstrip("@")
     rows = db.all("select * from creators where handle not in ('try.demo', 'sara.video', 'judge.sara') order by created_at")
+    rows = [c for c in rows if c["handle"] != "clinicrobotest" or term0 == "clinicrobotest"]  # the test creator: by handle only
     cards = [card(db, c) for c in rows]
     private = {c["id"]: private_reel_cents(db, c["id"]) for c in rows}
     modes = {c["id"]: privacy_of(c) for c in rows}

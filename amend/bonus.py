@@ -5,8 +5,10 @@
   "Pay with PayPal" path as any extra hold). It is never part of the base release and never used for a cancellation
   split: on cancellation it's voided back to the brand.
 - Day D after the post: Amend reads the views from the post's Instagram insights (the connected account only). Code
-  decides: views ≥ the target → met; below → missed. No reading by the end of day D + 2 (not connected, Instagram down,
-  post not read from Instagram) → unproven, which counts as not met. **No screenshots as proof.**
+  decides: views ≥ the target → met; below → missed. **No screenshots as proof.** No reading by day D + 2 (not
+  connected, Instagram down, post not read from Instagram) → "Results can't be verified from Instagram": nothing is
+  returned automatically; both can agree by hand (pay a tier, or release it back; both tap the same choice). Only if
+  they haven't agreed by day D + 7 is the bonus hold voided, back to the brand, as the bonus terms say.
 - Then both tap Confirm on that exact decision (bound by its hash). Met → PayPal collects the bonus hold
   (final_capture) and pays the creator by Payouts. Missed or unproven → the bonus hold is voided: all of it goes back.
 - PayPal holds last 29 days, so day D must fall inside the hold's life; Amend says so when the bonus is offered.
@@ -21,7 +23,8 @@ from amend import money
 from amend.db import Database, new_id, now
 
 METRICS = {"views": "views"}
-UNPROVEN_AFTER_DAYS = 2
+UNPROVEN_AFTER_DAYS = 2   # no Instagram reading by D+2 → "can't be verified": both decide by hand
+HAND_DEADLINE_DAYS = 7    # nobody agrees by D+7 → the bonus hold is voided, back to the brand (as the terms say)
 MAX_READ_DAY = 21  # the hold is made before posting and lasts 29 days
 
 
@@ -171,7 +174,10 @@ def read(db: Database, deal: dict, *, at: datetime | None = None, force: bool = 
     if reading and reading["views"] is not None:
         outcome = "met" if tier else "missed"
     elif at.date() >= due + timedelta(days=UNPROVEN_AFTER_DAYS):
-        outcome, reading = "unproven", {"views": None, "why": why, "fetched_at": now(), "source": "Instagram insights"}
+        reading = {"views": None, "why": why, "fetched_at": now(), "source": "Instagram insights"}
+        db.update("bonuses", "id", b["id"], {"status": "unverifiable", "reading_json": json.dumps(reading), "decided_at": now()})
+        db.log_event("bonus.unverifiable", actor="system", deal_id=deal["id"], payload={"bonus": b["id"], "why": why})
+        return view(db, deal["id"])
     else:
         db.update("bonuses", "id", b["id"], {"last_try_json": json.dumps({"why": why, "at": now()})})
         return view(db, deal["id"])
@@ -179,20 +185,7 @@ def read(db: Database, deal: dict, *, at: datetime | None = None, force: bool = 
                        "tier": tier, "via_mandate": b.get("via_mandate")}, sort_keys=True, separators=(",", ":"))
     h = hashlib.sha256(body.encode()).hexdigest()
     with db.tx():
-        facts = [b["fact_id"]]
-        planned = []
-        if outcome == "met":  # collect the tier reached (final_capture: the rest of the bonus hold goes back to the brand)
-            cap = money.plan_item(db, deal["id"], "capture", tier["cents"], facts, actor="system", parent_id=hold["paypal_parent_id"])
-            db.update("money_items", "id", cap["id"], {"note": f"bonus:capture {hold['id']}"})
-            email = (db.one("select paypal_email from parties where id = (select party_id from creators where id = :c)",
-                            {"c": deal["creator_id"]}) or {}).get("paypal_email")
-            po = money.plan_item(db, deal["id"], "payout", tier["cents"], facts, actor="system")
-            db.update("money_items", "id", po["id"], {"note": "bonus:payout", "payee_email": email})
-            planned = [cap]
-        else:
-            rel = money.plan_item(db, deal["id"], "release", b["amount_cents"], facts, actor="system", parent_id=hold["paypal_parent_id"])
-            db.update("money_items", "id", rel["id"], {"note": f"bonus:void unused {hold['id']}"})
-            planned = [rel]
+        planned = _plan(db, deal, b, hold, tier["cents"] if outcome == "met" else None)
         upd = {"status": outcome, "reading_json": json.dumps(reading), "decision": body, "decision_hash": h, "decided_at": now()}
         if b.get("via_mandate"):  # the brand pre-signed the tiers: its signed mandate is its approval; only the creator taps
             for it in planned:
@@ -204,6 +197,94 @@ def read(db: Database, deal: dict, *, at: datetime | None = None, force: bool = 
         db.log_event("bonus.decided", actor="system", deal_id=deal["id"], payload={"bonus": b["id"], "outcome": outcome, "hash": h,
                                                                                     "views": reading.get("views")})
     return view(db, deal["id"])
+
+
+def _plan(db: Database, deal: dict, b: dict, hold: dict, pay_cents: int | None) -> list[dict]:
+    """pay_cents → collect that much from the bonus hold (final_capture sends the rest back) + pay the creator;
+    None → void the bonus hold. Returns the items that need the brand's side too (capture or release)."""
+    facts = [b["fact_id"]]
+    if pay_cents:
+        cap = money.plan_item(db, deal["id"], "capture", pay_cents, facts, actor="system", parent_id=hold["paypal_parent_id"])
+        db.update("money_items", "id", cap["id"], {"note": f"bonus:capture {hold['id']}"})
+        email = (db.one("select paypal_email from parties where id = (select party_id from creators where id = :c)",
+                        {"c": deal["creator_id"]}) or {}).get("paypal_email")
+        po = money.plan_item(db, deal["id"], "payout", pay_cents, facts, actor="system")
+        db.update("money_items", "id", po["id"], {"note": "bonus:payout", "payee_email": email})
+        return [cap]
+    rel = money.plan_item(db, deal["id"], "release", b["amount_cents"], facts, actor="system", parent_id=hold["paypal_parent_id"])
+    db.update("money_items", "id", rel["id"], {"note": f"bonus:void unused {hold['id']}"})
+    return [rel]
+
+
+def _parties(db: Database, deal: dict) -> tuple[str, str]:
+    return deal["brand_party_id"], db.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
+
+
+def choices(b: dict) -> list[int]:
+    """What can be paid by hand: one of the agreed tier amounts (never more than was held)."""
+    return [t["cents"] for t in tiers_of(b) if t["cents"] <= b["amount_cents"]]
+
+
+async def agree(db: Database, rail: money.PlatformRail, deal: dict, party_id: str, choice: str) -> dict:
+    """Results can't be verified from Instagram: each side picks "release" or "pay:<cents>" (an agreed tier). When both
+    have picked the same, that's the decision, both have tapped it, and PayPal runs."""
+    b = get(db, deal["id"])
+    if not b or b["status"] != "unverifiable":
+        raise BonusError("this bonus isn't waiting for a decision by hand")
+    side = money._side(db, deal["id"], party_id)
+    if side not in ("brand", "creator"):
+        raise BonusError("only the brand's main contact and the creator decide the bonus")
+    if choice != "release" and not (choice.startswith("pay:") and choice[4:].isdigit() and int(choice[4:]) in choices(b)):
+        raise BonusError("pick one of the agreed bonus amounts, or release it back")
+    m = json.loads(b.get("manual_json") or "{}")
+    m[side] = choice
+    db.update("bonuses", "id", b["id"], {"manual_json": json.dumps(m)})
+    db.log_event("bonus.by_hand", actor=party_id, deal_id=deal["id"], payload={"bonus": b["id"], "side": side, "choice": choice})
+    if m.get("brand") != m.get("creator"):
+        return view(db, deal["id"])
+    pay = int(choice[4:]) if choice != "release" else None
+    hold = money.get_item(db, b["hold_item_id"])
+    body = json.dumps({"bonus": b["id"], "terms": terms_text(b), "by_hand": choice, "reading": json.loads(b["reading_json"] or "null")},
+                      sort_keys=True, separators=(",", ":"))
+    h = hashlib.sha256(body.encode()).hexdigest()
+    brand_p, creator_p = _parties(db, deal)
+    with db.tx():
+        _plan(db, deal, b, hold, pay)
+        for it in items(db, deal["id"]):  # both picked this exact choice: their taps are the approvals
+            if it["status"] == "planned":
+                for p in (brand_p, creator_p):
+                    if money._side(db, deal["id"], p) in money.MATRIX[it["kind"]]:
+                        money.approve(db, it["id"], p)
+        db.update("bonuses", "id", b["id"], {"status": "met" if pay else "missed", "decision": body, "decision_hash": h,
+                                             "confirmed_brand_decision_at": now(), "confirmed_creator_decision_at": now()})
+        db.log_event("bonus.decided", actor=party_id, deal_id=deal["id"], payload={"bonus": b["id"], "outcome": "by hand: " + choice, "hash": h})
+    await _run(db, rail, deal, party_id)
+    return view(db, deal["id"])
+
+
+async def tick_unverified(db: Database, rail: money.PlatformRail, at: datetime | None = None) -> dict:
+    """D+7 and still not agreed by hand: void the bonus hold, back to the brand, as both agreed in the bonus terms."""
+    at = at or datetime.now(timezone.utc)
+    n = 0
+    for row in db.all("select deal_id from bonuses where status = 'unverifiable'"):
+        deal = db.one("select * from deals where id = :d", {"d": row["deal_id"]})
+        b = get(db, deal["id"])
+        due = _due(b, deal)
+        if not due or at.date() < due + timedelta(days=HAND_DEADLINE_DAYS):
+            continue
+        hold = money.get_item(db, b["hold_item_id"])
+        brand_p, creator_p = _parties(db, deal)
+        with db.tx():
+            _plan(db, deal, b, hold, None)
+            for it in items(db, deal["id"]):
+                if it["status"] == "planned":
+                    money.approve(db, it["id"], brand_p); money.approve(db, it["id"], creator_p)
+            db.log_event("approval.from_terms", actor="system", deal_id=deal["id"],
+                         payload={"bonus": b["id"], "fact": b["fact_id"], "rule": f"not verified and not agreed by hand by day {b['read_day']} + {HAND_DEADLINE_DAYS}: back to the brand"})
+            db.update("bonuses", "id", b["id"], {"status": "missed", "confirmed_brand_decision_at": now(), "confirmed_creator_decision_at": now()})
+        await _run(db, rail, deal, "system")
+        n += 1
+    return {"bonuses_returned": n}
 
 
 def items(db: Database, deal_id: str) -> list[dict]:
@@ -233,9 +314,17 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, party_id: 
     b = get(db, deal["id"])
     if not (b.get("confirmed_brand_decision_at") and b.get("confirmed_creator_decision_at")):
         return view(db, deal["id"])
+    await _run(db, rail, deal, party_id)
+    return view(db, deal["id"])
+
+
+async def _run(db: Database, rail: money.PlatformRail, deal: dict, party_id: str) -> None:
+    """Both sides have approved the bonus items: PayPal collects + pays, or voids."""
+    from amend import delivery
+    b = get(db, deal["id"])
     pending = items(db, deal["id"])
     if any(i["status"] == "planned" for i in pending):
-        return view(db, deal["id"])
+        return
     pp = rail.pp
     hold = money.get_item(db, b["hold_item_id"])
     for it in [i for i in pending if i["kind"] == "capture" and i["status"] in ("approved", "failed")]:
@@ -263,7 +352,6 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, party_id: 
         await delivery._payout(db, pp, money.get_item(db, it["id"]), deal, party_id)
     db.update("bonuses", "id", b["id"], {"status": "paid" if b["status"] == "met" else "released", "settled_at": now()})
     db.log_event("bonus.settled", actor=party_id, deal_id=deal["id"], payload={"bonus": b["id"], "outcome": b["status"]})
-    return view(db, deal["id"])
 
 
 def view(db: Database, deal_id: str) -> dict | None:
@@ -284,7 +372,9 @@ def view(db: Database, deal_id: str) -> dict | None:
            "items": [{"kind": i["kind"], "status": i["status"], "amount_cents": i["amount_cents"], "paypal_id": i["paypal_id"]}
                      for i in items(db, deal_id)],
            "brand": _first(db, deal["brand_party_id"], "the brand"), "tiers": tiers_of(b), "via_mandate": b.get("via_mandate"),
-           "tier": (json.loads(b["decision"]).get("tier") if b.get("decision") else None)}
+           "tier": (json.loads(b["decision"]).get("tier") if b.get("decision") else None),
+           "by_hand": json.loads(b.get("manual_json") or "{}"), "choices": choices(b),
+           "hand_deadline": (due + timedelta(days=HAND_DEADLINE_DAYS)).isoformat() if due else None}
     if due and expires:
         try:
             out["hold_too_short"] = datetime.fromisoformat(expires.replace("Z", "+00:00")).date() < due

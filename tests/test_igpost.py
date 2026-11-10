@@ -16,6 +16,8 @@ from .test_disclosure_mandate import AD
 from .test_mandates import held_with_mandate
 from .test_unused_release import _mock_out
 
+pytestmark = pytest.mark.usefixtures("as_test_creator")  # Instagram: the test creator, never demo Sara
+
 GRAPH = "https://graph.facebook.com/v23.0/IG-ME-1"
 TOKEN = "test-ig-token-not-real"
 LINK = "https://www.instagram.com/reel/DQxyz123AB/?igsh=abc"
@@ -130,7 +132,7 @@ def test_not_found_falls_back_to_what_she_entered_and_says_so(client, mocks, on,
     assert w["post"]["posted_at"] == "2026-11-20" and w["post"]["result"]["caption"] == "typed caption #ad"
     reel = check(w, "1 × Reel")
     assert reel["ai_read"]["source"] == "ai" and reel["ai_read"]["note"].startswith("This link isn't among @clinicrobotest's")
-    assert "Sara entered 1" in reel["ai_read"]["note"]
+    assert "Test entered 1" in reel["ai_read"]["note"]
 
 
 def test_a_personal_account_falls_back(client, mocks, on, held):
@@ -181,7 +183,7 @@ def test_the_creator_sets_her_instagram_account_in_settings(client, mocks, on):
     mocks.get(GRAPH).mock(return_value=httpx.Response(200, json={"username": "clinicrobotest"}))
     login(client)
     s = client.put("/api/studio/settings", json={"ig_handle": "@ClinicRoboTest"}, headers=ORIGIN).json()
-    assert s["instagram"] == {"handle": "clinicrobotest", "on": True, "connected": True}
+    assert s["instagram"] == {"handle": "clinicrobotest", "on": True, "connected": True, "demo": False}
     assert client.put("/api/studio/settings", json={"ig_handle": "not a handle!"}, headers=ORIGIN).status_code == 400
     s = client.put("/api/studio/settings", json={"ig_handle": ""}, headers=ORIGIN).json()
     assert s["instagram"]["handle"] is None

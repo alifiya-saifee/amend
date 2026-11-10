@@ -89,13 +89,14 @@ async function load() {
     : `<span class="pill waiting">Permit: ${esc(c.permit.label)}</span>`;
   $("#view").innerHTML = `
     <div class="card"><div class="row"><div class="avatar lg">${initials(c.display_name)}</div>
-      <div class="grow"><h1>${esc(c.display_name)}</h1><div class="muted">@${esc(c.handle)} · ${(c.followers || 0).toLocaleString()} followers</div></div></div>
-      <p>${esc(c.bio || "")}</p><div class="small muted">${esc(c.audience || "")} · ${esc(c.niche || "")}</div>
+      <div class="grow"><h1>${esc(c.display_name)}</h1><div class="muted">@${esc(c.handle)}${c.instagram && c.instagram.followers && c.instagram.followers.value != null
+        ? ` · ${Number(c.instagram.followers.value).toLocaleString()} followers (from Instagram)` : c.followers ? ` · ${c.followers.toLocaleString()} followers` : ""}</div></div></div>
+      <p>${esc(c.bio || "")}</p><div class="small muted">${[c.audience, c.niche].filter(Boolean).map(esc).join(" · ")}</div>
       <div style="margin-top:10px">${permit}<div class="hint">Format and expiry check only. Not verified with the UAE Media Council.</div></div>
       <div class="row wrapx" style="gap:6px;margin-top:10px">${(c.niches || []).map(n => `<span class="pill">${esc(n)}</span>`).join("")}
         ${c.city ? `<span class="pill"><i data-lucide='map-pin' aria-hidden='true'></i> ${esc(c.city)}</span>` : ""}${(c.languages || []).map(l => `<span class="pill">${esc(l)}</span>`).join("")}
         ${c.is_demo ? '<span class="pill planned">Demo data</span>' : ""}</div></div>
-    ${metricsHtml(c)}
+    ${c.instagram && (!c.metrics || !c.metrics.length) ? "" : metricsHtml(c)}
     ${igHtml(c.instagram)}
     ${samplesHtml(c)}
     <section class="card" style="margin-top:14px"><h2>Availability</h2>

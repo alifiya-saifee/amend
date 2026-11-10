@@ -337,8 +337,9 @@ async function settingsTab() {
           : `<label>Current password</label><input id="s-cur" type="password" autocomplete="current-password"><label>New password</label><input id="s-new" type="password" autocomplete="new-password">
              <button class="btn small" id="s-pw" style="margin-top:8px">Change password</button>`}
         <label for="s-pp">PayPal payout email</label><input id="s-pp" type="email" value="${esc(s.paypal_email || "")}" placeholder="your PayPal email">
-        <label for="s-ig">Instagram account (professional)</label><input id="s-ig" value="${esc(s.instagram && s.instagram.handle ? "@" + s.instagram.handle : "")}" placeholder="@yourhandle">
-        <p class="hint">${!s.instagram || !s.instagram.on ? "Instagram reading is off on this server: posts are checked from what you enter."
+        <label for="s-ig">Instagram account (professional)</label><input id="s-ig" ${s.instagram && s.instagram.demo ? "disabled" : ""} value="${esc(s.instagram && s.instagram.handle ? "@" + s.instagram.handle : "")}" placeholder="@yourhandle">
+        <p class="hint">${s.instagram && s.instagram.demo ? "A demo creator: demo numbers only. The test creator (@clinicrobotest) is the one connected to Instagram."
+          : !s.instagram || !s.instagram.on ? "Instagram reading is off on this server: posts are checked from what you enter."
           : s.instagram.connected ? "Connected to Amend: your posts, views and audience are read from Instagram (results, bonus, disclosure history)."
           : "Public posts only (Business Discovery). Views and reach need your account connected, which needs Meta app review."}</p>
         <p class="hint">Payouts from released deals go here (PayPal sandbox in this demo).</p>
@@ -358,7 +359,7 @@ async function settingsTab() {
       <p class="hint">Deleting keeps a record that the files were deleted, as the deal history requires.</p></section>`;
   $("#s-save").onclick = e => busy(e.currentTarget, async () => {
     try {
-      await api("/api/studio/settings", { method: "PUT", body: { name: $("#s-name").value, paypal_email: $("#s-pp").value, ig_handle: $("#s-ig").value, language: $("#s-lang").value,
+      await api("/api/studio/settings", { method: "PUT", body: { name: $("#s-name").value, paypal_email: $("#s-pp").value, ig_handle: $("#s-ig").disabled ? null : $("#s-ig").value, language: $("#s-lang").value,
         theme: $("#s-theme").value, notify: Object.fromEntries($$("[data-n]").map(x => [x.dataset.n, x.value])) } });
       applyTheme($("#s-theme").value); toast("Settings saved");
     } catch (er) { toast(er.message, "bad"); }

@@ -11,6 +11,7 @@ the $150 bonus with PayPal → draft → post (read from Instagram) → day 7 �
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 from datetime import date, timedelta
@@ -23,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from amend.config import get_settings  # noqa: E402
 
 BASE, DB, IGFILE = sys.argv[1], sys.argv[2], sys.argv[3]
+UNVERIFIED = os.environ.get("UNVERIFIED") == "1"
 OUT = ROOT / "docs" / "screenshots" / "bonus"
 OUT.mkdir(parents=True, exist_ok=True)
 PW = get_settings().amend_demo_password.get_secret_value()
@@ -60,7 +62,7 @@ with sync_playwright() as p:
     br = b.new_context(viewport={"width": 390, "height": 844}, color_scheme="light").new_page()
     for pg in (cr, br):
         pg.on("pageerror", lambda e: errs.append(str(e)))
-    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "sara.eats@creators.example"); cr.fill("#pw", PW); cr.click("#go")
+    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "clinicrobotest@creators.example"); cr.fill("#pw", PW); cr.click("#go")
     cr.wait_for_url("**/studio")
     cr.goto(f"{BASE}/studio/deals/{deal_id}"); cr.wait_for_selector("#acc", timeout=20000)
     cr.click("#acc"); cr.wait_for_selector("#acc2"); cr.click("#acc2"); cr.wait_for_timeout(1500)
@@ -97,6 +99,26 @@ with sync_playwright() as p:
     cr.click("#w-post"); cr.wait_for_selector(".bonus", timeout=20000); cr.wait_for_timeout(800)
     check("Held" in cr.inner_text(".bonus") and "read on" in cr.inner_text(".bonus"), "bonus card after posting")
     cr.locator(".bonus").screenshot(path=str(OUT / "03-held-creator-1440.png"))
+    if UNVERIFIED:  # the post can't be read from Instagram: on D+2 it can't be verified; both agree by hand
+        q("update deliveries set result_json = replace(result_json, '\"status\": \"found\"', '\"status\": \"not_found\"') "
+          "where deal_id = ? and kind = 'post'", deal_id, write=True)
+        q("update deals set posted_at = ? where id = ?", (date.today() - timedelta(days=9)).isoformat(), deal_id, write=True)
+        r = cr.request.post(f"{BASE}/internal/tick", headers={"x-amend-tick": os.environ["TICK"]})
+        check(r.ok and r.json().get("bonuses_decided") == 1, f"tick: {r.text()[:200]}")
+        br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("[data-bn-hand]", timeout=20000); br.wait_for_timeout(500)
+        t = br.inner_text(".bonus")
+        check("Results can't be verified from Instagram" in t and "goes back to" in t, f"unverifiable text: {t[:300]}")
+        check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll on the by-hand card")
+        br.locator(".bonus").screenshot(path=str(OUT / "10-unverifiable-brand-390.png"))
+        br.click("[data-bn-hand='pay:15000']"); br.wait_for_timeout(1500)
+        cr.reload(); cr.wait_for_selector("[data-bn-hand]", timeout=20000); cr.wait_for_timeout(500)
+        check("Dune Roast" in cr.inner_text(".bonus") or "picked: pay $150" in cr.inner_text(".bonus"), "creator doesn't see the brand's pick")
+        cr.locator(".bonus").screenshot(path=str(OUT / "11-unverifiable-creator-1440.png"))
+        cr.click("[data-bn-hand='pay:15000']"); cr.wait_for_timeout(2500); cr.reload(); cr.wait_for_selector(".bonus", timeout=20000)
+        check("Paid" in cr.inner_text(".bonus"), "not paid after both picked pay")
+        b.close()
+        print("problems:", problems or "none"); print("JS errors:", errs[:5] or "none")
+        raise SystemExit(0)
     # day 7 after the post
     q("update deals set posted_at = ? where id = ?", (date.today() - timedelta(days=7)).isoformat(), deal_id, write=True)
     br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("#w-bn-read", timeout=20000)

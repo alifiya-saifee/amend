@@ -117,8 +117,9 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   bonus with PayPal as its **own hold** (base hold + bonus hold). On day D, Amend reads the views from the post's
   insights and **code decides** met or missed. Both tap Confirm on that exact decision (bound by its hash): met →
   PayPal collects the bonus hold (`final_capture`) and pays the creator by Payouts; missed → the bonus hold is voided
-  and all of it goes back. **No screenshots as proof:** if Instagram can't be read by day D + 2, the bonus goes back to
-  the brand. The bonus hold is never part of the base release or a cancellation split (cancelling voids it). PayPal
+  and all of it goes back. **No screenshots as proof:** if Instagram can't be read by day D + 2, the card says "Results can't
+  be verified from Instagram" and both can agree by hand (pay an agreed amount or release it; both pick the same).
+  Only if they haven't agreed by day D + 7 is the bonus hold voided, back to the brand, as the bonus terms say. The bonus hold is never part of the base release or a cancellation split (cancelling voids it). PayPal
   holds last 29 days, so day D is 1 to 21 days after posting.
   **Bonus tiers** (up to 3, e.g. 10,000 views +$50, 50,000 views +$150) can be signed in the brand's mandate. The
   brand holds base + top tier (the bonus is its own hold); code picks the highest tier Instagram's numbers reach;
@@ -201,6 +202,7 @@ REFUNDED / REVERSED / DENIED`, `PAYMENT.PAYOUTSBATCH.*`, `PAYMENT.PAYOUTS-ITEM.*
 **The AI never does the maths.** It returns item codes, quantities and quotes; every price, total, split and score is
 worked out by code from the creator's list. **No quote, no money:** every quote must appear word for word in its source,
 or the AI's answer is rejected. Only confirmed people's words can change money; anyone else's become suggestions.
+**Captions of creators who aren't on Amend are never sent to an AI; code reads tagged @accounts instead.**
 
 ## Discovery
 
@@ -212,6 +214,15 @@ or the AI's answer is rejected. Only confirmed people's words can change money; 
 - **AI match:** "Describe your campaign" → the AI reads the criteria (each with your exact words); code scores every
   creator with fixed weights (niche, audience country, language, views and engagement, budget fit, availability, track
   record, data quality) and shows the top 10 with "Why this match" reasons built from the score.
+
+## Same engine, other uses
+
+- **Trade counters ↔ contractors:** order changes priced and confirmed, held, and released on line-item proof of
+  delivery. About 2 in 5 UAE B2B invoices are paid late (Atradius UAE Payment Practices Barometer, Jul 2026).
+- **Small trades jobs:** the deposit is held until the job is proven done. 81,925 US home-improvement scam reports in
+  2024, median loss $1,800 (FTC / BBB).
+- **Agent-to-agent services:** hold until the output matches the task. Current agent payment protocols record consent,
+  not conditional release (AP2, x402, Visa TAP).
 
 ## Live-tested on the PayPal sandbox
 
@@ -235,6 +246,11 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 ## Honest limits
 
 - **Sandbox only**, USD only (AED shown at a fixed 3.6725).
+- **Holding money for others needs PayPal's pre-approval in production** (PayPal Acceptable Use Policy); the demo runs
+  in sandbox.
+- **Real Instagram numbers come from one test creator only** ("Test creator · @clinicrobotest", the account linked to
+  Amend's token). Sara and the other creators are demo data and never use Instagram. The test creator is hidden from
+  Discover unless its handle is searched.
 - **Platform account + Payouts instead of marketplace mode.** The brand pays Amend's sandbox business account and the
   creator is paid by Payouts. PayPal's marketplace setup (the brand pays the creator directly, with Amend's fee and a
   delayed release) needs PayPal partner approval (the sandbox returned 403 / 422 on 7 Nov). Only the "rail" changes.

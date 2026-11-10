@@ -83,3 +83,11 @@ def fake_env(monkeypatch, tmp_path):
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture
+def as_test_creator(monkeypatch):
+    """Instagram tests run as the test creator (@clinicrobotest): demo creators like Sara never use Instagram."""
+    from tests import test_booking
+    from amend.db import get_db
+    monkeypatch.setattr(test_booking, "sara_id", lambda c: get_db().one("select id from creators where handle = 'clinicrobotest'")["id"])

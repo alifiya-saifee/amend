@@ -632,3 +632,26 @@ before this and goes live with the next deploy.
 - **Tests: 766 passed, 3 skipped.** New `test_settle.py` (5). Browser `settle_flow.py`: problems none; shots in
   `docs/screenshots/settle/`.
 - Limit: a settlement pays the creator directly (no holdback, no team split).
+
+## Bonus by hand, the test creator, README (11 Nov)
+Alifiya deployed 95546b3. Tiers (cc3567b), team splits (aece432) and settle (0c83a2d) were already on main.
+- **Bonus can't be verified:** no Instagram reading by D+2 → status `unverifiable`, card "Results can't be verified
+  from Instagram". Nothing is returned automatically. Each side picks "Pay $X" (an agreed tier) or "Release it
+  back"; when both pick the same, it runs (their picks are the approvals). Not agreed by D+7 → `tick_unverified` voids
+  the bonus hold, with approvals recorded from the agreed bonus terms (`approval.from_terms`, visible in the chain).
+- **Test creator** (`scripts/seed.py: ensure_test_creator`): "Test Creator", @clinicrobotest, login
+  clinicrobotest@creators.example (demo password), Sara's price list, no demo metrics, no history, ig_handle set.
+  Hidden from Discover unless "@clinicrobotest"/"clinicrobotest" is searched. Demo creators never use Instagram:
+  start-up clears any handle on them; Settings refuses one; a post by a demo creator isn't read ("demo").
+  The video deal (SANDBOX_TESTING.md) uses the test creator. Local fake mode moves the seeded "National Day" offer
+  to the test creator so the Instagram browser walks use it.
+- **README:** "Captions of creators who aren't on Amend are never sent to an AI…"; "Same engine, other uses"
+  (Alifiya's three sourced numbers, used as given: not re-checked); limit "Holding money for others needs PayPal's
+  pre-approval in production…"; the test-creator limit; the bonus-by-hand rule.
+- **Tests: 772 passed, 3 skipped.** New `test_test_creator.py` (4); the bonus tests rewritten for by hand / D+7 (3);
+  the Instagram tests now run as the test creator. Browser: bonus walk `UNVERIFIED=1` (shots 10, 11), all Instagram
+  walks as the test creator: problems none.
+
+### Open questions
+- The test creator's display name is "Test Creator", so screens say "Test entered 2" / "Paid to Test". Rename it if
+  you'd like a made-up first name.

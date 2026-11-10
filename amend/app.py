@@ -45,7 +45,7 @@ from contextlib import asynccontextmanager
 async def lifespan(_app):
     get_settings()  # refuses to start unless PAYPAL_ENV=sandbox
     d = get_db()
-    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery, seed_history, repair_demo_terms, ensure_judge_accounts
+    from scripts.seed import ensure_demo_accounts, ensure_exclusivity_item, seed, seed_discovery, seed_history, repair_demo_terms, ensure_judge_accounts, ensure_test_creator
     seed(d)  # adds any demo creators that are missing; existing ones are left alone
     seed_discovery(d)
     ensure_exclusivity_item(d)
@@ -53,6 +53,7 @@ async def lifespan(_app):
     seed_history(d)  # Sara's demo history (skipped with AMEND_SEED_HISTORY=0, as in tests)
     repair_demo_terms(d)  # demo deals at v2+ that were seeded without their v2 lines ("No lines yet")
     ensure_judge_accounts(d)  # judges-only logins, only when JUDGE_PASSWORD is set
+    ensure_test_creator(d)  # "Test creator · @clinicrobotest": real Instagram numbers only; Sara stays demo-only
     from amend import fakes
     if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
         import sys
@@ -760,7 +761,7 @@ def expire_link(token: str, c: dict = Depends(require_creator)):
 async def _instagram_block(raw: dict) -> dict | None:
     """Her connected Instagram, with the source and time of each number: followers, audience, disclosure history."""
     from amend import igdata
-    h = raw.get("ig_handle")
+    h = None if raw.get("is_demo") else raw.get("ig_handle")  # demo creators: demo numbers only
     try:
         if not h or not await asyncio.to_thread(igdata.connected, get_db(), h):
             return None
@@ -1438,12 +1439,13 @@ def my_settings(request: Request, c: dict = Depends(require_creator)):
 def _ig_setting(c: dict) -> dict:
     """Her Instagram account for post checks, and whether it's the one connected to Amend (insights) or public only."""
     from amend import igdata, igpost
-    h = (get_db().one("select ig_handle from creators where id = :c", {"c": c["id"]}) or {}).get("ig_handle")
+    row = get_db().one("select ig_handle, is_demo from creators where id = :c", {"c": c["id"]}) or {}
+    h = row.get("ig_handle")
     try:
         conn = bool(h) and igdata.connected(get_db(), h)
     except igdata.Unavailable:
         conn = False
-    return {"handle": h, "on": igpost.enabled(), "connected": conn}
+    return {"handle": h, "on": igpost.enabled(), "connected": conn, "demo": bool(row.get("is_demo"))}
 
 
 class SettingsIn(BaseModel):
@@ -1470,6 +1472,9 @@ def save_my_settings(body: SettingsIn, request: Request, c: dict = Depends(requi
             d.update("parties", "id", c["party_id"], {"phone": notify.clean_phone(body.phone)})
         except ValueError as e:
             raise HTTPException(400, str(e))
+    if body.ig_handle is not None and body.ig_handle.strip() and \
+            (d.one("select is_demo from creators where id = :c", {"c": c["id"]}) or {}).get("is_demo"):
+        raise HTTPException(400, "This is a demo creator with demo numbers only. The test creator (@clinicrobotest) is the one connected to Instagram.")
     if body.ig_handle is not None:
         from amend import igpost
         h = igpost.clean_handle(body.ig_handle)
@@ -1640,7 +1645,8 @@ def _work(deal_id: str) -> dict:
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
             "ig": {"on": iglookup_enabled(), "handle": (d.one("select ig_handle from creators where id = :c",
-                                                              {"c": deal["creator_id"]}) or {}).get("ig_handle")}}
+                                                              {"c": deal["creator_id"]}) or {}).get("ig_handle"),
+                   "demo": bool((d.one("select is_demo from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("is_demo"))}}
 
 
 def _ig_safe(fn):
@@ -1749,6 +1755,31 @@ async def _bonus_tap(deal: dict, pid: str, h: str) -> dict:
     except (money.ApprovalError, PayPalError) as e:
         raise HTTPException(400, "PayPal couldn't finish the bonus step right now. Nothing was taken twice; try again.") from e
     return _work(deal["id"])
+
+
+class BonusHandIn(BaseModel):
+    choice: str = Field(pattern=r"^(release|pay:\d{1,9})$")
+
+
+async def _bonus_hand(deal: dict, pid: str, choice: str) -> dict:
+    from amend import bonus
+    try:
+        await bonus.agree(get_db(), rail(), deal, pid, choice)
+    except bonus.BonusError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    except (money.ApprovalError, PayPalError) as e:
+        raise HTTPException(400, "PayPal couldn't finish the bonus step right now. Nothing was taken twice; try again.") from e
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/bonus/by-hand")
+async def creator_bonus_hand(deal_id: str, body: BonusHandIn, c: dict = Depends(require_creator)):
+    return await _bonus_hand(*_creator_ctx(deal_id, c), body.choice)
+
+
+@app.post("/api/d/{token}/bonus/by-hand")
+async def brand_bonus_hand(token: str, body: BonusHandIn):
+    return await _bonus_hand(*_brand_ctx(token), body.choice)
 
 
 @app.post("/api/deals/{deal_id}/bonus/approve")
@@ -1947,7 +1978,10 @@ class PostIn(BaseModel):
 async def _ig_read(deal: dict, post_url: str) -> dict:
     """Read the post on Instagram (never cached; the token stays in a header). Runs off the event loop."""
     from amend import igpost
-    h = (get_db().one("select ig_handle from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("ig_handle")
+    c = get_db().one("select ig_handle, is_demo from creators where id = :c", {"c": deal["creator_id"]}) or {}
+    if c.get("is_demo"):
+        return {"status": "demo", "message": "A demo creator: Instagram isn't read for demo data"}
+    h = c.get("ig_handle")
     return await asyncio.to_thread(igpost.read, get_db(), deal["id"], h, post_url)
 
 
@@ -1964,6 +1998,8 @@ async def creator_post(deal_id: str, body: PostIn, c: dict = Depends(require_cre
     deal, pid = _creator_ctx(deal_id, c)
     data = body.model_dump()
     h = data.pop("ig_handle", None)
+    if (get_db().one("select is_demo from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("is_demo"):
+        h = None  # demo creators never get an Instagram account
     if h is not None:
         get_db().update("creators", "id", deal["creator_id"], {"ig_handle": igpost.clean_handle(h)})
     ig = await _ig_read(deal, data["post_url"]) if deal["status"] in ("in_progress", "delivered") else None
@@ -2910,6 +2946,8 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     for extra in TICK_TASKS:  # shipping nudges, silent approval, call nudges
         result.update(extra(d))
     result.update(await delivery.tick_holdback(d, rail()))
+    from amend import bonus as _bn
+    result.update(await _bn.tick_unverified(d, rail()))  # D+7 and not agreed by hand: back to the brand
     from amend import igdata, team as _team
     result.update(await igdata.tick(d))  # Instagram refresh policy: only what's due
     synced = 0

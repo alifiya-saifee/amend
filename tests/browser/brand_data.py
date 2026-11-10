@@ -64,7 +64,7 @@ with sync_playwright() as p:
     br.locator(".results").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "01-results-brand-390.png"))
     br.locator(".card", has=br.locator("#w-comp")).screenshot(path=str(OUT / "02-exclusivity-brand-390.png"))
     # creator at 1440
-    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "sara.eats@creators.example"); cr.fill("#pw", PW); cr.click("#go")
+    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "clinicrobotest@creators.example"); cr.fill("#pw", PW); cr.click("#go")
     cr.wait_for_url("**/studio")
     cr.goto(f"{BASE}/studio/deals/{deal_id}#delivery"); cr.reload(); cr.wait_for_selector(".results", timeout=20000); cr.wait_for_timeout(600)
     check(not cr.is_visible("#w-comp-save"), "the creator can change the brand's competitor list")
@@ -74,7 +74,7 @@ with sync_playwright() as p:
     check(r.ok and r.json().get("ig_refreshed", 0) >= 1, f"tick: {r.status} {r.text()[:200]}")
     # public profile: connected Instagram
     for pg, w in ((cr, 1440), (br, 390)):
-        pg.goto(f"{BASE}/c/sara.eats"); pg.wait_for_selector("text=Disclosure history", timeout=20000); pg.wait_for_timeout(600)
+        pg.goto(f"{BASE}/c/clinicrobotest"); pg.wait_for_selector("text=Disclosure history", timeout=20000); pg.wait_for_timeout(600)
         t = pg.inner_text("body")
         check("12,480" in t and "followers" in t and "updated" in t, f"{w}: followers with source/time missing")
         check("#ad on" in t and "posts that mention a brand" in t, f"{w}: disclosure line missing")

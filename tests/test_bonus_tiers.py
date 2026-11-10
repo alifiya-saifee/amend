@@ -12,6 +12,9 @@ from .test_delivery import set_deadline
 from .test_igdata import graph, insights
 from .test_igpost import on, submit  # noqa: F401
 from .test_mandates import held_with_mandate, mandate, post as post_mandate
+import pytest  # noqa: E402
+
+pytestmark = pytest.mark.usefixtures("as_test_creator")  # Instagram: the test creator, never demo Sara
 
 TIERS = {"type": "bonus_tiers", "metric": "views", "read_day": 7, "label": "Bonus: +$50 at 10,000 views; +$150 at 50,000 views",
          "tiers": [{"at": 10000, "cents": 5000}, {"at": 50000, "cents": 15000}]}

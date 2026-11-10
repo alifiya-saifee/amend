@@ -69,7 +69,7 @@ with sync_playwright() as p:
     br = b.new_context(viewport={"width": 390, "height": 844}, color_scheme="light").new_page()
     for pg in (cr, br):
         pg.on("pageerror", lambda e: errs.append(str(e)))
-    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "sara.eats@creators.example"); cr.fill("#pw", PW); cr.click("#go")
+    cr.goto(BASE + "/login?tab=creator"); cr.fill("#email", "clinicrobotest@creators.example" if IG else "sara.eats@creators.example"); cr.fill("#pw", PW); cr.click("#go")
     cr.wait_for_url("**/studio")
     cr.goto(f"{BASE}/studio/deals/{deal_id}"); cr.wait_for_selector("#acc", timeout=20000)
     cr.click("#acc"); cr.wait_for_selector("#acc2"); cr.click("#acc2"); cr.wait_for_timeout(1500)

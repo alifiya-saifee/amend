@@ -209,10 +209,26 @@ def _fake_instagram() -> None:
     igpost.TRANSPORT, igpost.FAKE = httpx.MockTransport(handler), True
 
 
+def _test_creator_offer() -> None:
+    """Local fake mode only: move the seeded "National Day" offer to the test creator (@clinicrobotest), so the
+    Instagram browser walks run on the only creator that uses Instagram. Sara stays demo-only."""
+    from amend.db import get_db
+    db = get_db()
+    tc = db.one("select id from creators where handle = 'clinicrobotest'")
+    d = db.one("select * from deals where title = 'National Day' and status = 'offered'")
+    if not tc or not d or d["creator_id"] == tc["id"]:
+        return
+    items = {p["code"]: p["id"] for p in db.all("select id, code from price_items where creator_id = :c", {"c": tc["id"]})}
+    for t in db.all("select t.id, p.code from terms t join price_items p on p.id = t.price_item_id where t.deal_id = :d", {"d": d["id"]}):
+        db.update("terms", "id", t["id"], {"price_item_id": items[t["code"]]})
+    db.update("deals", "id", d["id"], {"creator_id": tc["id"], "is_demo": 0})
+
+
 def install(app_module) -> None:
     """Swap in the fakes (called at start-up when enabled())."""
     if os.environ.get("AMEND_FAKE_IG") == "1":
         _fake_instagram()
+        _test_creator_offer()
     from amend import ai, money
     from amend.config import get_settings
     app_module.set_rail(money.PlatformRail(FakePayPal(get_settings())))
