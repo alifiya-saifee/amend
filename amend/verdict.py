@@ -5,7 +5,7 @@
 - On a pass, it proposes the release, worked out by delivery.release_numbers (the same function the release uses):
   what PayPal collects from each hold, what goes back to the brand, the creator's payout, the editor's share and the
   holdback. It lists the exact PayPal calls the release will make.
-- Amend signs the canonical JSON with Ed25519 (key derived from the server secret; the public key is at
+- Amend signs the canonical JSON with Ed25519 (its own key, VERDICT_SIGNING_KEY; the public key is at
   /api/verdict/key, so anyone can check it). The signature says "Amend's code produced exactly this"; it is not a
   person's approval.
 - Nothing moves on a verdict. A person taps Confirm (the release approval, bound to this verdict's hash); the AI never
@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -29,9 +30,12 @@ from amend import engine, money
 from amend.db import Database, new_id, now
 
 KEY_INFO = b"amend-delivery-verdict-ed25519-v1"
-# Disclosure and draft approval are shown and signed as "advisory": they aren't money terms, so (as before the verdict
-# existed) they never hold money on their own. Money waits only on the deliverables and the post date, as the delivery
-# check always did.
+log = logging.getLogger("amend.verdict")
+# Draft approval is shown and signed as "advisory": it never holds money. Disclosure is advisory too, unless the brand's
+# signed mandate requires the tag ("Every post carries #ad"): then a missing tag fails the verdict and opens a gap only
+# the creator can close (by fixing the caption). Money also waits on the deliverables and the post date.
+# Each check carries two labels: "AI read" (what the AI read in the caption, with its exact quote, or "not read by AI")
+# and "Code decided" (pass/fail against the confirmed quote). Code never reads the AI's reading to decide.
 
 
 class VerdictError(ValueError):
@@ -42,9 +46,39 @@ def canon(obj) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+_warned = False
+
+
+def seed_from(value: str) -> bytes:
+    """A 32-byte Ed25519 seed written as 64 hex characters or as base64."""
+    v = value.strip()
+    try:
+        raw = bytes.fromhex(v) if len(v) == 64 else base64.b64decode(v, validate=True)
+    except ValueError:
+        raw = b""
+    if len(raw) != 32:
+        raise ValueError("VERDICT_SIGNING_KEY must be a 32-byte Ed25519 seed (64 hex characters or base64)")
+    return raw
+
+
 def _key() -> Ed25519PrivateKey:
+    """VERDICT_SIGNING_KEY (its own key, Render env only). If it isn't set, the old derivation from the session secret,
+    with a warning in the log (the warning names the setting, never a secret)."""
+    global _warned
     from amend.config import get_settings
-    secret = get_settings().amend_session_secret.get_secret_value()
+    s = get_settings()
+    own = s.verdict_signing_key.get_secret_value()
+    if own:
+        try:
+            return Ed25519PrivateKey.from_private_bytes(seed_from(own))
+        except ValueError:
+            if not _warned:
+                log.error("VERDICT_SIGNING_KEY is not a valid 32-byte seed: falling back to the derived key (fingerprint changes)")
+                _warned = True
+    elif not _warned:
+        log.warning("VERDICT_SIGNING_KEY is not set: delivery verdicts are signed with a key derived from the session secret")
+        _warned = True
+    secret = s.amend_session_secret.get_secret_value()
     if not secret:
         from amend import app as _app  # same per-process fallback the sessions use when no secret is set (local only)
         secret = _app._fallback_secret
@@ -74,6 +108,21 @@ def _fact_quote(db: Database, deal_id: str, field: str) -> str | None:
     return (r or {}).get("quote")
 
 
+def _mandate_disclosure(db: Database, deal_id: str) -> dict | None:
+    m = db.one("select body from mandates where deal_id = :d and status = 'active' order by created_at desc limit 1", {"d": deal_id})
+    return next((c for c in (json.loads(m["body"]).get("conditions") or []) if c.get("type") == "disclosure"), None) if m else None
+
+
+def _label(c: dict, ai_read: dict | None, entered: str) -> dict:
+    """Two labels on every check: what the AI read (with its exact quote) and what code decided. The AI never decides."""
+    if ai_read and ai_read.get("what"):
+        c["ai_read"] = {"what": ai_read["what"], "quote": ai_read.get("quote")}
+    else:
+        c["ai_read"] = {"what": None, "note": entered}
+    c["decided"] = ("Pass" if c["ok"] else "Fail") + ": " + c["reason"]
+    return c
+
+
 def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
     from amend import briefs, delivery
     from amend.changes import to_date
@@ -82,6 +131,10 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
     res = post["result"]
     delivered = res.get("delivered") or {}
     gaps = res.get("gaps") or []
+    read = res.get("ai_read") or {}
+    who = ((db.one("select display_name from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("display_name")
+           or "The creator").split(" ")[0]
+    not_read = (read.get("error") + ". " if read.get("error") else "Not read by AI. ")
     by_code = {g.get("code"): g for g in gaps if g.get("code")}
     out = []
     changed: dict[str, list[str]] = {}  # the confirmed changes behind each line: their exact words, oldest first
@@ -101,7 +154,8 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
         else:
             ok, why = False, f"Delivered {got}, the confirmed deal has {want}"
         quotes = [q for q in [t.get("quote")] + changed.get(t["code"], []) if q]
-        out.append({"check": f"{want} × {t['name']}", "ok": ok, "reason": why, "quote": t.get("quote"), "quotes": quotes})
+        out.append(_label({"check": f"{want} × {t['name']}", "ok": ok, "reason": why, "quote": t.get("quote"), "quotes": quotes},
+                          (read.get("items") or {}).get(t["code"]), f"{not_read}{who} entered {got}"))
     agreed_base = date.fromisoformat((deal.get("created_at") or post["posted_at"])[:10])
     want_d = to_date(deal.get("deadline"), agreed_base)
     if want_d:
@@ -113,22 +167,33 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
             ok, why = True, f"Posted on {engine.day_label(date.fromisoformat(posted))}: {delivery.resolution_text(db, g)}"
         else:
             ok, why = False, f"Posted on {engine.day_label(date.fromisoformat(posted))}, the deal says {engine.day_label(want_d)}"
-        out.append({"check": f"Post date {engine.day_label(want_d)}", "ok": ok, "reason": why,
-                    "quote": _fact_quote(db, deal["id"], "post_date")
-                    or (briefs.load(deal)["fields"].get("post_date") or {}).get("quote")})
+        out.append(_label({"check": f"Post date {engine.day_label(want_d)}", "ok": ok, "reason": why,
+                           "quote": _fact_quote(db, deal["id"], "post_date")
+                           or (briefs.load(deal)["fields"].get("post_date") or {}).get("quote")},
+                          read.get("date"), f"{not_read}{who} entered {engine.day_label(date.fromisoformat(posted))}"))
     disc = (briefs.load(deal)["fields"].get("disclosure") or {})
-    if disc.get("value") or res.get("disclosure_ok") is not None:
+    need = _mandate_disclosure(db, deal["id"])  # the brand's signed mandate requires it: then it holds money
+    tag = (need or {}).get("tag") or res.get("disclosure_tag") or "#ad"
+    if need or disc.get("value") or res.get("disclosure_ok") is not None:
         ok = bool(res.get("disclosure_ok"))
-        out.append({"check": "Disclosure (#ad) in the caption", "ok": ok, "advisory": True,
-                    "reason": "#ad found in the caption" if ok else ("No caption was given" if res.get("disclosure_ok") is None
-                                                                    else "No #ad in the caption as posted"),
-                    "quote": disc.get("quote")})
+        g = next((x for x in gaps if x["kind"] == "disclosure"), None)
+        why = (f"{tag} found in the caption" if ok else "No caption was given" if res.get("disclosure_ok") is None
+               else f"No {tag} in the caption as posted")
+        if ok and g and g["status"] == "resolved":
+            why += f": {delivery.resolution_text(db, g)}"
+        c = {"check": f"Disclosure ({tag}) in the caption" + (", required by the signed mandate" if need else ""),
+             "ok": ok, "reason": why, "quote": (need or {}).get("label") or disc.get("quote")}
+        if not need:
+            c["advisory"] = True
+        cap = res.get("caption") or ""
+        out.append(_label(c, read.get("disclosure"), f"{not_read}Code looked for {tag} in the caption" if cap else "No caption to read"))
     d = delivery.latest(db, deal["id"], "draft")
     if d:
         st = (d["result"] or {}).get("status")
-        out.append({"check": "Draft approved before posting", "ok": st == "approved", "advisory": True,
-                    "reason": ("Approved silently after the review window" if (d["result"] or {}).get("silent") else "Approved by the brand")
-                    if st == "approved" else "The draft wasn't approved", "quote": None})
+        out.append(_label({"check": "Draft approved before posting", "ok": st == "approved", "advisory": True,
+                           "reason": ("Approved silently after the review window" if (d["result"] or {}).get("silent") else "Approved by the brand")
+                           if st == "approved" else "The draft wasn't approved", "quote": None},
+                          None, "Not read by AI: from the brand's approval in Amend"))
     return out
 
 

@@ -453,6 +453,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
                    for e in db.events_for(deal_id)][-30:],
         "dispute": _dispute_view(db, deal_id),
         "draft_status": _draft_status(db, deal_id),
+        "caption_fix": next((g.get("fix") for g in __import__("amend.delivery", fromlist=["open_gaps"]).open_gaps(db, deal_id)
+                             if g["kind"] == "disclosure"), None),
         "offers": offers_for(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
         "usage": _usage_view(db, deal),
     }
@@ -464,6 +466,8 @@ def _event_text(e: dict, items: list[dict], creator_name: str) -> str | None:
     p = e.get("payload") or {}
     if e["type"] == "money.unused_released" and p.get("amount"):
         return f"{money.fmt_usd(p['amount'])} unused hold released back to the brand"
+    if e["type"] == "post.caption_fixed":
+        return f"Caption updated: {p.get('tag') or '#ad'} " + ("found" if p.get("ok") else "still missing")
     if e["type"] != "money.status":
         return None
     it = next((i for i in items if i["id"] == p.get("item")), None)

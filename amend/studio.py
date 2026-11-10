@@ -59,7 +59,7 @@ def needs_you(db: Database, creator: dict) -> list[dict]:
             out.append({"deal": d["id"], "brand": brand, "kind": "change", "icon": "lightbulb", "change": c["id"] if c["kind"] != "cancel" else None,
                         "text": f"Confirm or discuss a {what}" + (f" ({'+' if c['delta_cents'] > 0 else ''}{money.fmt_usd(abs(c['delta_cents']))})" if c["delta_cents"] and c["kind"] != "cancel" else "")})
         for g in open_gaps(db, d["id"]):
-            if g["kind"] in ("extra", "missing"):
+            if g["kind"] in ("extra", "missing", "disclosure"):
                 out.append({"deal": d["id"], "brand": brand, "kind": "gap", "icon": "triangle-alert", "text": g["text"]})
         sh = db.one("select * from shipments where deal_id = :d and received_at is null order by added_at desc limit 1", {"d": d["id"]})
         if sh and d["status"] == "in_progress":

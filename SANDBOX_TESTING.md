@@ -45,12 +45,14 @@ public, so it holds **placeholders only**: real passwords are never written into
 Nothing is seeded: every step is a real sandbox call on a new deal, so its receipt chain is complete.
 1. **Creator** (Sara) → Deals → New deal → brand "Dune Roast Coffee", contact "Nadia". Open the link in a private window.
 2. **Brand** writes the brief: "1 Reel and 1 Story set, post Friday, #ad". **Creator** accepts.
-3. **Brand** opens **Pre-approve small changes**, ticks "Extra Story set up to $150". The hold reads "$530 deal + up to
+3. **Brand** opens **Pre-approve small changes**, ticks "Extra Story set up to $150" and "Every post carries #ad". The hold reads "$530 deal + up to
    $150 pre-approved extras = $680 held". Pay with the sandbox buyer.
 4. **Creator** types in the chat: "I can add one more Story set for the launch". It applies inside the mandate:
    "+$80 comes out of the existing PayPal hold". The deal is now $610.
 5. **Creator** uploads the draft; **brand** approves it. **Creator** marks it posted (the post date as agreed, 2 Story
-   sets, caption with #ad).
+   sets). For the video, leave #ad out of the caption first: the verdict **fails** ("required by the signed mandate")
+   and the gap card says "Add #ad at the start of the caption". Sara fixes it there → **Update caption and re-check**.
+   Each check shows **AI read** next to **Code decided**.
 6. **Delivery verdict**: Pass, signed. Both tap **Confirm verdict and release**. PayPal collects $610 (`final_capture`),
    pays Sara by Payouts, and the spine shows "$70 released back to Nadia".
 7. The **sandbox buyer** logs in to the sandbox PayPal site → Activity → the $610 payment → **Report a problem**

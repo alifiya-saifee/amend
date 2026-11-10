@@ -73,7 +73,7 @@ with sync_playwright() as p:
     br.click("#mbox summary"); br.wait_for_timeout(300)
     if br.is_disabled("#m-x"):
         sys.exit("this browser could not sign (Ed25519 WebCrypto missing)")
-    br.check("#m-x"); br.select_option("#m-item", "story_set"); br.fill("#m-max", "150"); br.dispatch_event("#m-max", "input")
+    br.check("#m-x"); br.check("#m-ad"); br.select_option("#m-item", "story_set"); br.fill("#m-max", "150"); br.dispatch_event("#m-max", "input")
     br.wait_for_timeout(300)
     check("hold $680" in br.inner_text("#pay"), f"pay button says {br.inner_text('#pay')!r}")
     check("Hold $680 with PayPal" in br.inner_text("#hold-h"), f"heading says {br.inner_text('#hold-h')!r}")
@@ -120,8 +120,21 @@ with sync_playwright() as p:
     dl = q("select deadline from deals where id = ?", deal_id)[0] or ""
     if len(dl) >= 10 and dl[4] == "-":
         cr.fill("#w-date", dl[:10])
-    cr.fill("[data-deliv=story_set]", "2"); cr.fill("#w-pcap", "National Day cold brew #ad")
+    cr.fill("[data-deliv=story_set]", "2"); cr.fill("#w-pcap", "National Day cold brew, 2 Story sets")  # forgot #ad
     cr.click("#w-post"); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
+    vt = cr.inner_text(".verdict")
+    check("Fail" in cr.inner_text(".verdict .pill") and "required by the signed mandate" in vt, "missing #ad didn't fail the verdict")
+    check("AI read" in vt and "Code decided" in vt, "verdict checks lack the AI read / Code decided labels")
+    check(cr.is_visible("#w-fixcap-go") and "Add #ad at the start of the caption" in cr.inner_text("body"), "no #ad gap card for the creator")
+    cr.wait_for_timeout(3500); cr.locator(".verdict").scroll_into_view_if_needed(); cr.screenshot(path=str(OUT / "04a-ad-gap-creator-1440.png"), full_page=True)
+    br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector(".verdict", timeout=20000); br.wait_for_timeout(800)
+    check(not br.is_visible("#w-fixcap-go") and not br.is_visible("#w-verdict"), "the brand can fix the caption or confirm a failed verdict")
+    check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll on the failed verdict")
+    br.locator(".verdict").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "04b-ad-fail-brand-390.png"))
+    cr.fill("#w-fixcap", "#ad National Day cold brew, 2 Story sets"); cr.click("#w-fixcap-go"); cr.wait_for_timeout(2500)
+    cr.reload(); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
+    check("added #ad to the caption" in cr.inner_text(".verdict"), "fixed caption not shown in the verdict")
+    check("#ad at caption start" in cr.inner_text(".verdict"), "AI read of the caption not shown")
     if "Fail" in cr.inner_text(".verdict .pill"):  # a post-date gap is the brand's call
         br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("[data-res=accept]", timeout=20000)
         br.click("[data-res=accept]"); br.wait_for_timeout(1500)
@@ -131,6 +144,7 @@ with sync_playwright() as p:
     check("/capture" in vt and "final_capture" in vt and f"PayPal releases $70 back to {BRAND}" in vt, "PayPal calls not listed by the button")
     check("“I can add one more Story set for the launch”" in vt, "the Story line doesn't quote the confirmed change")
     cr.locator(".verdict").scroll_into_view_if_needed(); cr.screenshot(path=str(OUT / "04-verdict-creator-1440.png"), full_page=True)
+    cr.locator(".verdict").screenshot(path=str(OUT / "04c-verdict-labels-1440.png"))
     br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("#w-verdict", timeout=20000); br.wait_for_timeout(800)
     check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll on the verdict")
     br.locator(".verdict").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "05-verdict-brand-390.png"))

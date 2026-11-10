@@ -101,5 +101,74 @@ def test_no_ai_in_the_verdict(client, mocks, held):
     set_deadline(deal)
     n = mocks.ai.call_count
     post(client, deal, {"reel": 1, "story_set": 1})
+    assert mocks.ai.call_count == n + 1  # one read of the caption at posting ("AI read"), nothing more
     work(client, tok)
-    assert mocks.ai.call_count == n  # code writes and signs it; the AI is never asked
+    work(client, tok)
+    assert mocks.ai.call_count == n + 1  # code writes, decides and signs the verdict; the AI is never asked
+
+
+def test_every_check_shows_ai_read_and_code_decided_and_the_ai_never_decides(client, mocks, held):
+    from .test_booking import ai_reply
+    deal, tok = held
+    set_deadline(deal)
+    # the AI reads the caption; one reading is wrong on purpose (it claims there's no #ad problem it can't quote)
+    mocks.ai.mock(return_value=ai_reply({"disclosure": {"tag": "#ad", "position": "end", "quote": "#ad"},
+                                         "items": [{"code": "story_set", "what": "3 Story frames", "quote": "3 Story frames"},
+                                                   {"code": "reel", "what": "5 Reels", "quote": "words not in the caption"}],
+                                         "date": {"what": "posted 12 Nov", "quote": "posted 12 Nov"}}))
+    post(client, deal, {"reel": 1, "story_set": 1}, caption="New cold brew, 3 Story frames, posted 12 Nov #ad")
+    v = work(client, tok)["verdict"]
+    by = {c["check"].split(" (")[0]: c for c in v["checks"]}
+    story = next(c for c in v["checks"] if "Story" in c["check"])
+    reel = next(c for c in v["checks"] if "Reel" in c["check"])
+    date_c = next(c for c in v["checks"] if c["check"].startswith("Post date"))
+    disc = next(c for c in v["checks"] if c["check"].startswith("Disclosure"))
+    assert story["ai_read"] == {"what": "3 Story frames", "quote": "3 Story frames"}
+    assert reel["ai_read"]["what"] is None and "Sara entered 1" in reel["ai_read"]["note"]  # unquoted AI output dropped
+    assert date_c["ai_read"]["what"] == "posted 12 Nov"
+    assert disc["ai_read"]["what"] == "#ad at caption end"
+    # code decided from the confirmed deal, not from the AI: "3 Story frames" / "posted 12 Nov" change nothing
+    assert story["ok"] and story["decided"] == "Pass: Delivered 1, the confirmed deal has 1"
+    assert date_c["ok"] and date_c["decided"].startswith("Pass: Posted on Fri 13 Nov")
+    assert v["result"] == "pass" and all(c["decided"].startswith(("Pass", "Fail")) for c in v["checks"]) and by
+
+
+def test_when_the_ai_is_busy_the_verdict_still_runs_and_says_so(client, mocks, held, monkeypatch):
+    import httpx
+    from amend import ai
+    async def no_sleep(*a, **k): return None
+    monkeypatch.setattr(ai.asyncio, "sleep", no_sleep)
+    deal, tok = held
+    set_deadline(deal)
+    mocks.ai.mock(return_value=httpx.Response(500))
+    mocks.post("https://api.groq.com/openai/v1/chat/completions").mock(return_value=httpx.Response(500))
+    post(client, deal, {"reel": 1, "story_set": 1})
+    v = work(client, tok)["verdict"]
+    assert v["result"] == "pass"
+    assert all(c["ai_read"]["what"] is None for c in v["checks"] if not c["check"].startswith("Draft"))
+    assert "couldn't read the caption" in v["checks"][0]["ai_read"]["note"]
+
+
+def test_the_verdict_key_comes_from_its_own_setting(client, mocks, held, monkeypatch, caplog):
+    import base64
+    from amend.config import get_settings
+    seed = bytes(range(32))
+    monkeypatch.setenv("VERDICT_SIGNING_KEY", seed.hex())
+    get_settings.cache_clear()
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        want = base64.b64encode(Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode()
+        assert client.get("/api/verdict/key").json()["pub"] == want
+        monkeypatch.setenv("VERDICT_SIGNING_KEY", base64.b64encode(seed).decode())  # base64 works too
+        get_settings.cache_clear()
+        assert verdict.public_key() == want
+        monkeypatch.setenv("VERDICT_SIGNING_KEY", "")
+        get_settings.cache_clear()
+        verdict._warned = False
+        with caplog.at_level("WARNING", logger="amend.verdict"):
+            fallback = verdict.public_key()
+        assert fallback != want and "VERDICT_SIGNING_KEY is not set" in caplog.text
+        assert get_settings().amend_session_secret.get_secret_value() not in caplog.text or not get_settings().amend_session_secret.get_secret_value()
+    finally:
+        get_settings.cache_clear()

@@ -80,8 +80,18 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
 - **A signed delivery verdict.** When the post is in, code (not AI) checks it against the confirmed version: pass or
   fail per check, the reason, the confirmed deal's exact words, and the post's hash. On a pass it proposes the release
   (what PayPal collects, the creator's payout, the editor's share, the holdback, what goes back to the brand) and lists
-  the exact PayPal calls next to the Confirm button. Amend signs it with Ed25519 (public key at `/api/verdict/key`).
-  Nothing moves until both people tap Confirm on that exact verdict (bound by its hash).
+  the exact PayPal calls next to the Confirm button. Amend signs it with Ed25519, using its own key
+  (`VERDICT_SIGNING_KEY`). Public key at `/api/verdict/key`; its fingerprint (the key id on every verdict) is
+  **`9f88e65db6e92f00`** (public key `T85DpUaWzq1rPVO77AWdoTc2rfxvnyhIYjPIZmh/X2M=`). Nothing moves until both people
+  tap Confirm on that exact verdict (bound by its hash).
+- **"AI read" and "Code decided" on every check.** When the post is submitted, Gemini reads the caption (e.g. "#ad at
+  caption start"), and anything it says must quote the caption word for word or it's dropped. Each check shows what
+  the AI read (or "Not read by AI. Sara entered 2") next to what code decided (pass or fail against the confirmed
+  quote). Code never reads the AI's reading to decide; the AI never decides money.
+- **#ad becomes a money rule only when the brand signs it.** If the signed mandate says "Every post carries #ad", a
+  caption without the tag fails the verdict and opens a gap card for the creator ("Add #ad at the start of the
+  caption"). No release until it passes, and only a fixed caption closes it (the brand can't wave it through).
+  Without that condition, disclosure stays advisory.
 - **A receipt chain.** Every deal event (mandate, change card, each confirmation, each PayPal request ID and response ID,
   webhook, evidence) stores the hash of the previous one. The panel shows it verified; one changed byte breaks it.
 - **Disputes answered from the record.** On `CUSTOMER.DISPUTE.CREATED`, Amend builds the evidence pack at once (mandate,
@@ -94,8 +104,12 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   **off** (`PAYPAL_OVERCAPTURE=false`): the meter is informational, and a change beyond what's held needs a new PayPal
   approval.
 - The verdict's signature proves Amend's code produced exactly that verdict; it is not a person's approval (the
-  Confirm taps are). The disclosure (#ad) and draft-approval checks are shown and signed but are advisory: as before,
-  money waits only on the deliverables and the post date.
+  Confirm taps are). "Draft approved" is always advisory; disclosure is advisory unless the signed mandate requires it.
+- The AI reads only the caption. Counts and the post date are what the creator entered (the verdict says so); Amend
+  doesn't fetch the post from Instagram for the verdict.
+- If `VERDICT_SIGNING_KEY` isn't set, verdicts are signed with a key derived from the session secret (a warning is
+  logged, no secret printed), and the fingerprint above won't match. Make a key with `python -m scripts.verdict_key`:
+  it writes the seed to a private file and prints only the public key and fingerprint.
 - Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without
@@ -206,7 +220,7 @@ Without PayPal or AI keys, `AMEND_FAKE=1` runs a fake PayPal and a rule-based AI
 
 Environment variables (values never go in the repo): `PAYPAL_ENV`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
 `PAYPAL_WEBHOOK_ID`, `DATABASE_URL`, `BASE_URL`, `MONEY_RAIL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GROQ_API_KEY`,
-`GROQ_MODEL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL`, `AMEND_DEMO_PASSWORD`, `AMEND_SESSION_SECRET`, `AMEND_TICK_SECRET`,
+`GROQ_MODEL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL`, `AMEND_DEMO_PASSWORD`, `AMEND_SESSION_SECRET`, `AMEND_TICK_SECRET`, `VERDICT_SIGNING_KEY`,
 `SANDBOX_BRAND_EMAIL`, `SANDBOX_CREATOR_EMAIL`, `SANDBOX_EDITOR_EMAIL`.
 
 **Tests:** `.venv/bin/pytest -q` (PayPal and AI mocked). Browser checks live in `tests/browser/`.

@@ -440,5 +440,34 @@ JUDGE_PASSWORD and IG_LOOKUP_ENABLED=true.
   opens "Report a problem", then `scripts/dispute_sandbox_run.py --run` on that dispute.
 
 ### Open questions
-- The verdict key is derived from AMEND_SESSION_SECRET: if that secret ever changes, old verdicts need the old public
-  key to check. Fine for the hackathon; a dedicated key would be the production choice.
+- ~~The verdict key is derived from AMEND_SESSION_SECRET~~ → its own key now (next section).
+
+## Verdict follow-ups: #ad as a mandate money rule, own signing key, "AI read" / "Code decided" (10 Nov)
+Alifiya approved the money-rule change: #ad holds money only when the signed mandate includes "Every post carries #ad".
+
+### Done
+- **#ad by mandate.** With the condition, a caption without the tag (whole word: "#adventure" doesn't count) adds a
+  `disclosure` gap at posting: "Add #ad at the start of the caption". The verdict fails; no release. Only the creator
+  closes it, by fixing the caption on the gap card (`POST /api/deals/{id}/post/caption`); the brand can't wave it
+  through. A fixed caption changes the post hash, so a new verdict is signed. Without the condition: advisory, as
+  before. "Draft approved" stays advisory. The draft check uses the mandate's tag too. Next-step banner and Sara's
+  inbox show the fix.
+- **Own verdict key.** `VERDICT_SIGNING_KEY` (Ed25519 seed, hex or base64). Unset or invalid → the old derivation and
+  a log warning (no secret). `scripts/verdict_key.py` writes a seed to a private file and prints only the public key
+  and fingerprint. Made one: `~/amend-verdict-signing-key.txt` (outside the repo), fingerprint **9f88e65db6e92f00**,
+  in the README. `/api/verdict/key` unchanged.
+- **"AI read" / "Code decided".** At posting (and after a caption fix), Gemini reads the caption once; any reading
+  without a word-for-word quote from the caption is dropped. Each check shows the AI read or "Not read by AI. Sara
+  entered 2", and "Code decided: Pass/Fail: reason". Code never reads the AI's reading. If the AI is busy, the
+  verdict still runs and says so.
+- **Tests: 713 passed, 3 skipped.** New: `test_disclosure_mandate.py` (6), 3 more in `test_verdict.py`.
+- **Browser:** `mandate_flow.py` now signs #ad too, posts without it (fail, gap card, brand can't confirm), fixes
+  the caption, then passes and releases. Problems: none. New shots 04a (creator gap, 1440), 04b (brand fail, 390), 04c
+  (labels, 1440). `deal_page.py`, `walk_full.py`: none.
+
+### Next
+- Alifiya: paste the file's contents into Render as `VERDICT_SIGNING_KEY`, delete the file, Manual Deploy. Check
+  `/api/verdict/key` shows key id 9f88e65db6e92f00. Then the video deal (SANDBOX_TESTING.md now includes the #ad fix).
+
+### Open questions
+- The AI reads only the caption. Counts and the post date say "Not read by AI": Amend doesn't fetch the post itself.

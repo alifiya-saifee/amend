@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",

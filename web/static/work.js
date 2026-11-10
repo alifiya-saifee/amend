@@ -54,8 +54,9 @@ const Work = (() => {
     }
     if (p) {
       const gaps = p.result.gaps || [];
+      ctx._cap = p.result.caption || "";
       parts.push(`<div class="card"><h3>Delivery check</h3><p class="small">Posted ${esc(p.posted_label || fmtDate(p.posted_at) || "")} · <a href="${esc(p.post_url)}" target="_blank" rel="noopener">open post</a>
-        ${p.result.disclosure_ok === false ? ' · <span class="pill failed">no #ad in caption</span>' : p.result.disclosure_ok ? ' · <span class="pill collected">#ad found</span>' : ""}</p>
+        ${p.result.disclosure_ok === false ? ` · <span class="pill failed">no ${esc(p.result.disclosure_tag || "#ad")} in caption</span>` : p.result.disclosure_ok ? ` · <span class="pill collected">${esc(p.result.disclosure_tag || "#ad")} found</span>` : ""}</p>
         ${gaps.length ? gaps.map(g => gapCard(g)).join("") : `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> The delivery matches the latest confirmed deal (version ${ctx.V.deal.version}).</div>`}
         ${w.gaps_open ? `<div class="banner bad small" style="margin-top:8px">No money is released until every gap is resolved.</div>` : ""}</div>`);
     }
@@ -104,8 +105,11 @@ const Work = (() => {
         verdict <code>${esc(v.hash.slice(0, 12))}…</code> · post <code>${esc(v.post.hash.slice(0, 12))}…</code> ·
         <a href="${ctx.url("/verdict.json")}" target="_blank" rel="noopener">signed JSON</a></p>
       <div class="list">${v.checks.map(c => `<div class="line"><span>${icon(c.ok ? "circle-check" : c.advisory ? "info" : "triangle-alert")}</span><div class="grow">
-          <b>${esc(c.check)}</b>${c.advisory ? ' <span class="tiny muted">(advisory: doesn\'t hold money)</span>' : ""}<div class="small">${esc(c.reason)}</div>
+          <b>${esc(c.check)}</b>${c.advisory ? ' <span class="tiny muted">(advisory: doesn\'t hold money)</span>' : ""}
+          ${c.ai_read ? `<div class="vlab"><span class="vtag ai">AI read</span><span class="small">${c.ai_read.what ? `${esc(c.ai_read.what)}${c.ai_read.quote ? ` <span class="tiny muted">“${esc(c.ai_read.quote)}”</span>` : ""}` : `<span class="muted">${esc(c.ai_read.note || "Not read by AI")}</span>`}</span></div>` : ""}
+          <div class="vlab"><span class="vtag code ${c.ok ? "ok" : c.advisory ? "" : "bad"}">Code decided</span><span class="small">${esc(c.decided || ((c.ok ? "Pass: " : "Fail: ") + c.reason))}</span></div>
           ${(c.quotes && c.quotes.length ? c.quotes : c.quote ? [c.quote] : []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div></div>`).join("")}</div>
+      <p class="tiny muted" style="margin:6px 0 0">The AI only reads the caption. Code decides every pass or fail against the confirmed deal; the AI never decides money.</p>
       ${pass && P ? `<div class="verdict-go"><div class="verdict-prop"><div class="tiny muted">Proposed release</div>
           ${row("PayPal collects", P.capture_cents)}${row(`Paid to ${esc(first())}`, P.creator_cents)}${row("Owed from a past refund", P.owed_deducted_cents)}
           ${row("Editor's share", P.editor_cents)}${row("Holdback (paid later if the post stays live)", P.holdback_cents)}
@@ -129,6 +133,9 @@ const Work = (() => {
     const done = g.status === "resolved";
     const choices = g.kind === "extra" ? btn("add", `Yes, add ${usd(g.amount_cents)}`, "brand") + btn("free", "Free extra", "creator") + btn("remove", "Remove it", "brand")
       : g.kind === "missing" ? btn("drop", `Remove from the deal (collect ${usd(g.amount_cents)} less)`, "brand") + btn("will_deliver", "I'll deliver it", "creator")
+      : g.kind === "disclosure" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
+          <textarea id="w-fixcap" style="min-height:60px">${esc(((g.tag || "#ad") + " " + (ctx._cap || "")).trim())}</textarea>
+          <button class="btn small primary" id="w-fixcap-go">Update caption and re-check</button><span class="tiny muted">No money is released until the caption has ${esc(g.tag || "#ad")}: the brand's signed mandate requires it.</span></div>`)
       : btn("accept", "Accept the new date", "brand");
     return `<div class="changecard ${done ? "applied" : ""}" style="margin-top:8px"><div>${esc(g.text)}</div>
       ${done ? `<div class="small"><i data-lucide='circle-check' aria-hidden='true'></i> ${esc(g.resolution_text || "Resolved")}</div>` : `<div class="row wrapx" style="gap:8px;margin-top:8px">${choices || '<span class="small muted">Waiting for the other side</span>'}</div>`}
@@ -157,6 +164,7 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-fixcap-go", b => go(b, () => api(ctx.url("/post/caption"), { body: { caption: $("#w-fixcap", el).value } }), "Caption re-checked"));
     on("w-verdict", b => go(b, () => api(ctx.url("/release/approve"), { body: { verdict_hash: b.dataset.hash } }), "Verdict confirmed"));
   on("w-removed", b => { if (confirm("Report the post as removed? The creator gets 48 hours to restore it.")) go(b, () => api(ctx.url("/removed"), { method: "POST" })); });
     on("w-restored", b => go(b, () => api(ctx.url("/restored"), { method: "POST" }), "Thanks"));

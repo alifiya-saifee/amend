@@ -635,3 +635,11 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .verdict-calls li { margin-bottom: 4px; overflow-wrap: anywhere; }
 .verdict-calls code { font-size: 11px; }
 @media (min-width: 900px) { .verdict-go { grid-template-columns: 1fr 1fr; } }
+
+/* verdict: "AI read" and "Code decided" on every check */
+.vlab { display: flex; gap: 8px; align-items: baseline; margin-top: 4px; }
+.vlab > .small { min-width: 0; }
+.vtag { flex: none; font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 7px; border-radius: 6px; white-space: nowrap; background: var(--wait-bg); color: var(--wait); }
+.vtag.ai { background: var(--gold-soft); color: var(--gold-ink); }
+.vtag.code.ok { background: var(--ok-bg); color: var(--ok); }
+.vtag.code.bad { background: var(--bad-bg); color: var(--bad); }

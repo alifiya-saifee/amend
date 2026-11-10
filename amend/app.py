@@ -1607,7 +1607,8 @@ async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_c
         raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "A frame couldn't be read.")
     frames = [{"data_url": f"data:image/jpeg;base64,{f.data_b64}", "t": f.t} for f in body.frames]
     try:
-        checks = await delivery.check_frames(frames, body.caption, delivery.draft_requirements(deal))  # content only
+        checks = await delivery.check_frames(frames, body.caption, delivery.draft_requirements(deal),  # content only
+                                             delivery.mandate_tag(get_db(), deal["id"]) or "#ad")
     except (ai.ProviderError, ai.DraftRejected):
         checks = [{"check": "AI check", "ok": False, "frame": None, "time": None, "note": "Couldn't check the frames right now; the brand reviews by eye."}]
     delivery.set_draft_result(get_db(), dv["id"], checks)
@@ -1635,13 +1636,37 @@ class PostIn(BaseModel):
     caption: str = Field("", max_length=2200)
 
 
+async def _ai_read_post(deal_id: str, post: dict) -> None:
+    """The AI reads the caption (shown as "AI read" on the verdict). Code has already decided; this never changes it."""
+    from amend.deals import deal_terms
+    terms = [t for t in deal_terms(get_db(), deal_id) if t.get("item_kind") in (None, "deliverable")]
+    delivery.set_ai_read(get_db(), post["id"], await delivery.read_post(post["result"].get("caption") or "", terms))
+
+
 @app.post("/api/deals/{deal_id}/post")
-def creator_post(deal_id: str, body: PostIn, c: dict = Depends(require_creator)):
+async def creator_post(deal_id: str, body: PostIn, c: dict = Depends(require_creator)):
     deal, pid = _creator_ctx(deal_id, c)
     try:
-        delivery.submit_post(get_db(), deal, pid, **body.model_dump())
+        p = delivery.submit_post(get_db(), deal, pid, **body.model_dump())
     except (delivery.DeliveryError, ValueError) as e:
         raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "Posted on must be a date.")
+    await _ai_read_post(deal_id, p)
+    return _work(deal_id)
+
+
+class CaptionIn(BaseModel):
+    caption: str = Field(max_length=2200)
+
+
+@app.post("/api/deals/{deal_id}/post/caption")
+async def creator_fix_caption(deal_id: str, body: CaptionIn, c: dict = Depends(require_creator)):
+    """The creator edits the caption as posted (e.g. adds #ad). Code re-checks; the disclosure gap closes only if it passes."""
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        p = delivery.fix_caption(get_db(), deal, pid, body.caption)
+    except delivery.DeliveryError as e:
+        raise HTTPException(400, str(e))
+    await _ai_read_post(deal_id, p)
     return _work(deal_id)
 
 

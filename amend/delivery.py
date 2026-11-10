@@ -40,7 +40,7 @@ that shows it, or null>, "note": "<what you see, short>"}]}. Only judge what is 
 caption. If you can't tell, ok=false and say so in the note."""
 
 
-async def check_frames(frames: list[dict], caption: str, requirements: list[str]) -> list[dict]:
+async def check_frames(frames: list[dict], caption: str, requirements: list[str], tag: str = "#ad") -> list[dict]:
     """frames: [{"data_url", "t"}]. One vision call with every frame; frame index → time as evidence."""
     if not frames:
         return []
@@ -56,8 +56,9 @@ async def check_frames(frames: list[dict], caption: str, requirements: list[str]
     # disclosure in the caption is checked by code too, never only by the AI
     disc = next((r for r in requirements if r.lower().startswith("disclosure")), None)
     if disc:
-        out.append({"check": "Disclosure tag in the caption (checked by Amend)", "ok": "#ad" in caption.lower(), "frame": None,
-                    "time": None, "note": "found #ad" if "#ad" in caption.lower() else "no #ad in the caption"})
+        ok = has_tag(caption, tag)
+        out.append({"check": "Disclosure tag in the caption (checked by Amend)", "ok": ok, "frame": None,
+                    "time": None, "note": f"found {tag}" if ok else f"no {tag} in the caption"})
     return out
 
 
@@ -185,9 +186,13 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
         gaps.append({"id": new_id("gp"), "kind": "date", "posted_on": posted_on, "agreed_date": want_d.isoformat(), "status": "open",
                      "text": f"Posted on {engine.day_label(date.fromisoformat(posted_on))}, the deal says {engine.day_label(want_d)} "
                              "(no confirmed change)."})
-    disclosure_ok = "#ad" in caption.lower() if caption else None
+    tag = mandate_tag(db, deal["id"])
+    disclosure_ok = has_tag(caption, tag or "#ad") if caption else None
+    if tag and not disclosure_ok:  # the brand's signed mandate requires it: a money gap only the creator can fix
+        gaps.append(disclosure_gap(tag))
     row = {"id": new_id("dv"), "deal_id": deal["id"], "kind": "post", "post_url": post_url[:500], "posted_at": posted_on,
-           "result_json": json.dumps({"delivered": delivered, "gaps": gaps, "caption": caption[:2200], "disclosure_ok": disclosure_ok}),
+           "result_json": json.dumps({"delivered": delivered, "gaps": gaps, "caption": caption[:2200], "disclosure_ok": disclosure_ok,
+                                      "disclosure_tag": tag or "#ad", "disclosure_required": bool(tag)}),
            "created_at": now(), "checked_at": now()}
     with db.tx():
         db.insert("deliveries", row)
@@ -199,6 +204,94 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
         usage.start_clock(db, dict(deal, posted_at=posted_on))  # lifecycle 2: usage rights run from the post date
         db.log_event("delivery.checked", actor="system", deal_id=deal["id"], payload={"post": row["id"], "gaps": len(gaps)})
     return latest(db, deal["id"], "post")
+
+
+def mandate_tag(db: Database, deal_id: str) -> str | None:
+    """The disclosure tag the brand's signed mandate requires on every post ("#ad"), or None. With it, a missing tag is a
+    money gap (no release until the caption has it); without it, disclosure stays advisory. Code only."""
+    m = db.one("select body from mandates where deal_id = :d and status = 'active' order by created_at desc limit 1", {"d": deal_id})
+    c = next((c for c in (json.loads(m["body"]).get("conditions") or []) if c.get("type") == "disclosure"), None) if m else None
+    return c.get("tag") if c else None
+
+
+def has_tag(caption: str, tag: str) -> bool:
+    """The tag as its own word, any case ("#ad" yes; "#adventure" no)."""
+    import re
+    return bool(re.search(rf"(?<![\w#]){re.escape(tag.lower())}(?!\w)", (caption or "").lower()))
+
+
+def disclosure_gap(tag: str) -> dict:
+    return {"id": new_id("gp"), "kind": "disclosure", "tag": tag, "status": "open",
+            "text": f"No {tag} in the caption. The brand's signed mandate needs {tag} on every post.",
+            "fix": f"Add {tag} at the start of the caption"}
+
+
+def fix_caption(db: Database, deal: dict, creator_party: str, caption: str) -> dict:
+    """The creator edits the caption as posted (e.g. adds #ad). Code re-checks the tag; the disclosure gap closes only
+    when the caption now has it. The post's hash changes, so a new verdict is signed."""
+    p = latest(db, deal["id"], "post")
+    if not p:
+        raise DeliveryError("submit the post first")
+    if deal["status"] != "delivered":
+        raise DeliveryError("the release has started: the caption can't change now")
+    res = p["result"]
+    tag = res.get("disclosure_tag") or "#ad"
+    caption = (caption or "")[:2200]
+    ok = has_tag(caption, tag) if caption else None
+    res.update(caption=caption, disclosure_ok=ok, ai_read=None)
+    for g in res.get("gaps") or []:
+        if g["kind"] == "disclosure" and g["status"] == "open" and ok:
+            g.update(status="resolved", resolution="fixed", by=creator_party, at=now())
+    db.update("deliveries", "id", p["id"], {"result_json": json.dumps(res)})
+    db.log_event("post.caption_fixed", actor=creator_party, deal_id=deal["id"], payload={"post": p["id"], "tag": tag, "ok": bool(ok)})
+    return latest(db, deal["id"], "post")
+
+
+READ_SYSTEM = """You read a creator's Instagram caption exactly as posted. You only report what is written; you decide nothing.
+Reply with ONE JSON object:
+{"disclosure": {"tag": "<the disclosure tag as written, e.g. #ad, or null>", "position": "start"|"middle"|"end"|null,
+                "quote": "<the exact words from the caption>"} or null,
+ "items": [{"code": "<one of the deliverable codes given>", "what": "<what the caption says, short, e.g. 3 Story frames>",
+            "quote": "<the exact words from the caption>"}],
+ "date": {"what": "<a posting date the caption states, e.g. posted 12 Nov>", "quote": "<exact words>"} or null}
+Copy every quote word for word from the caption. If the caption doesn't say it, leave it out."""
+
+
+async def read_post(caption: str, deliverables: list[dict]) -> dict:
+    """What the AI read from the caption, kept only where its quote is in the caption word for word (rule 5). Shown
+    beside each verdict check as "AI read"; code decides pass or fail on its own and never reads this."""
+    if not (caption or "").strip():
+        return {"none": "no caption was given"}
+    user = ("Deliverable codes: " + ", ".join(f"{d['code']} ({d['name']})" for d in deliverables) + f"\n\nCaption:\n{caption}")
+    try:
+        res = await ai.call_json(READ_SYSTEM, user)
+    except ai.ProviderError:
+        return {"error": "The AI couldn't read the caption right now"}
+    data, low = res.data if isinstance(res.data, dict) else {}, caption.lower()
+
+    def quoted(x) -> str | None:
+        q = str((x or {}).get("quote") or "").strip() if isinstance(x, dict) else ""
+        return q if q and q.lower() in low else None
+    out: dict = {"provider": res.provider, "items": {}}
+    d = data.get("disclosure")
+    if quoted(d) and d.get("tag"):
+        pos = d.get("position") if d.get("position") in ("start", "middle", "end") else None
+        out["disclosure"] = {"what": f"{str(d['tag'])[:30]}" + (f" at caption {pos}" if pos else " in the caption"), "quote": quoted(d)}
+    codes = {x["code"] for x in deliverables}
+    for it in (data.get("items") or [])[:12]:
+        if isinstance(it, dict) and it.get("code") in codes and quoted(it) and it.get("what"):
+            out["items"][it["code"]] = {"what": str(it["what"])[:60], "quote": quoted(it)}
+    dt = data.get("date")
+    if quoted(dt) and dt.get("what"):
+        out["date"] = {"what": str(dt["what"])[:40], "quote": quoted(dt)}
+    return out
+
+
+def set_ai_read(db: Database, post_id: str, read: dict) -> None:
+    r = db.one("select result_json from deliveries where id = :i", {"i": post_id})
+    res = json.loads(r["result_json"] or "{}")
+    res["ai_read"] = read
+    db.update("deliveries", "id", post_id, {"result_json": json.dumps(res)})
 
 
 def open_gaps(db: Database, deal_id: str) -> list[dict]:
@@ -215,6 +308,8 @@ def resolution_text(db: Database, g: dict) -> str:
         if g.get("posted_on") and g.get("agreed_date"):
             when = "the earlier post date" if g["posted_on"] < g["agreed_date"] else "the later post date"
         return f"{who} accepted {when}"
+    if g.get("kind") == "disclosure":
+        return f"{who} added {g.get('tag') or '#ad'} to the caption"
     return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
             "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
             "will_deliver": f"{who} will deliver it"}.get(r, f"Resolved by {who}")
@@ -232,7 +327,9 @@ def resolve_gap(db: Database, deal: dict, party_id: str, gap_id: str, resolution
         raise DeliveryError("that gap is already resolved")
     side = side_of(db, deal, party_id)
     allowed = {"extra": {"add": "brand", "free": "creator", "remove": "brand"}, "missing": {"drop": "brand", "will_deliver": "creator"},
-               "date": {"accept": "brand"}}[g["kind"]]
+               "date": {"accept": "brand"}, "disclosure": {}}[g["kind"]]
+    if g["kind"] == "disclosure":
+        raise DeliveryError(f"add {g.get('tag') or '#ad'} to the caption to close this one: the signed mandate requires it")
     if resolution not in allowed:
         raise DeliveryError("unknown choice")
     if side != allowed[resolution]:

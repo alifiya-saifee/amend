@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     judge_password: SecretStr = SecretStr("")  # judges-only logins (judge.*): Render env only, never the demo password
     amend_session_secret: SecretStr = SecretStr("")
     amend_tick_secret: SecretStr = SecretStr("")
+    verdict_signing_key: SecretStr = SecretStr("")  # Ed25519 seed (32 bytes, hex or base64) for the delivery verdict
     # Instagram lookup (Meta Business Discovery, Facebook Login token). Off unless enabled and both are set.
     meta_ig_token: SecretStr = SecretStr("")
     meta_ig_user_id: str = ""

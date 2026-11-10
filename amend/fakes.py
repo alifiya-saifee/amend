@@ -132,6 +132,12 @@ async def fake_call_json(system: str, user: str, **kw):
         if m:
             out["budget"] = {"quote": m.group(0)}
         return AIResult(out, "fake", 1, False)
+    if "caption exactly as posted" in system:  # rule-based reading; every quote is taken from the caption
+        cap = user.split("Caption:\n", 1)[-1]
+        m = re.search(r"(?<![\w#])#(ad|sponsored|paidpartnership)(?!\w)", cap, re.I)
+        pos = None if not m else "start" if not cap[:m.start()].strip() else "end" if not cap[m.end():].strip() else "middle"
+        out = {"disclosure": {"tag": m.group(0), "position": pos, "quote": m.group(0)} if m else None, "items": [], "date": None}
+        return AIResult(out, "fake", 1, False)
     if "draft video frames" in system:
         return AIResult({"checks": [{"check": "Product clearly visible", "ok": True, "frame": 1, "note": "product on the table"},
                                     {"check": "Matches the brief", "ok": True, "frame": 3, "note": "home setting"}]}, "fake", 1, False)
