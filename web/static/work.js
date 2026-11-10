@@ -46,7 +46,9 @@ const Work = (() => {
     // posting
     if (!brand && w.status === "in_progress" && d && d.result.status === "approved") {
       parts.push(`<div class="card"><h3>Mark posted</h3>
-    <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/p/…">
+    <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/reel/…">
+        ${w.ig && w.ig.on ? `<label>Your Instagram account</label><input id="w-ig" placeholder="@yourhandle" value="${esc(w.ig.handle ? "@" + w.ig.handle : "")}">
+        <div class="hint">Amend reads the post from Instagram (professional accounts) and checks it against the latest confirmed deal. Stories can't be read for other accounts, so they come from what you enter.</div>` : ""}
         <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
         <label>Caption as posted</label><textarea id="w-pcap" style="min-height:60px"></textarea>
@@ -54,9 +56,16 @@ const Work = (() => {
     }
     if (p) {
       const gaps = p.result.gaps || [];
-      ctx._cap = p.result.caption || "";
+      ctx._cap = p.result.caption || ""; ctx._igFound = (p.result.ig || {}).status === "found";
+      const ig = p.result.ig;
+      const igLine = !ig ? "" : ig.status === "found"
+        ? `<div class="banner ok small" style="margin-top:8px">${icon("camera")} Read from Instagram: ${esc(igKind(ig))} · posted ${esc(ig.posted_label)} · <a href="${esc(ig.permalink)}" target="_blank" rel="noopener">@${esc(ig.handle)}</a></div>`
+        : `<div class="banner small" style="margin-top:8px">${icon("info")} ${esc(ig.message)}. The check uses what ${esc(first())} entered.</div>`;
+      const canRe = w.status === "delivered" && w.ig && w.ig.on && (!ctx.IS_BRAND || main);
+      ctx._igLine = igLine + (canRe ? `<button class="btn small" id="w-recheck" style="margin-top:8px">${icon("refresh-cw")} Re-check on Instagram</button>` : "");
       parts.push(`<div class="card"><h3>Delivery check</h3><p class="small">Posted ${esc(p.posted_label || fmtDate(p.posted_at) || "")} · <a href="${esc(p.post_url)}" target="_blank" rel="noopener">open post</a>
         ${p.result.disclosure_ok === false ? ` · <span class="pill failed">no ${esc(p.result.disclosure_tag || "#ad")} in caption</span>` : p.result.disclosure_ok ? ` · <span class="pill collected">${esc(p.result.disclosure_tag || "#ad")} found</span>` : ""}</p>
+        ${ctx._igLine || ""}
         ${gaps.length ? gaps.map(g => gapCard(g)).join("") : `<div class="banner ok"><i data-lucide='circle-check' aria-hidden='true'></i> The delivery matches the latest confirmed deal (version ${ctx.V.deal.version}).</div>`}
         ${w.gaps_open ? `<div class="banner bad small" style="margin-top:8px">No money is released until every gap is resolved.</div>` : ""}</div>`);
     }
@@ -106,10 +115,10 @@ const Work = (() => {
         <a href="${ctx.url("/verdict.json")}" target="_blank" rel="noopener">signed JSON</a></p>
       <div class="list">${v.checks.map(c => `<div class="line"><span>${icon(c.ok ? "circle-check" : c.advisory ? "info" : "triangle-alert")}</span><div class="grow">
           <b>${esc(c.check)}</b>${c.advisory ? ' <span class="tiny muted">(advisory: doesn\'t hold money)</span>' : ""}
-          ${c.ai_read ? `<div class="vlab"><span class="vtag ai">AI read</span><span class="small">${c.ai_read.what ? `${esc(c.ai_read.what)}${c.ai_read.quote ? ` <span class="tiny muted">“${esc(c.ai_read.quote)}”</span>` : ""}` : `<span class="muted">${esc(c.ai_read.note || "Not read by AI")}</span>`}</span></div>` : ""}
+          ${c.ai_read ? `<div class="vlab"><span class="vtag ai">${c.ai_read.source === "instagram" ? "Instagram read" : c.ai_read.source === "amend" ? "Amend record" : c.ai_read.source === "creator" ? `From ${esc(first())}` : "AI read"}</span><span class="small">${c.ai_read.what ? `${esc(c.ai_read.what)}${c.ai_read.quote ? ` <span class="tiny muted">“${esc(c.ai_read.quote)}”</span>` : ""}` : `<span class="muted">${esc(c.ai_read.note || "Not read by AI")}</span>`}</span></div>` : ""}
           <div class="vlab"><span class="vtag code ${c.ok ? "ok" : c.advisory ? "" : "bad"}">Code decided</span><span class="small">${esc(c.decided || ((c.ok ? "Pass: " : "Fail: ") + c.reason))}</span></div>
           ${(c.quotes && c.quotes.length ? c.quotes : c.quote ? [c.quote] : []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div></div>`).join("")}</div>
-      <p class="tiny muted" style="margin:6px 0 0">The AI only reads the caption. Code decides every pass or fail against the confirmed deal; the AI never decides money.</p>
+      <p class="tiny muted" style="margin:6px 0 0">${v.checks.some(c => c.ai_read && c.ai_read.source === "instagram") ? "The post's type, time and caption were read from Instagram." : "The AI only reads the caption."} Code decides every pass or fail against the confirmed deal; the AI never decides money.</p>
       ${pass && P ? `<div class="verdict-go"><div class="verdict-prop"><div class="tiny muted">Proposed release</div>
           ${row("PayPal collects", P.capture_cents)}${row(`Paid to ${esc(first())}`, P.creator_cents)}${row("Owed from a past refund", P.owed_deducted_cents)}
           ${row("Editor's share", P.editor_cents)}${row("Holdback (paid later if the post stays live)", P.holdback_cents)}
@@ -127,12 +136,16 @@ const Work = (() => {
     if ((i.note || "").startsWith("holdback:creator") && i.status === "approved") return `<span class="pill held">Scheduled</span>`;
     return moneyPill(i.status);
   }
+  function igKind(ig) { const p = (ig.media_product_type || "").toUpperCase(), t = (ig.media_type || "").toUpperCase();
+    return p === "REELS" ? "Reel" : t === "CAROUSEL_ALBUM" ? "Carousel post" : t === "VIDEO" ? "Video post" : t === "IMAGE" ? "Photo post" : "Post"; }
   function draftPill(d) { return d.result.status === "approved" ? `<span class="pill collected">Approved${d.result.silent ? " (silent)" : ""}</span>` : `<span class="pill waiting">Waiting for review</span>`; }
   function gapCard(g) {
     const btn = (r, t, who) => (who === (ctx.IS_BRAND ? "brand" : "creator")) && (!ctx.IS_BRAND || ctx.V.me.role === "brand_main") ? `<button class="btn small" data-gap="${g.id}" data-res="${r}">${t}</button>` : "";
     const done = g.status === "resolved";
     const choices = g.kind === "extra" ? btn("add", `Yes, add ${usd(g.amount_cents)}`, "brand") + btn("free", "Free extra", "creator") + btn("remove", "Remove it", "brand")
       : g.kind === "missing" ? btn("drop", `Remove from the deal (collect ${usd(g.amount_cents)} less)`, "brand") + btn("will_deliver", "I'll deliver it", "creator")
+      : g.kind === "disclosure" && ctx._igFound ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
+          <span class="small">Edit the caption on Instagram, then tap <b>Re-check on Instagram</b>. Amend reads it again and signs a new verdict.</span></div>`)
       : g.kind === "disclosure" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
           <textarea id="w-fixcap" style="min-height:60px">${esc(((g.tag || "#ad") + " " + (ctx._cap || "")).trim())}</textarea>
           <button class="btn small primary" id="w-fixcap-go">Update caption and re-check</button><span class="tiny muted">No money is released until the caption has ${esc(g.tag || "#ad")}: the brand's signed mandate requires it.</span></div>`)
@@ -161,9 +174,11 @@ const Work = (() => {
       });
     };
     on("w-post", b => go(b, () => api(ctx.url("/post"), { body: { post_url: $("#w-url", el).value, posted_on: $("#w-date", el).value, caption: $("#w-pcap", el).value,
+      ...($("#w-ig", el) ? { ig_handle: $("#w-ig", el).value } : {}),
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-recheck", b => go(b, () => api(ctx.url("/post/recheck"), { method: "POST" }), "Re-checked on Instagram"));
     on("w-fixcap-go", b => go(b, () => api(ctx.url("/post/caption"), { body: { caption: $("#w-fixcap", el).value } }), "Caption re-checked"));
     on("w-verdict", b => go(b, () => api(ctx.url("/release/approve"), { body: { verdict_hash: b.dataset.hash } }), "Verdict confirmed"));
   on("w-removed", b => { if (confirm("Report the post as removed? The creator gets 48 hours to restore it.")) go(b, () => api(ctx.url("/removed"), { method: "POST" })); });

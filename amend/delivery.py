@@ -151,13 +151,18 @@ def tick_silent(db: Database, at: datetime | None = None) -> dict:
 # ---------- posting and the delivery check ----------
 
 def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, posted_on: str, delivered: dict[str, int],
-                caption: str = "") -> dict:
+                caption: str = "", ig: dict | None = None) -> dict:
+    """ig: what Instagram says about this post (igpost.read). When found, the caption and the posted date the check
+    uses are Instagram's, not what the creator typed (both are kept)."""
     from amend.deals import _move, deal_terms
     if deal["status"] not in ("in_progress", "delivered"):
         raise DeliveryError("the deal isn't in progress")
     if not post_url.startswith(("https://", "http://")):
         raise DeliveryError("paste the post's link")
     date.fromisoformat(posted_on)
+    entered = {"caption": caption[:2200], "posted_on": posted_on}
+    if ig and ig.get("status") == "found":
+        caption, posted_on = ig["caption"], ig["posted_on"]
     terms = deal_terms(db, deal["id"])
     agreed = {t["code"]: t["qty"] for t in terms}
     names = {t["code"]: t["name"] for t in terms}
@@ -192,7 +197,8 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
         gaps.append(disclosure_gap(tag))
     row = {"id": new_id("dv"), "deal_id": deal["id"], "kind": "post", "post_url": post_url[:500], "posted_at": posted_on,
            "result_json": json.dumps({"delivered": delivered, "gaps": gaps, "caption": caption[:2200], "disclosure_ok": disclosure_ok,
-                                      "disclosure_tag": tag or "#ad", "disclosure_required": bool(tag)}),
+                                      "disclosure_tag": tag or "#ad", "disclosure_required": bool(tag), "ig": ig,
+                                      "entered": entered}),
            "created_at": now(), "checked_at": now()}
     with db.tx():
         db.insert("deliveries", row)
@@ -235,6 +241,8 @@ def fix_caption(db: Database, deal: dict, creator_party: str, caption: str) -> d
     if deal["status"] != "delivered":
         raise DeliveryError("the release has started: the caption can't change now")
     res = p["result"]
+    if (res.get("ig") or {}).get("status") == "found":
+        raise DeliveryError("the caption is read from Instagram: edit it there, then tap Re-check")
     tag = res.get("disclosure_tag") or "#ad"
     caption = (caption or "")[:2200]
     ok = has_tag(caption, tag) if caption else None
@@ -294,6 +302,36 @@ def set_ai_read(db: Database, post_id: str, read: dict) -> None:
     db.update("deliveries", "id", post_id, {"result_json": json.dumps(res)})
 
 
+def recheck_instagram(db: Database, deal: dict, actor: str, ig: dict) -> dict:
+    """Re-read the post on Instagram (igpost.read, never cached). Found: the caption and posted date come from Instagram
+    again; code re-checks the tag (a fixed caption closes the disclosure gap; a removed tag opens one again when the
+    mandate requires it). The post hash changes, so a new verdict is signed. Not found: the check says why."""
+    p = latest(db, deal["id"], "post")
+    if not p:
+        raise DeliveryError("submit the post first")
+    if deal["status"] != "delivered":
+        raise DeliveryError("the release has started: the post can't be re-checked now")
+    res = p["result"]
+    res["ig"] = ig
+    if ig.get("status") == "found":
+        tag, required = res.get("disclosure_tag") or "#ad", bool(res.get("disclosure_required"))
+        ok = has_tag(ig["caption"], tag) if ig["caption"] else None
+        res.update(caption=ig["caption"], disclosure_ok=ok, ai_read=None)
+        gaps = res.setdefault("gaps", [])
+        open_d = next((g for g in gaps if g["kind"] == "disclosure" and g["status"] == "open"), None)
+        if ok and open_d:
+            open_d.update(status="resolved", resolution="fixed", by=actor, at=now(), on="instagram")
+        elif required and not ok and not open_d:
+            gaps.append(disclosure_gap(tag))
+        if ig["posted_on"] != str(p["posted_at"])[:10]:
+            db.update("deliveries", "id", p["id"], {"posted_at": ig["posted_on"]})
+            db.update("deals", "id", deal["id"], {"posted_at": ig["posted_on"]})
+    db.update("deliveries", "id", p["id"], {"result_json": json.dumps(res), "checked_at": now()})
+    db.log_event("post.rechecked", actor=actor, deal_id=deal["id"],
+                 payload={"post": p["id"], "status": ig.get("status"), "media": ig.get("media_id")})
+    return latest(db, deal["id"], "post")
+
+
 def open_gaps(db: Database, deal_id: str) -> list[dict]:
     p = latest(db, deal_id, "post")
     return [g for g in (p["result"].get("gaps") if p else []) if g["status"] == "open"]
@@ -309,7 +347,7 @@ def resolution_text(db: Database, g: dict) -> str:
             when = "the earlier post date" if g["posted_on"] < g["agreed_date"] else "the later post date"
         return f"{who} accepted {when}"
     if g.get("kind") == "disclosure":
-        return f"{who} added {g.get('tag') or '#ad'} to the caption"
+        return f"{who} added {g.get('tag') or '#ad'} to the caption" + (" on Instagram" if g.get("on") == "instagram" else "")
     return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
             "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
             "will_deliver": f"{who} will deliver it"}.get(r, f"Resolved by {who}")

@@ -113,12 +113,13 @@ def _mandate_disclosure(db: Database, deal_id: str) -> dict | None:
     return next((c for c in (json.loads(m["body"]).get("conditions") or []) if c.get("type") == "disclosure"), None) if m else None
 
 
-def _label(c: dict, ai_read: dict | None, entered: str) -> dict:
-    """Two labels on every check: what the AI read (with its exact quote) and what code decided. The AI never decides."""
+def _label(c: dict, ai_read: dict | None, entered: str, source: str = "ai") -> dict:
+    """Two labels on every check: what was read (from Instagram, or by the AI from the caption, with the exact words)
+    and what code decided. Neither Instagram's facts nor the AI's reading is a decision: code decides."""
     if ai_read and ai_read.get("what"):
-        c["ai_read"] = {"what": ai_read["what"], "quote": ai_read.get("quote")}
+        c["ai_read"] = {"what": ai_read["what"], "quote": ai_read.get("quote"), "source": source}
     else:
-        c["ai_read"] = {"what": None, "note": entered}
+        c["ai_read"] = {"what": None, "note": entered, "source": source}
     c["decided"] = ("Pass" if c["ok"] else "Fail") + ": " + c["reason"]
     return c
 
@@ -131,10 +132,26 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
     res = post["result"]
     delivered = res.get("delivered") or {}
     gaps = res.get("gaps") or []
-    read = res.get("ai_read") or {}
+    from amend import igpost
     who = ((db.one("select display_name from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("display_name")
            or "The creator").split(" ")[0]
-    not_read = (read.get("error") + ". " if read.get("error") else "Not read by AI. ")
+    ig = res.get("ig") or {}
+    tag0 = res.get("disclosure_tag") or "#ad"
+    if ig.get("status") == "found":  # facts from Instagram, put into words by code (no AI)
+        src = "instagram"
+        pos = igpost.tag_position(ig["caption"], tag0)
+        cap = ig["caption"]
+        read = {"date": {"what": f"posted {ig['posted_label']}", "quote": ig.get("timestamp")},
+                "disclosure": {"what": (f"{tag0} at caption start" if pos == "start" else
+                                        f"{tag0} in the caption, not at the start" if pos else f"no {tag0} in the caption"),
+                               "quote": igpost.around_tag(cap, tag0) if cap else None},
+                "kind": {"what": f"{igpost.kind_label(ig)} on Instagram", "quote": ig.get("media_product_type") or ig.get("media_type")}}
+        not_read = "Not read from Instagram. "
+    else:
+        src = "ai"
+        read = res.get("ai_read") or {}
+        not_read = (f"{ig['message']}. " if ig.get("message") else "") + \
+            (read.get("error") + ". " if read.get("error") else "Not read by AI. ")
     by_code = {g.get("code"): g for g in gaps if g.get("code")}
     out = []
     changed: dict[str, list[str]] = {}  # the confirmed changes behind each line: their exact words, oldest first
@@ -154,8 +171,16 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
         else:
             ok, why = False, f"Delivered {got}, the confirmed deal has {want}"
         quotes = [q for q in [t.get("quote")] + changed.get(t["code"], []) if q]
+        code_l = t["code"].lower()
+        src_l = src
+        if "story" in code_l:  # Instagram doesn't share other accounts' Stories
+            r_, note, src_l = None, f"{igpost.STORY_NOTE}: {who} entered {got}", "creator"
+        elif src == "instagram":
+            r_, note = (read["kind"] if "reel" in code_l else None), f"{not_read}{who} entered {got}"
+        else:
+            r_, note = (read.get("items") or {}).get(t["code"]), f"{not_read}{who} entered {got}"
         out.append(_label({"check": f"{want} × {t['name']}", "ok": ok, "reason": why, "quote": t.get("quote"), "quotes": quotes},
-                          (read.get("items") or {}).get(t["code"]), f"{not_read}{who} entered {got}"))
+                          r_, note, src_l))
     agreed_base = date.fromisoformat((deal.get("created_at") or post["posted_at"])[:10])
     want_d = to_date(deal.get("deadline"), agreed_base)
     if want_d:
@@ -170,7 +195,7 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
         out.append(_label({"check": f"Post date {engine.day_label(want_d)}", "ok": ok, "reason": why,
                            "quote": _fact_quote(db, deal["id"], "post_date")
                            or (briefs.load(deal)["fields"].get("post_date") or {}).get("quote")},
-                          read.get("date"), f"{not_read}{who} entered {engine.day_label(date.fromisoformat(posted))}"))
+                          read.get("date"), f"{not_read}{who} entered {engine.day_label(date.fromisoformat(posted))}", src))
     disc = (briefs.load(deal)["fields"].get("disclosure") or {})
     need = _mandate_disclosure(db, deal["id"])  # the brand's signed mandate requires it: then it holds money
     tag = (need or {}).get("tag") or res.get("disclosure_tag") or "#ad"
@@ -186,14 +211,14 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
         if not need:
             c["advisory"] = True
         cap = res.get("caption") or ""
-        out.append(_label(c, read.get("disclosure"), f"{not_read}Code looked for {tag} in the caption" if cap else "No caption to read"))
+        out.append(_label(c, read.get("disclosure"), f"{not_read}Code looked for {tag} in the caption" if cap else "No caption to read", src))
     d = delivery.latest(db, deal["id"], "draft")
     if d:
         st = (d["result"] or {}).get("status")
         out.append(_label({"check": "Draft approved before posting", "ok": st == "approved", "advisory": True,
                            "reason": ("Approved silently after the review window" if (d["result"] or {}).get("silent") else "Approved by the brand")
                            if st == "approved" else "The draft wasn't approved", "quote": None},
-                          None, "Not read by AI: from the brand's approval in Amend"))
+                          None, "Not read: from the brand's approval in Amend", "amend"))
     return out
 
 
@@ -230,7 +255,8 @@ def _proposal(n: dict) -> dict:
 def _post_hash(post: dict) -> str:
     res = post["result"]
     return hashlib.sha256(canon({"url": post.get("post_url"), "posted_on": str(post.get("posted_at"))[:10],
-                                 "caption": res.get("caption") or "", "delivered": res.get("delivered") or {}}).encode()).hexdigest()
+                                 "caption": res.get("caption") or "", "delivered": res.get("delivered") or {},
+                                 "instagram": {k: (res.get("ig") or {}).get(k) for k in ("status", "media_id", "timestamp")}}).encode()).hexdigest()
 
 
 def _release_planned(db: Database, deal_id: str) -> bool:

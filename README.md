@@ -88,6 +88,13 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   caption start"), and anything it says must quote the caption word for word or it's dropped. Each check shows what
   the AI read (or "Not read by AI. Sara entered 2") next to what code decided (pass or fail against the confirmed
   quote). Code never reads the AI's reading to decide; the AI never decides money.
+- **The post is read from Instagram.** When the creator submits a post link, Amend reads her latest 10 posts through
+  Instagram's Business Discovery (the same token as the Discover lookup, never cached) and matches the link. Found:
+  the caption and posted time that code checks are Instagram's, not what she typed, and each check shows **Instagram
+  read** (type, posted time in Dubai, "#ad at caption start" or not, quoted word for word). **Re-check on Instagram**
+  reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
+  the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
+  and says so. The token is never stored; the log carries the media id only.
 - **#ad becomes a money rule only when the brand signs it.** If the signed mandate says "Every post carries #ad", a
   caption without the tag fails the verdict and opens a gap card for the creator ("Add #ad at the start of the
   caption"). No release until it passes, and only a fixed caption closes it (the brand can't wave it through).
@@ -105,8 +112,9 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   approval.
 - The verdict's signature proves Amend's code produced exactly that verdict; it is not a person's approval (the
   Confirm taps are). "Draft approved" is always advisory; disclosure is advisory unless the signed mandate requires it.
-- The AI reads only the caption. Counts and the post date are what the creator entered (the verdict says so); Amend
-  doesn't fetch the post from Instagram for the verdict.
+- Instagram gives the post's type, time and caption, not how many Story frames went up: counts are what the creator
+  entered (the verdict says so). Amend doesn't verify she owns the Instagram account she names (Instagram Login
+  would). Only professional accounts can be read, and only their 10 latest posts.
 - If `VERDICT_SIGNING_KEY` isn't set, verdicts are signed with a key derived from the session secret (a warning is
   logged, no secret printed), and the fingerprint above won't match. Make a key with `python -m scripts.verdict_key`:
   it writes the seed to a private file and prints only the public key and fingerprint.

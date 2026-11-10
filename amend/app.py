@@ -9,6 +9,7 @@ Security (checklist A4, B):
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import hmac
 import json
@@ -19,7 +20,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
@@ -203,18 +204,37 @@ STUDIO_TABS = {"inbox", "deals", "calendar", "earnings", "ledger", "prices", "pr
 BRAND_TABS = {"inbox", "deals", "shortlist", "searches", "payments", "team", "settings", "company"}
 
 
+POST_CHECK_LIVE = {
+    "PC1": "Amend reads the post from Instagram and checks it against the latest confirmed deal.",
+    "PC2": "Amend reads the post from Instagram and checks it against the latest confirmed deal: its type, when it went "
+           "up and the caption (#ad). Stories can't be read for other accounts, so they come from the creator's upload. "
+           "If the post can't be read (a personal account, or Instagram is down), it checks the details the creator "
+           "gives, and says so. Code decides; no money is released until they match.",
+}
+
+
+def landing() -> HTMLResponse:
+    """The landing page says Amend reads the post from Instagram only while that is actually switched on."""
+    import re as _re
+    html = (WEB / "index.html").read_text()
+    if iglookup_enabled():
+        for k, v in POST_CHECK_LIVE.items():
+            html = _re.sub(rf"<!--{k}-->.*?<!--/{k}-->", v, html, flags=_re.S)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
 @app.api_route("/", methods=["GET", "HEAD"])  # HEAD: uptime monitors (UptimeRobot) check with HEAD
 def home(request: Request):
     a = current_account(request)  # S84: signed-in people go to their own home
     if a:
         return RedirectResponse("/studio" if a["kind"] == "creator" else "/brand", 303)
-    return page("index.html")
+    return landing()
 
 
 @app.get("/pricing")
 @app.get("/faq")
 def marketing_pages():
-    return page("index.html")
+    return landing()
 
 
 @app.get("/login")
@@ -1572,7 +1592,14 @@ def _work(deal_id: str) -> dict:
             "verdict": _verdict_out(verdict.issue(d, deal_id)),
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
-            "silent_approval_days": deal.get("silent_approval_days")}
+            "silent_approval_days": deal.get("silent_approval_days"),
+            "ig": {"on": iglookup_enabled(), "handle": (d.one("select ig_handle from creators where id = :c",
+                                                              {"c": deal["creator_id"]}) or {}).get("ig_handle")}}
+
+
+def iglookup_enabled() -> bool:
+    from amend import igpost
+    return igpost.enabled()
 
 
 @app.get("/api/d/{token}/work")
@@ -1634,6 +1661,14 @@ class PostIn(BaseModel):
     posted_on: str
     delivered: dict[str, int]
     caption: str = Field("", max_length=2200)
+    ig_handle: str | None = Field(None, max_length=40)  # her own Instagram account (saved on her profile)
+
+
+async def _ig_read(deal: dict, post_url: str) -> dict:
+    """Read the post on Instagram (never cached; the token stays in a header). Runs off the event loop."""
+    from amend import igpost
+    h = (get_db().one("select ig_handle from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("ig_handle")
+    return await asyncio.to_thread(igpost.read, get_db(), deal["id"], h, post_url)
 
 
 async def _ai_read_post(deal_id: str, post: dict) -> None:
@@ -1645,13 +1680,48 @@ async def _ai_read_post(deal_id: str, post: dict) -> None:
 
 @app.post("/api/deals/{deal_id}/post")
 async def creator_post(deal_id: str, body: PostIn, c: dict = Depends(require_creator)):
+    from amend import igpost
     deal, pid = _creator_ctx(deal_id, c)
+    data = body.model_dump()
+    h = data.pop("ig_handle", None)
+    if h is not None:
+        get_db().update("creators", "id", deal["creator_id"], {"ig_handle": igpost.clean_handle(h)})
+    ig = await _ig_read(deal, data["post_url"]) if deal["status"] in ("in_progress", "delivered") else None
     try:
-        p = delivery.submit_post(get_db(), deal, pid, **body.model_dump())
+        p = delivery.submit_post(get_db(), deal, pid, **data, ig=ig)
     except (delivery.DeliveryError, ValueError) as e:
         raise HTTPException(400, str(e) if isinstance(e, delivery.DeliveryError) else "Posted on must be a date.")
-    await _ai_read_post(deal_id, p)
+    if (ig or {}).get("status") != "found":
+        await _ai_read_post(deal_id, p)  # no Instagram facts: the AI reads the caption she entered
     return _work(deal_id)
+
+
+async def _recheck(deal: dict, actor: str) -> dict:
+    p = delivery.latest(get_db(), deal["id"], "post")
+    if not p:
+        raise HTTPException(400, "Submit the post first.")
+    ig = await _ig_read(deal, p["post_url"])
+    if ig["status"] == "rate_limited":
+        raise HTTPException(429, ig["message"] + ".")
+    try:
+        p = delivery.recheck_instagram(get_db(), deal, actor, ig)
+    except delivery.DeliveryError as e:
+        raise HTTPException(400, str(e))
+    if ig["status"] != "found":
+        await _ai_read_post(deal["id"], p)
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/post/recheck")
+async def creator_recheck(deal_id: str, c: dict = Depends(require_creator)):
+    deal, pid = _creator_ctx(deal_id, c)
+    return await _recheck(deal, pid)
+
+
+@app.post("/api/d/{token}/post/recheck")
+async def brand_recheck(token: str):
+    deal, pid = _brand_ctx(token)
+    return await _recheck(deal, pid)
 
 
 class CaptionIn(BaseModel):

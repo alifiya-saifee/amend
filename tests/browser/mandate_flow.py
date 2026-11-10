@@ -11,6 +11,8 @@ both confirm → PayPal collects $610 with final_capture → the spine says "$70
 """
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -22,7 +24,11 @@ sys.path.insert(0, str(ROOT))
 from amend.config import get_settings  # noqa: E402
 
 BASE, DB = sys.argv[1], sys.argv[2]
-OUT = ROOT / "docs" / "screenshots" / "mandate"
+# IG=1 (server started with AMEND_FAKE_IG=1 and AMEND_FAKE_IG_CAPTION_FILE=<IGFILE>): the post is read from (fake)
+# Instagram; Sara edits the caption "on Instagram" (the file) and taps Re-check instead of fixing it in Amend.
+IG = os.environ.get("IG") == "1"
+IGFILE = os.environ.get("AMEND_FAKE_IG_CAPTION_FILE")
+OUT = ROOT / "docs" / "screenshots" / ("instagram" if IG else "mandate")
 OUT.mkdir(parents=True, exist_ok=True)
 PW = get_settings().amend_demo_password.get_secret_value()
 problems, errs = [], []
@@ -116,24 +122,39 @@ with sync_playwright() as p:
     check(st == 200, f"draft upload {st}")
     br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("#w-approve", timeout=20000); br.click("#w-approve"); br.wait_for_timeout(1500)
     cr.goto(f"{BASE}/studio/deals/{deal_id}#delivery"); cr.reload(); cr.wait_for_selector("#w-post", timeout=20000)
-    cr.fill("#w-url", "https://www.instagram.com/p/demo610/")
     dl = q("select deadline from deals where id = ?", deal_id)[0] or ""
+    if IG:
+        Path(IGFILE).write_text(json.dumps({"caption": "National Day cold brew, 2 Story sets", "timestamp": f"{dl[:10]}T08:30:00+0000"}))
+        cr.fill("#w-url", "https://www.instagram.com/reel/DEMO610/"); cr.fill("#w-ig", "@clinicrobotest")
+    else:
+        cr.fill("#w-url", "https://www.instagram.com/p/demo610/")
     if len(dl) >= 10 and dl[4] == "-":
         cr.fill("#w-date", dl[:10])
     cr.fill("[data-deliv=story_set]", "2"); cr.fill("#w-pcap", "National Day cold brew, 2 Story sets")  # forgot #ad
     cr.click("#w-post"); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
     vt = cr.inner_text(".verdict")
     check("Fail" in cr.inner_text(".verdict .pill") and "required by the signed mandate" in vt, "missing #ad didn't fail the verdict")
-    check("AI read" in vt and "Code decided" in vt, "verdict checks lack the AI read / Code decided labels")
-    check(cr.is_visible("#w-fixcap-go") and "Add #ad at the start of the caption" in cr.inner_text("body"), "no #ad gap card for the creator")
+    check(("Instagram read" if IG else "AI read") in vt and "Code decided" in vt, "verdict checks lack the AI read / Code decided labels")
+    if IG:
+        check("Read from Instagram: Reel" in cr.inner_text("body") and "Dubai" in cr.inner_text("body"), "no 'Read from Instagram' line")
+        check("Instagram read" in vt and "no #ad in the caption" in vt and "Stories can't be read for other accounts" in vt, "Instagram labels missing")
+        check(cr.is_visible("#w-recheck") and "Edit the caption on Instagram" in cr.inner_text("body"), "no Re-check / edit-on-Instagram card")
+    else:
+        check(cr.is_visible("#w-fixcap-go") and "Add #ad at the start of the caption" in cr.inner_text("body"), "no #ad gap card for the creator")
     cr.wait_for_timeout(3500); cr.locator(".verdict").scroll_into_view_if_needed(); cr.screenshot(path=str(OUT / "04a-ad-gap-creator-1440.png"), full_page=True)
     br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector(".verdict", timeout=20000); br.wait_for_timeout(800)
     check(not br.is_visible("#w-fixcap-go") and not br.is_visible("#w-verdict"), "the brand can fix the caption or confirm a failed verdict")
     check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll on the failed verdict")
     br.locator(".verdict").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "04b-ad-fail-brand-390.png"))
-    cr.fill("#w-fixcap", "#ad National Day cold brew, 2 Story sets"); cr.click("#w-fixcap-go"); cr.wait_for_timeout(2500)
+    if IG:  # she edits the caption on Instagram, then re-checks
+        Path(IGFILE).write_text(json.dumps({"caption": "#ad National Day cold brew, 2 Story sets", "timestamp": f"{dl[:10]}T08:30:00+0000"}))
+        cr.click("#w-recheck"); cr.wait_for_timeout(2500)
+    else:
+        cr.fill("#w-fixcap", "#ad National Day cold brew, 2 Story sets"); cr.click("#w-fixcap-go"); cr.wait_for_timeout(2500)
     cr.reload(); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
     check("added #ad to the caption" in cr.inner_text(".verdict"), "fixed caption not shown in the verdict")
+    if IG:
+        check("on Instagram" in cr.inner_text(".verdict") and "Instagram read" in cr.inner_text(".verdict"), "re-check not from Instagram")
     check("#ad at caption start" in cr.inner_text(".verdict"), "AI read of the caption not shown")
     if "Fail" in cr.inner_text(".verdict .pill"):  # a post-date gap is the brand's call
         br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("[data-res=accept]", timeout=20000)

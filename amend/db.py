@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -229,7 +229,8 @@ COLUMNS = {
                  "languages_json": "text not null default '[]'", "styles_json": "text not null default '[]'",
                  "turnaround_days": "integer", "next_available": "text", "past_brands_json": "text not null default '[]'",
                  "samples_json": "text not null default '[]'", "keywords": "text", "is_demo": "integer not null default 0",
-                 "address": "text", "phone": "text", "terms_json": "text not null default '{}'"},
+                 "address": "text", "phone": "text", "terms_json": "text not null default '{}'",
+                 "ig_handle": "text"},  # her own Instagram account, for reading her posts at delivery
     "deals": {"title": "text", "brief_json": "text not null default '{}'", "silent_approval_days": "integer", "paused_from": "text",
               "pause_json": "text", "revisions_used": "integer not null default 0", "draft_due": "text",
               "posted_at": "text", "completed_at": "text", "editor_json": "text", "post_url": "text",

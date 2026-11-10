@@ -49,14 +49,21 @@ Nothing is seeded: every step is a real sandbox call on a new deal, so its recei
    $150 pre-approved extras = $680 held". Pay with the sandbox buyer.
 4. **Creator** types in the chat: "I can add one more Story set for the launch". It applies inside the mandate:
    "+$80 comes out of the existing PayPal hold". The deal is now $610.
-5. **Creator** uploads the draft; **brand** approves it. **Creator** marks it posted (the post date as agreed, 2 Story
-   sets). For the video, leave #ad out of the caption first: the verdict **fails** ("required by the signed mandate")
-   and the gap card says "Add #ad at the start of the caption". Sara fixes it there → **Update caption and re-check**.
-   Each check shows **AI read** next to **Code decided**.
-6. **Delivery verdict**: Pass, signed. Both tap **Confirm verdict and release**. PayPal collects $610 (`final_capture`),
+5. **Creator** uploads the draft; **brand** approves it.
+6. **On Instagram**, from the test account **@clinicrobotest** (professional, linked to Amend's Graph token), post a
+   **Reel without #ad** in the caption. Post it on the agreed day (Dubai time); a different day opens a date card that
+   Nadia accepts.
+7. **Creator** → Mark posted: paste the Reel's link, put **@clinicrobotest** in "Your Instagram account", 2 Story sets.
+   Amend reads the Reel from Instagram ("Read from Instagram: Reel · posted … Dubai"). The verdict **fails**:
+   "Disclosure (#ad), required by the signed mandate" → **Instagram read** "no #ad in the caption", **Code decided**
+   Fail. The gap card says "Add #ad at the start of the caption", then edit it on Instagram.
+8. **Edit the caption on Instagram** (add #ad at the start), then tap **Re-check on Instagram** in Amend. A new verdict
+   is signed: Pass, "Sara added #ad to the caption on Instagram". The Story line says "Stories can't be read for other
+   accounts; from the creator's upload".
+9. **Delivery verdict**: Pass, signed. Both tap **Confirm verdict and release**. PayPal collects $610 (`final_capture`),
    pays Sara by Payouts, and the spine shows "$70 released back to Nadia".
-7. The **sandbox buyer** logs in to the sandbox PayPal site → Activity → the $610 payment → **Report a problem**
-   (item not as described or not received). The `CUSTOMER.DISPUTE.CREATED` webhook matches it to the deal, freezes the
+10. The **sandbox buyer** logs in to the sandbox PayPal site → Activity → the $610 payment → **Report a problem**
+    (item not as described or not received). The `CUSTOMER.DISPUTE.CREATED` webhook matches it to the deal, freezes the
    holdback and builds the evidence pack.
 
 Then win it:

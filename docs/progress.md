@@ -471,3 +471,36 @@ Alifiya approved the money-rule change: #ad holds money only when the signed man
 
 ### Open questions
 - The AI reads only the caption. Counts and the post date say "Not read by AI": Amend doesn't fetch the post itself.
+
+## Delivery check reads the post from Instagram (10 Nov)
+She deployed with VERDICT_SIGNING_KEY. Asked: read the post from Instagram, the video deal on @clinicrobotest, and landing copy that matches.
+
+### Done
+- **`amend/igpost.py`.** Business Discovery `media.limit(10){id,media_type,media_product_type,timestamp,caption,
+  permalink}` for her Instagram account (new `creators.ig_handle`, set on the Mark posted form), never cached, token
+  in a header only, the log has the media id only.
+  - The link is matched by shortcode (`/p/`, `/reel/`, `/tv/`). Found: the caption and the posted date that code checks
+    are Instagram's (posted time shown in Dubai); what she typed is kept as `entered`.
+  - Each check says **Instagram read** (Reel/type, "posted Fri 13 Nov, 12:30 Dubai", "#ad at caption start" or not, with
+    the exact words) next to **Code decided**. No AI call when it's found.
+  - Story lines say "Stories can't be read for other accounts; from the creator's upload" (label "From Sara").
+  - Not found / personal account / lookup off / Instagram down: what she entered, and the check says why. The AI still
+    reads the caption she entered in that case.
+- **Re-check on Instagram** (both sides; 6 per deal per hour). It re-reads the post: an #ad added on Instagram closes the
+  disclosure gap, and a removed one reopens it when the mandate requires it. A new verdict is signed. When the caption
+  comes from Instagram, it can't be edited inside Amend ("edit it there, then tap Re-check").
+- **Landing/FAQ:** "Amend reads the post from Instagram and checks it against the latest confirmed deal" only while
+  reading is switched on (server-side); otherwise "Amend checks the post details against the deal". There's a new FAQ
+  entry, "How is the post checked?".
+- **SANDBOX_TESTING.md, the video deal:** @clinicrobotest posts a Reel without #ad → fail → edit the caption on Instagram
+  → Re-check → pass → release → dispute.
+- **Tests: 721 passed, 3 skipped.** New `test_igpost.py` (8): match, no #ad → fail, #ad added → re-check passes,
+  rate limit, not found, personal account, lookup off, Story link, landing copy.
+- **Browser:** `mandate_flow.py` with `IG=1` (local fake Graph, `AMEND_FAKE_IG=1`), shots in
+  `docs/screenshots/instagram/`; without it, as before. Problems: none.
+
+### Next
+- Alifiya: Manual Deploy, then the video deal on @clinicrobotest.
+
+### Open questions
+- Amend doesn't verify that the creator owns the Instagram account she names (that would need Instagram Login).

@@ -123,10 +123,10 @@ def test_every_check_shows_ai_read_and_code_decided_and_the_ai_never_decides(cli
     reel = next(c for c in v["checks"] if "Reel" in c["check"])
     date_c = next(c for c in v["checks"] if c["check"].startswith("Post date"))
     disc = next(c for c in v["checks"] if c["check"].startswith("Disclosure"))
-    assert story["ai_read"] == {"what": "3 Story frames", "quote": "3 Story frames"}
+    assert story["ai_read"]["what"] is None and story["ai_read"]["note"].startswith("Stories can't be read for other accounts")
     assert reel["ai_read"]["what"] is None and "Sara entered 1" in reel["ai_read"]["note"]  # unquoted AI output dropped
     assert date_c["ai_read"]["what"] == "posted 12 Nov"
-    assert disc["ai_read"]["what"] == "#ad at caption end"
+    assert disc["ai_read"]["what"] == "#ad at caption end" and disc["ai_read"]["source"] == "ai"
     # code decided from the confirmed deal, not from the AI: "3 Story frames" / "posted 12 Nov" change nothing
     assert story["ok"] and story["decided"] == "Pass: Delivered 1, the confirmed deal has 1"
     assert date_c["ok"] and date_c["decided"].startswith("Pass: Posted on Fri 13 Nov")

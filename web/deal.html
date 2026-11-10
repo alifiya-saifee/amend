@@ -369,7 +369,7 @@ function nextStep(d, pendingHolds) {
     return { ic: "circle-check", t: "Money collected", s: IS_BRAND ? "Nothing more to do. Any holdback goes to the creator later, only if the post is still live." : "Any holdback is paid on its day if the post is still live.", tab: "money" };
   if (d.status === "delivered" && V.caption_fix) return IS_BRAND
     ? { ic: "hourglass", t: `Waiting for ${first} to fix the caption`, s: `${V.caption_fix}: your signed mandate requires it. No money is released until it's there.`, tab: "delivery" }
-    : { ic: "pencil", t: V.caption_fix, s: "The brand's signed mandate needs it. No money is released until the caption has it.", tab: "delivery" };
+    : { ic: "pencil", t: V.caption_fix, s: V.caption_on_instagram ? "Edit the caption on Instagram, then tap Re-check on Instagram. The brand's signed mandate needs it." : "The brand's signed mandate needs it. No money is released until the caption has it.", tab: "delivery" };
   if (d.status === "delivered") return IS_BRAND ? { ic: "eye", t: "Check the delivery", s: `Compare what ${first} delivered with the deal, then release.`, tab: "delivery" }
     : { ic: "hourglass", t: "Waiting for the brand's sign-off", s: "Money is released once the delivery matches the latest confirmed deal.", tab: "delivery" };
   if (d.status === "in_progress" && V.draft_status === "submitted") return IS_BRAND

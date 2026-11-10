@@ -455,6 +455,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
         "draft_status": _draft_status(db, deal_id),
         "caption_fix": next((g.get("fix") for g in __import__("amend.delivery", fromlist=["open_gaps"]).open_gaps(db, deal_id)
                              if g["kind"] == "disclosure"), None),
+        "caption_on_instagram": ((((__import__("amend.delivery", fromlist=["latest"]).latest(db, deal_id, "post") or {})
+                                   .get("result") or {}).get("ig") or {}).get("status") == "found"),
         "offers": offers_for(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
         "usage": _usage_view(db, deal),
     }

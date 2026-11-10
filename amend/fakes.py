@@ -144,8 +144,28 @@ async def fake_call_json(system: str, user: str, **kw):
     return AIResult({}, "fake", 1, False)
 
 
+def _fake_instagram() -> None:
+    """AMEND_FAKE_IG=1 (local fake mode only): one Reel at instagram.com/reel/DEMO610/ whose caption is read from
+    AMEND_FAKE_IG_CAPTION_FILE each time, so a browser test can "edit the caption on Instagram" and re-check."""
+    import httpx
+    from pathlib import Path
+    from amend import igpost
+
+    def handler(req):
+        import json as _json
+        f = os.environ.get("AMEND_FAKE_IG_CAPTION_FILE")  # {"caption": ..., "timestamp": ...}
+        d = _json.loads(Path(f).read_text()) if f and Path(f).exists() else {}
+        cap, ts = d.get("caption", "National Day cold brew"), d.get("timestamp", "2026-11-13T08:30:00+0000")
+        return httpx.Response(200, json={"business_discovery": {"media": {"data": [
+            {"id": "17900000000DEMO", "media_type": "VIDEO", "media_product_type": "REELS", "timestamp": ts,
+             "caption": cap, "permalink": "https://www.instagram.com/reel/DEMO610/"}]}}})
+    igpost.TRANSPORT, igpost.FAKE = httpx.MockTransport(handler), True
+
+
 def install(app_module) -> None:
     """Swap in the fakes (called at start-up when enabled())."""
+    if os.environ.get("AMEND_FAKE_IG") == "1":
+        _fake_instagram()
     from amend import ai, money
     from amend.config import get_settings
     app_module.set_rail(money.PlatformRail(FakePayPal(get_settings())))
