@@ -262,10 +262,30 @@ authorization hold on the brand's account**, never money held by Amend.
 Every PayPal hold also balances on the spine, in integer cents: held = collected + released/voided + still open (✓ or
 a red mismatch), and the test suite checks it for every flow.
 
+## One shape for every flow
+
+Every money movement in Amend follows the same four steps, and each one is recorded (`amend/pipeline.py` builds it
+for any deal; `/api/deals/<id>/trace`):
+
+```mermaid
+flowchart LR
+  S["EvidenceSource<br/>chat · voice · call · Instagram · PayPal webhook · signed mandate"]
+  E["EvidenceEvent<br/>what it said, word for word, with a time"]
+  F["VerifiedFacts<br/>confirmed by both people, or decided by code from evidence"]
+  D["SettlementDelta<br/>the PayPal step: authorization, capture, void, refund, payout"]
+  S --> E --> F --> D
+```
+
+Each deal's **PayPal map** (the spine's *Map* button) shows that last step as PayPal sees it: authorization → change
+(inside the hold, or "New PayPal approval required") → capture / void / refund → payout → dispute, with the real PayPal
+IDs, the PayPal-Request-Id Amend sent and the receipt hash of the version each belongs to. A change beyond what's
+held never triggers a capture attempt: it waits for a new PayPal approval from the brand.
+
 ## Same engine, other uses
 
 - **Trade counters ↔ contractors:** order changes priced and confirmed, held, and released on line-item proof of
-  delivery. About 2 in 5 UAE B2B invoices are paid late ([Atradius UAE Payment Practices Barometer, 2026](https://atradius.de/newsroom/reports/b2b-payment-practices-trends-in-united-arab-emirates-2026)).
+  delivery. In accounts payable, 77% of organisations still enter invoices by hand and 19% use AI
+  ([IFOL / SAP Concur, Accounts Payable Automation Trends 2026, Jun 2026](https://www.concur.com/blog/article/2026-ap-automation-trends-report-case-for-embedded-ai)). About 2 in 5 UAE B2B invoices are paid late ([Atradius UAE Payment Practices Barometer, 2026](https://atradius.de/newsroom/reports/b2b-payment-practices-trends-in-united-arab-emirates-2026)).
 - **Small trades jobs:** the deposit is held until the job is proven done. 81,925 US home-improvement scam reports in
   2024, median loss $1,800 (FTC / BBB figures, [reported by KEYT / Stacker, Aug 2026](https://keyt.com/stacker-crime-safety/2026/08/14/home-improvement-scams-are-heating-up-this-summer/)).
 - **Agent-to-agent services:** hold until the output matches the task. Current agent payment protocols record consent,

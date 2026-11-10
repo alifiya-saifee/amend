@@ -770,3 +770,23 @@ question wasn't answered, so the recommended option was taken.
 - README and `docs/judging.md` start with the one-line judge path (what to see at each step), and "Built during the
   hackathon, starting 7 Nov 2026."
 - **Tests: 819 passed, 3 skipped.**
+
+## Audit 2 (10 Nov) — then FEATURE FREEZE
+- **PayPal object map** per deal (`pipeline.paypal_map`, spine *Map* button, `/paypal-map`): authorization (order,
+  auth, reauth, request ID, receipt hash, honour/expiry, balance) → changes (inside the hold / signed mandate /
+  "New PayPal approval required") → capture / void / refund (parent auth, capture path) → payouts (sender_item_id) →
+  dispute.
+- **"New PayPal approval required"**: a change beyond what's held shows it (banner, map), and release refuses with
+  that message: never a capture attempt (tested).
+- **Instagram provenance**: account, account id (Business Discovery `id`), read time, endpoints (post read and the
+  AI-label read); stored on the post and inside the signed verdict; shown under the verdict. No token stored.
+- **Replay/idempotency tests** (`tests/test_replay.py`): duplicate webhook applied once; refused capture then retry
+  (same request ID, collected once, paid once); delayed evidence never moves money backwards; double-tap confirm
+  (one version, one hold) and double-tap release (one capture, one payout). Timeout then retry is in test_states.
+- **Evidence pipeline** (`amend/pipeline.py`, `/api/deals/<id>/trace`): EvidenceSource → EvidenceEvent →
+  VerifiedFacts → SettlementDelta; every money line links to its facts (tested: no unlinked lines). README diagram.
+- **README stat**: IFOL / SAP Concur, AP Automation Trends 2026 (Jun 2026): 77% still enter invoices by hand, 19% use
+  AI, with the link. The "16% broadly embedded" figure isn't on SAP Concur's page, so it's left out.
+- Final audit items were already in 28a931f.
+- **Tests: 828 passed, 3 skipped.** Browser: mandate + `map_shot.py` (390 + 1440): problems none.
+- **FEATURE FREEZE from here: only fixes from Alifiya's real run.**

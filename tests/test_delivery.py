@@ -101,7 +101,8 @@ def test_extra_added_becomes_new_version_and_hold(client, mocks, held):
     assert v["deal"]["version"] == 2 and v["total_cents"] == 61000
     assert v["extra_holds"][0]["amount_cents"] == 8000
     r = client.post(f"/api/d/{tok}/release/approve", headers=ORIGIN)
-    assert r.status_code == 400 and "hold the rest" in r.json()["detail"]
+    assert r.status_code == 400 and r.json()["detail"].startswith("New PayPal approval required")
+    assert not mocks.capture.called  # never a capture attempt for money that isn't held
 
 
 def test_s33_date_gap(client, mocks, held):

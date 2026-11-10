@@ -285,6 +285,7 @@ def _view(r: dict) -> dict:
     return {"id": r["id"], "hash": r["hash"], "sig": r["sig"], "body": r["body"], "result": r["result"], "status": r["status"],
             "key_id": body.get("key_id"), "checks": body["checks"], "post": body["post"], "proposal": body.get("proposal"),
             "paypal_calls": body.get("paypal_calls") or [], "version": body["version"], "receipt_hash": body["receipt_hash"],
+            "instagram": body.get("instagram"),
             "issued_at": body["issued_at"], "confirmed_brand_at": r.get("confirmed_brand_at"),
             "confirmed_creator_at": r.get("confirmed_creator_at")}
 
@@ -314,6 +315,7 @@ def issue(db: Database, deal_id: str) -> dict | None:
                "checks": checks, "post": {"id": post["id"], "url": post.get("post_url"), "posted_on": str(post.get("posted_at"))[:10],
                                           "hash": _post_hash(post)},
                "proposal": proposal, "paypal_calls": calls, "note": note, "key_id": key_id(),
+               "instagram": ((post.get("result") or {}).get("ig") or {}).get("provenance"),
                "signed_by": "Amend (code, not AI; not a person's approval)"}
     ch = hashlib.sha256(canon(content).encode()).hexdigest()
     cur = db.one("select * from verdicts where deal_id = :d and status = 'issued' order by created_at desc, id desc limit 1", {"d": deal_id})

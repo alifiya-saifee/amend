@@ -683,6 +683,9 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 /* conservation per hold */
 .sp-bal { margin-top: 2px; } .sp-bal.ok { color: var(--ok); } .sp-bal.bad { color: var(--bad); font-weight: 600; }
 .grid-box .bal-bad { color: var(--bad); font-weight: 600; }
+/* the PayPal object map */
+.map-stage { border-left: 2px solid var(--border-2); padding: 4px 0 6px 12px; margin: 10px 0 0 4px; }
+.map-node { padding: 6px 0; border-bottom: 1px solid var(--border); } .map-node code { overflow-wrap: anywhere; }
 /* team splits */
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 64px; gap: 6px; margin-top: 6px; }
 .team-row input { min-width: 0; width: 100%; }

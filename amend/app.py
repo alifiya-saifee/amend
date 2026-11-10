@@ -657,6 +657,27 @@ async def brand_spine_refresh(token: str):
     return await spine.refresh(get_db(), rail().pp, deal_id)
 
 
+@app.get("/api/deals/{deal_id}/paypal-map")
+def creator_paypal_map(deal_id: str, c: dict = Depends(require_creator)):
+    from amend import pipeline
+    own_deal(deal_id, c)
+    return pipeline.paypal_map(get_db(), deal_id)
+
+
+@app.get("/api/d/{token}/paypal-map")
+def brand_paypal_map(token: str):
+    from amend import pipeline
+    return pipeline.paypal_map(get_db(), deals.open_link(get_db(), token)["deal"]["id"])
+
+
+@app.get("/api/deals/{deal_id}/trace")
+def creator_trace(deal_id: str, c: dict = Depends(require_creator)):
+    """EvidenceSource → EvidenceEvent → VerifiedFacts → SettlementDelta for this deal (read-only)."""
+    from amend import pipeline
+    own_deal(deal_id, c)
+    return pipeline.trace(get_db(), deal_id)
+
+
 # ---------- signed brand mandate bound to the hold (AP2-style) ----------
 
 class MandateIn(BaseModel):

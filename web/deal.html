@@ -267,7 +267,7 @@ function activeRoom(d) {
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${disputeBanner()}${banner}
     ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">${holdNote()} Nothing is collected until the delivery matches the deal.</p>` : ""}
-    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">${pendingHolds.every(h => String(h.change || "").startsWith("usage:")) ? `The usage extension needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : pendingHolds.every(h => String(h.change || "").startsWith("bonus:")) ? `The agreed performance bonus needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : `A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.`}
+    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">${pendingHolds.every(h => String(h.change || "").startsWith("usage:")) ? `The usage extension needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : pendingHolds.every(h => String(h.change || "").startsWith("bonus:")) ? `The agreed performance bonus needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : `<b>New PayPal approval required.</b> A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held. Nothing is collected until it's held.`}
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     ${nextStepHtml(d, pendingHolds)}
     <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
@@ -609,6 +609,7 @@ async function loadSpine(refresh = false) {
   $$(".spine-slot").forEach(s => { s.innerHTML = spineHtml(SPINE); });
   $$("[data-spine-refresh]").forEach(b => b.onclick = () => busy(b, () => loadSpine(true)));
   $$("[data-spine-table]").forEach(b => b.onclick = () => busy(b, spineTable));
+  $$("[data-spine-map]").forEach(b => b.onclick = () => busy(b, async () => { try { await paypalMap(); } catch (er) { toast(friendlyError(er), "bad"); } }));
 }
 // The spine's PayPal objects as a table (AG Grid Community): every money line of every version, with where PayPal's
 // last status came from. A row opens its receipt hash, request ID and each PayPal object.
@@ -659,6 +660,33 @@ async function simRun() {
       { headerName: "PayPal calls", width: 115, valueGetter: p => p.data.paypal_calls.length },
       { headerName: "Balances", width: 100, valueGetter: p => p.data.balanced ? "Yes" : "No" }] });
 }
+// The PayPal object map: authorization → change → capture / void / refund → payout → dispute, with real IDs,
+// request IDs and receipt hashes.
+async function paypalMap() {
+  const M = await api(url("/paypal-map"));
+  let d = document.getElementById("map-sheet");
+  if (!d) {
+    d = document.createElement("dialog"); d.id = "map-sheet"; d.className = "grid-sheet";
+    d.addEventListener("click", e => { if (e.target === d) d.close(); });
+    document.body.appendChild(d);
+  }
+  const code = v => v ? `<code>${esc(v)}</code>` : "–";
+  const titles = { authorization: "1 · Authorization (the hold)", change: "2 · Changes", collect: "3 · Capture, void or refund", payout: "4 · Payouts", dispute: "5 · Dispute" };
+  const row = n => `<div class="map-node"><div class="row between"><b>${esc(n.label)}</b>${n.amount_cents != null ? `<span>${usd(n.amount_cents)}</span>` : n.delta_cents ? `<span>+${usd(n.delta_cents)}</span>` : ""}</div>
+    <div class="tiny muted">${[
+      n.order_id ? `order ${code(n.order_id)}` : "", n.authorization ? `authorization ${code(n.authorization)}` : "",
+      n.reauthorization ? `reauthorized ${code(n.reauthorization)}` : "", n.paypal_id && !n.order_id ? `PayPal ID ${code(n.paypal_id)}` : "",
+      n.parent ? `from ${code(n.parent)}` : "", n.sender_item_id ? `sender_item_id ${code(n.sender_item_id)}` : "",
+      n.request_id ? `PayPal-Request-Id ${code(n.request_id)}` : "", n.receipt_hash ? `receipt v${n.version} ${code(n.receipt_hash.slice(0, 16) + "…")}` : "",
+      n.status ? esc(n.status) : "", n.how ? esc(n.how) : "", n.capture_path ? esc(n.capture_path) : "",
+      n.conservation && n.conservation.ok === true ? "balances" : n.conservation && n.conservation.ok === false ? "<b>does not balance</b>" : ""
+    ].filter(Boolean).join(" · ")}</div></div>`;
+  d.innerHTML = `<div class="gd-head"><h3>${icon("workflow")} PayPal objects, in order</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+    <p class="tiny muted">Every PayPal object behind this deal, with its real ID, the PayPal-Request-Id Amend sent and the receipt hash of the deal version it belongs to. Receipt now <code>${esc(M.receipt_hash.slice(0, 16))}…</code></p>
+    ${Object.entries(M.stages).map(([k, nodes]) => `<div class="map-stage"><div class="small"><b>${titles[k]}</b></div>${nodes.length ? nodes.map(row).join("") : `<div class="tiny muted">None</div>`}</div>`).join("")}`;
+  d.querySelector("[data-close]").onclick = () => d.close();
+  d.showModal ? d.showModal() : d.setAttribute("open", "");
+}
 async function spineTable() {
   const S = SPINE, name = V.deal.title || V.deal.brand_org || "This deal";
   const rows = S.versions.flatMap(v => v.lines.map(l => ({ ...l, version: v.version, receipt_hash: v.receipt_hash, deal_name: name })));
@@ -707,7 +735,7 @@ function spineHtml(S) {
   const C = S.clock, H = S.headroom, M = S.mandate;
   const pct = (a, b) => Math.max(0, Math.min(100, Math.round(100 * a / Math.max(b, 1))));
   return `<div class="card spine"><div class="row between"><h3>${icon("route")} PayPal spine</h3>
-      <div class="row" style="gap:6px"><button class="btn small ghost" data-spine-table>${icon("table")} Table</button>
+      <div class="row" style="gap:6px"><button class="btn small ghost" data-spine-map>${icon("workflow")} Map</button><button class="btn small ghost" data-spine-table>${icon("table")} Table</button>
       <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div></div>
     <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
       <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>

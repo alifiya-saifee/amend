@@ -453,7 +453,8 @@ def release_numbers(db: Database, deal: dict) -> dict:
         room[main["id"]] += min(spine.headroom_cents(main["amount_cents"]), total - sum(room.values()))
     held = sum(room.values())
     if held < total:
-        raise DeliveryError(f"only {money.fmt_usd(held)} is held but the deal is {money.fmt_usd(total)}: the brand needs to hold the rest")
+        raise DeliveryError(f"New PayPal approval required: only {money.fmt_usd(held)} is held but the deal is "
+                            f"{money.fmt_usd(total)}. The brand holds the rest with PayPal first; nothing is collected until then")
     captures, voids, left = [], [], total
     for h in holds:
         take = min(room[h["id"]], left)

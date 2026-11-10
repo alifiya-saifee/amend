@@ -61,7 +61,7 @@ def test_a_matched_reel_is_read_from_instagram_and_code_decides(client, mocks, o
         w = submit(client, deal)
     req = next(c.request for c in g.calls if c.request.url.params["fields"].startswith("business_discovery"))
     fields = req.url.params["fields"]
-    assert fields == "business_discovery.username(clinicrobotest){media.limit(10){id,media_type,media_product_type,timestamp,caption,permalink}}"
+    assert fields == "business_discovery.username(clinicrobotest){id,media.limit(10){id,media_type,media_product_type,timestamp,caption,permalink}}"
     assert TOKEN not in str(req.url) and req.headers["Authorization"] == f"Bearer {TOKEN}"
     assert TOKEN not in caplog.text and "media=1790000000000002" in caplog.text
     ig = w["post"]["result"]["ig"]

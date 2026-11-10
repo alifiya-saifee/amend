@@ -24,7 +24,7 @@ from amend.config import get_settings
 from amend.db import Database, new_id, now
 
 log = logging.getLogger("amend.igpost")
-FIELDS = "media.limit(10){id,media_type,media_product_type,timestamp,caption,permalink}"
+FIELDS = "id,media.limit(10){id,media_type,media_product_type,timestamp,caption,permalink}"
 RECHECKS_PER_HOUR = 6
 DUBAI = timezone(timedelta(hours=4))
 STORY_NOTE = "Stories can't be read for other accounts; from the creator's upload"
@@ -107,7 +107,8 @@ def read(db: Database, deal_id: str, handle: str | None, post_url: str, *,
         if code_ in iglookup.TOKEN_CODES or code_ in iglookup.RATE_CODES or r.status_code in (401, 429) or r.status_code >= 500:
             return {"status": "unavailable", "message": MESSAGES["unavailable"]}
         return {"status": "not_professional", "message": MESSAGES["not_professional"].format(h=h)}
-    media = (((data.get("business_discovery") or {}).get("media") or {}).get("data")) or []
+    bd = data.get("business_discovery") or {}
+    media = ((bd.get("media") or {}).get("data")) or []
     m = next((x for x in media if shortcode(x.get("permalink") or "") == code), None)
     if not m:
         return {"status": "not_found", "message": MESSAGES["not_found"].format(h=h), "handle": h}
@@ -128,7 +129,10 @@ def read(db: Database, deal_id: str, handle: str | None, post_url: str, *,
     return {"status": "found", "handle": h, "media_id": m.get("id"), "media_type": m.get("media_type"),
             "media_product_type": m.get("media_product_type"), "timestamp": m.get("timestamp"), "posted_on": day,
             "posted_label": label, "caption": (m.get("caption") or "")[:2200], "permalink": m.get("permalink"), "read_at": now(),
-            "is_ai_generated": ai_label, "ai_label_note": ai_note}
+            "is_ai_generated": ai_label, "ai_label_note": ai_note,
+            "provenance": {"account": f"@{h}", "account_id": bd.get("id"), "read_at": now(), "reader": "Amend's Instagram app",
+                           "endpoint": f"GET graph.facebook.com/{s.meta_graph_version}/<Amend's IG user>?fields=business_discovery.username({h}){{{FIELDS}}}",
+                           "label_endpoint": f"GET graph.facebook.com/{s.meta_graph_version}/{m.get('id')}?fields=is_ai_generated" if ai_label is not None else None}}
 
 
 def kind_label(ig: dict) -> str:
