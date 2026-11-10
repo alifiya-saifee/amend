@@ -93,11 +93,45 @@ def record_draft(db: Database, deal: dict, draft_id: str, actor: str, declared: 
     row = db.one("select result_json from deliveries where id = :i", {"i": draft_id})
     res = json.loads(row["result_json"] or "{}")
     res["ai"] = out
+    if out["mismatch"] and r["money"]:
+        from amend.db import new_id
+        res.setdefault("gaps", []).append({
+            "id": new_id("gp"), "kind": "ai_declaration", "status": "open",
+            "text": "Your declaration says no AI, but the file's Content Credentials say AI made it.",
+            "fix": "Correct your declaration, or explain (for example, the credential comes from a tool you only used to export)"})
     db.update("deliveries", "id", draft_id, {"result_json": json.dumps(res)})
     db.log_event("draft.ai_checked", actor=actor, deal_id=deal["id"],
                  payload={"draft": draft_id, "declared": declared, "credential": cred, "decision": out["decision"],
                           "term": r["rule"], "source": r["source"]})
     return out
+
+
+def fix_declaration(db: Database, deal: dict, actor: str, *, declared: str | None, explanation: str | None) -> dict:
+    """The creator corrects the declaration (code decides again) or explains. Closes the mismatch gap; no money."""
+    from amend import delivery
+    from amend.changes import post_message
+    d = delivery.latest(db, deal["id"], "draft")
+    res = (d or {}).get("result") or {}
+    g = next((x for x in res.get("gaps") or [] if x["kind"] == "ai_declaration" and x["status"] == "open"), None)
+    if not g:
+        raise ValueError("there's nothing to correct on this draft")
+    if declared:
+        if declared not in DECLARED:
+            raise ValueError("declare: none, edited with AI or generated with AI")
+        a = res["ai"]
+        a.update(declared=declared, declared_text=DECLARED[declared], **decide(a["term"]["rule"], declared, a["credential"]))
+        g.update(status="resolved", resolution="corrected", by=actor, at=now())
+        db.log_event("draft.ai_checked", actor=actor, deal_id=deal["id"],
+                     payload={"draft": d["id"], "declared": declared, "credential": a["credential"], "decision": a["decision"], "corrected": True})
+    else:
+        why = (explanation or "").strip()
+        if len(why) < 10:
+            raise ValueError("explain in a sentence or two")
+        g.update(status="resolved", resolution="explained", explanation=why[:500], by=actor, at=now())
+        post_message(db, deal["id"], actor, f"About the AI declaration: {why[:500]}", kind="text")
+        db.log_event("draft.ai_explained", actor=actor, deal_id=deal["id"], payload={"draft": d["id"], "explanation": why[:500]})
+    db.update("deliveries", "id", d["id"], {"result_json": json.dumps(res)})
+    return res["ai"]
 
 
 def draft_decision(db: Database, deal_id: str) -> dict | None:
@@ -117,11 +151,11 @@ def post_gap(db: Database, deal: dict, ig: dict | None) -> dict | None:
     if d.get("decision") == "needs_label" and ig["is_ai_generated"] is False:
         return {"id": new_id("gp"), "kind": "ai_label", "status": "open",
                 "text": "The draft used AI, and Instagram's AI label is off on this post. The brand's signed mandate needs it.",
-                "fix": "Switch on Instagram's AI label (if Instagram won't let you change it after posting, post it again with the label on and submit the new link), then tap Re-check"}
+                "fix": "The AI label can't be added after posting: delete and repost with the label, or the brand accepts it as is"}
     if r["rule"] == "not_allowed" and ig["is_ai_generated"] is True:
         return {"id": new_id("gp"), "kind": "ai_label", "status": "open",
                 "text": "Instagram shows this post as AI content, and the brand's signed mandate doesn't allow AI content.",
-                "fix": "Post a version without AI content and submit the new link"}
+                "fix": "Delete and repost a version without AI content, or the brand accepts it as is"}
     return None
 
 
@@ -137,6 +171,8 @@ def verdict_check(db: Database, deal: dict, post: dict) -> dict | None:
     needs = (d or {}).get("decision")
     if gap and gap["status"] == "open":
         ok, why = False, gap["text"]
+    elif gap and gap.get("resolution") == "accepted_as_is":
+        ok, why = True, "Both accepted the post as it is, without the AI label"
     elif needs == "needs_label" and label is False:
         ok, why = False, "AI was used and Instagram's AI label is off"
     elif needs == "not_allowed":

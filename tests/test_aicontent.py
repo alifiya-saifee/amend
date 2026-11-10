@@ -162,3 +162,49 @@ def test_mandate_ai_rule_is_checked(client, mocks):
     client.post(f"/api/deals/{deal}/accept", headers=ORIGIN)
     bad = {"type": "ai_content", "rule": "anything goes"}
     assert post_m(client, tok, mandate(client, tok, [bad])).status_code == 400
+
+
+def test_label_missing_closes_when_both_accept_it_as_is(client, mocks, on):
+    deal, tok, w, lab = _posted_with_label(client, mocks, False)
+    g = next(x for x in w["post"]["result"]["gaps"] if x["kind"] == "ai_label")
+    assert g["fix"] == "The AI label can't be added after posting: delete and repost with the label, or the brand accepts it as is"
+    w = client.post(f"/api/d/{tok}/gaps/{g['id']}", json={"resolution": "accept_as_is"}, headers=ORIGIN).json()
+    assert w["gaps_open"] == 1  # one tap isn't enough
+    w = client.post(f"/api/deals/{deal}/gaps/{g['id']}", json={"resolution": "accept_as_is"}, headers=ORIGIN).json()
+    assert w["gaps_open"] == 0 and w["verdict"]["result"] == "pass"
+
+
+def test_label_missing_closes_with_a_repost(client, mocks, on):
+    deal, tok, w, lab = _posted_with_label(client, mocks, False)
+    lab.mock(return_value=httpx.Response(200, json={"id": "1790000000000002", "is_ai_generated": True}))  # reposted with the label
+    w = submit(client, deal)  # the new post is read
+    assert w["gaps_open"] == 0 and not [g for g in w["post"]["result"]["gaps"] if g["kind"] == "ai_label"]
+
+
+def test_mismatch_opens_a_gap_only_with_the_mandate_and_correcting_closes_it(client, mocks, on):
+    graph(mocks)
+    deal, tok = held_with_mandate(client, mocks, [AI_RULE])
+    draft(client, deal, "none", FIREFLY)  # the credential says AI, she declared none
+    w = client.get(f"/api/d/{tok}/work").json()
+    assert w["gaps_open"] == 1 and w["draft"]["result"]["gaps"][0]["kind"] == "ai_declaration"
+    r = client.post(f"/api/deals/{deal}/draft/ai-declaration", json={"explanation": "short"}, headers=ORIGIN)
+    assert r.status_code == 400
+    w = client.post(f"/api/deals/{deal}/draft/ai-declaration", json={"declared": "generated"}, headers=ORIGIN).json()
+    assert w["gaps_open"] == 0 and w["draft"]["result"]["ai"]["decision"] == "needs_label"  # code decided again
+
+
+def test_mismatch_can_be_explained(client, mocks, on):
+    graph(mocks)
+    deal, tok = held_with_mandate(client, mocks, [AI_RULE])
+    draft(client, deal, "none", FIREFLY)
+    w = client.post(f"/api/deals/{deal}/draft/ai-declaration", json={"explanation": "The credential is from the export tool only."},
+                    headers=ORIGIN).json()
+    assert w["gaps_open"] == 0
+    assert any(e["type"] == "draft.ai_explained" for e in get_db().events_for(deal))
+
+
+def test_mismatch_without_the_mandate_is_advisory(client, mocks, held):
+    deal, tok = held
+    draft(client, deal, "none", FIREFLY)
+    w = client.get(f"/api/d/{tok}/work").json()
+    assert w["gaps_open"] == 0 and w["draft"]["result"]["ai"]["mismatch"] is True

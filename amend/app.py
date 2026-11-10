@@ -1967,6 +1967,23 @@ async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_c
     return _work(deal_id)
 
 
+class AiDeclIn(BaseModel):
+    declared: str | None = Field(None, pattern="^(none|edited|generated)$")
+    explanation: str | None = Field(None, max_length=500)
+
+
+@app.post("/api/deals/{deal_id}/draft/ai-declaration")
+def creator_ai_declaration(deal_id: str, body: AiDeclIn, c: dict = Depends(require_creator)):
+    """The declaration doesn't match the credential: correct it, or explain."""
+    from amend import aicontent
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        aicontent.fix_declaration(get_db(), deal, pid, declared=body.declared, explanation=body.explanation)
+    except ValueError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    return _work(deal_id)
+
+
 class DraftApproveIn(BaseModel):
     accept_ai_conflict: bool = False
 
@@ -2080,7 +2097,7 @@ async def creator_fix_caption(deal_id: str, body: CaptionIn, c: dict = Depends(r
 
 
 class GapIn(BaseModel):
-    resolution: str = Field(pattern="^(add|free|remove|drop|will_deliver|accept)$")
+    resolution: str = Field(pattern="^(add|free|remove|drop|will_deliver|accept|accept_as_is)$")
 
 
 def _gap(deal: dict, pid: str, gid: str, res: str) -> dict:

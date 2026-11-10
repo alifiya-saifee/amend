@@ -356,8 +356,12 @@ def recheck_instagram(db: Database, deal: dict, actor: str, ig: dict) -> dict:
 
 
 def open_gaps(db: Database, deal_id: str) -> list[dict]:
+    """Every open gap: the post's, and the draft's (an AI declaration that doesn't match the credential)."""
     p = latest(db, deal_id, "post")
-    return [g for g in (p["result"].get("gaps") if p else []) if g["status"] == "open"]
+    d = latest(db, deal_id, "draft")
+    gaps = (p["result"].get("gaps") if p else None) or []
+    gaps = gaps + ((d["result"].get("gaps") if d else None) or [])
+    return [g for g in gaps if g["status"] == "open"]
 
 
 def resolution_text(db: Database, g: dict) -> str:
@@ -372,7 +376,9 @@ def resolution_text(db: Database, g: dict) -> str:
     if g.get("kind") == "disclosure":
         return f"{who} added {g.get('tag') or '#ad'} to the caption" + (" on Instagram" if g.get("on") == "instagram" else "")
     if g.get("kind") == "ai_label":
-        return f"{who} fixed the AI label on Instagram"
+        return "Accepted as is by both" if r == "accepted_as_is" else f"{who} fixed the AI label on Instagram"
+    if g.get("kind") == "ai_declaration":
+        return f"{who} corrected the AI declaration" if r == "corrected" else f"{who} explained the AI declaration"
     return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
             "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
             "will_deliver": f"{who} will deliver it", "settled": "Settled by both, before any dispute"}.get(r, f"Resolved by {who}")
@@ -389,10 +395,19 @@ def resolve_gap(db: Database, deal: dict, party_id: str, gap_id: str, resolution
     if not g or g["status"] != "open":
         raise DeliveryError("that gap is already resolved")
     side = side_of(db, deal, party_id)
+    if g["kind"] == "ai_label" and resolution == "accept_as_is":  # the brand accepts the post as it is: both tap
+        if side not in ("brand", "creator"):
+            raise DeliveryError("the brand's main contact and the creator decide this")
+        g[f"accepted_{side}_at"] = now()
+        if g.get("accepted_brand_at") and g.get("accepted_creator_at"):
+            g.update(status="resolved", resolution="accepted_as_is", by=party_id, at=now())
+        db.update("deliveries", "id", p["id"], {"result_json": json.dumps(p["result"])})
+        db.log_event("gap.resolved", actor=party_id, deal_id=deal["id"], payload={"gap": gap_id, "kind": g["kind"], "resolution": "accept_as_is", "side": side})
+        return latest(db, deal["id"], "post")
     allowed = {"extra": {"add": "brand", "free": "creator", "remove": "brand"}, "missing": {"drop": "brand", "will_deliver": "creator"},
                "date": {"accept": "brand"}, "disclosure": {}, "ai_label": {}}[g["kind"]]
     if g["kind"] == "ai_label":
-        raise DeliveryError("fix the AI label on Instagram, then tap Re-check: the signed mandate requires it")
+        raise DeliveryError("repost with the AI label, or both accept the post as it is")
     if g["kind"] == "disclosure":
         raise DeliveryError(f"add {g.get('tag') or '#ad'} to the caption to close this one: the signed mandate requires it")
     if resolution not in allowed:

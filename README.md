@@ -178,8 +178,9 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   it writes the seed to a private file and prints only the public key and fingerprint.
 - Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
 - Content Credentials are read in the creator's browser, so the result is what her browser reports; the declaration is
-  what counts, and most files carry no credential at all. Instagram may not let a creator switch on the AI label after
-  posting: the gap card then asks her to post again with the label on.
+  what counts, and most files carry no credential at all. **Instagram may not allow adding the AI label after posting
+  (third-party sources); check before posting.** If it's missing when required, the gap card says to delete and repost
+  with the label, or the brand accepts it as is (both tap).
 - A settlement and a usage extension keep no holdback (a holdback protects "the post stays live"; neither is a post).
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without

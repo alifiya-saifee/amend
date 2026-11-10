@@ -33,7 +33,7 @@ const Work = (() => {
           <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "<i data-lucide='circle-check' aria-hidden='true'></i>" : "<i data-lucide='triangle-alert' aria-hidden='true'></i>"}</span><div class="grow">${esc(c.check)}
             <div class="tiny muted">${esc(c.note || "")}${c.time != null ? ` · frame at ${c.time.toFixed(1)} s` : ""}</div></div></div>`).join("")}</div>
           ${d.result.caption ? `<p class="small muted">Caption: ${esc(d.result.caption)}</p>` : ""}
-          ${aiDraftHtml(d.result.ai, brand)}`;
+          ${aiDraftHtml(d.result.ai && { ...d.result.ai, gaps: d.result.gaps || [] }, brand)}`;
         const aiBad = d.result.ai && d.result.ai.decision === "not_allowed";
         if (main && d.result.status === "submitted") h += `<div class="row" style="gap:8px;margin-top:8px"><button class="btn ${aiBad ? "danger" : "primary"} grow" id="w-approve" data-ai-conflict="${aiBad ? 1 : ""}">${aiBad ? "Approve anyway" : "Approve draft"}</button>
             <button class="btn grow" id="w-feedback">Ask for changes</button></div>
@@ -56,7 +56,7 @@ const Work = (() => {
         <div class="hint">Amend reads the post from Instagram (professional accounts) and checks it against the latest confirmed deal. Stories can't be read for other accounts, so they come from what you enter.</div>` : ""}
         <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
-        ${d && d.result.ai && d.result.ai.decision === "needs_label" ? `<div class="banner small" style="margin-top:8px">${icon("tag")} Switch on Instagram's AI label when you post: the draft used AI.</div>` : ""}
+        ${d && d.result.ai && d.result.ai.decision === "needs_label" ? `<div class="banner small" style="margin-top:8px">${icon("tag")} Switch on Instagram's AI label when you post. It can't be added later.</div>` : ""}
         <label>Caption as posted</label><textarea id="w-pcap" style="min-height:60px"></textarea>
         <button class="btn primary block" id="w-post" style="margin-top:10px">Submit post for the delivery check</button></div>`);
     }
@@ -200,7 +200,12 @@ const Work = (() => {
       <div class="vlab"><span class="vtag code ${dec[0]}">Code decided</span><span class="small">${esc(dec[1])}: ${esc(a.reason)}</span></div>
       ${a.decision === "not_allowed" ? `<div class="banner bad small" style="margin-top:6px">${icon("triangle-alert")} ${brand ? "This draft breaks the deal's AI content rule. You can ask for changes, or approve it anyway."
         : "This draft breaks the deal's AI content rule. Upload a new draft without AI, or talk to the brand."}</div>` : ""}
-      ${a.decision === "needs_label" && !brand ? `<p class="small" style="margin:6px 0 0">${icon("tag")} <b>Switch on Instagram's AI label when you post.</b> Instagram may not let you add it afterwards.</p>` : ""}</div>`;
+      ${(a.gaps || []).filter(g => g.status === "open").map(g => `<div class="changecard" style="margin-top:6px"><div class="small"><b>${esc(g.text)}</b></div>
+        ${brand ? `<div class="tiny muted">Waiting for the creator to correct it or explain. It doesn't change any money.</div>` : `<div class="tiny muted">${esc(g.fix)}</div>
+        <div class="row wrapx" style="gap:6px;margin-top:6px"><select id="w-aifix-decl"><option value="">Correct the declaration…</option><option value="edited">Edited with AI</option><option value="generated">Generated with AI</option></select>
+          <button class="btn small" id="w-aifix-go">Save</button></div>
+        <div class="row" style="gap:6px;margin-top:6px"><input id="w-aifix-why" class="grow" placeholder="…or explain in a sentence"><button class="btn small" id="w-aifix-explain">Explain</button></div>`}</div>`).join("")}
+      ${a.decision === "needs_label" && !brand ? `<p class="small" style="margin:6px 0 0">${icon("tag")} <b>Switch on Instagram's AI label when you post. It can't be added later.</b></p>` : ""}</div>`;
   }
   // Performance bonus: held by PayPal, read from Instagram insights on day D, decided by code, both tap.
   function bonusHtml(b, w, main) {
@@ -309,7 +314,10 @@ const Work = (() => {
     const done = g.status === "resolved";
     const choices = g.kind === "extra" ? btn("add", `Yes, add ${usd(g.amount_cents)}`, "brand") + btn("free", "Free extra", "creator") + btn("remove", "Remove it", "brand")
       : g.kind === "missing" ? btn("drop", `Remove from the deal (collect ${usd(g.amount_cents)} less)`, "brand") + btn("will_deliver", "I'll deliver it", "creator")
-      : g.kind === "ai_label" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><span class="small">${esc(g.fix || "")}</span></div>`)
+      : g.kind === "ai_label" ? `<div class="stack grow"><span class="small">${esc(g.fix || "")}</span>
+          <div class="row wrapx" style="gap:8px">${(ctx.IS_BRAND ? !g.accepted_brand_at && ctx.V.me.role === "brand_main" : !g.accepted_creator_at)
+            ? `<button class="btn small" data-gap="${g.id}" data-res="accept_as_is">Accept it as is</button>` : ""}
+          <span class="tiny muted">${g.accepted_brand_at ? "The brand accepted. " : ""}${g.accepted_creator_at ? "The creator accepted. " : ""}Both accept → it closes. Or repost and submit the new link.</span></div></div>`
       : g.kind === "disclosure" && ctx._igFound ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
           <span class="small">Edit the caption on Instagram, then tap <b>Re-check on Instagram</b>. Amend reads it again and signs a new verdict.</span></div>`)
       : g.kind === "disclosure" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
@@ -361,6 +369,8 @@ const Work = (() => {
     on("w-bn-read", b => go(b, () => api(ctx.url("/bonus/read"), { method: "POST" }), "Read from Instagram"));
     $$("[data-bn-hand]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url("/bonus/by-hand"), { body: { choice: b.dataset.bnHand } }), "Saved"));
     on("w-bn-tap", b => go(b, () => api(ctx.url("/bonus/approve"), { body: { decision_hash: b.dataset.hash } }), "Confirmed"));
+    on("w-aifix-go", b => go(b, () => api(ctx.url("/draft/ai-declaration"), { body: { declared: $("#w-aifix-decl", el).value || null } }), "Declaration corrected"));
+    on("w-aifix-explain", b => go(b, () => api(ctx.url("/draft/ai-declaration"), { body: { explanation: $("#w-aifix-why", el).value } }), "Explained"));
     on("w-res-refresh", b => go(b, () => api(ctx.url("/results/refresh"), { method: "POST" }), "Refreshed from Instagram"));
     on("w-comp-save", b => go(b, () => api(ctx.url("/competitors"), { body: { names: $("#w-comp", el).value.split(",").map(x => x.trim()).filter(Boolean) } }), "Saved"));
     on("w-recheck", b => go(b, () => api(ctx.url("/post/recheck"), { method: "POST" }), "Re-checked on Instagram"));
