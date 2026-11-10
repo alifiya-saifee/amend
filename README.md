@@ -99,6 +99,15 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **Deal Simulator: "Test the deal before you sign it".** Before the hold (or while the work is on), either side can
+  play up to 24 futures of the deal: a change inside or outside what's held, a late or incomplete post, a cancellation,
+  the bonus views, nobody acting, the hold running out. The AI may write the futures (validated by code against a
+  fixed list of steps and the deal's own items); **Amend's real engine runs each one** on a throwaway in-memory copy of
+  the deal with a fake PayPal, one after another, 10 seconds in all. An AG Grid table shows where every dollar goes
+  (collected, to the creator, to the team, held back, back to the brand, still held), the PayPal calls each future
+  would make, whether every hold balances, and the weak spots. **"Simulated with Amend's real rules. Not a PayPal
+  result."** No AI or network during the run; the live deal and PayPal are never touched (a test checks it); one run
+  per deal per minute.
 - **AI content, checked before posting and confirmed after.** A deal term: not allowed / allowed if labelled (default) /
   allowed, in the brief and optionally in the signed mandate. On the draft, the creator's browser reads the file's
   **Content Credentials (C2PA)** with `@contentauth/c2pa-web` (pinned; nothing but the result is uploaded), and the

@@ -228,6 +228,7 @@ function render() {
   $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
     try { const r = await api(url("/usage/extend"), { body: {} }); V = r && r.deal ? r : await api(url()); render();
       toast(IS_BRAND ? "Extension asked: hold it with PayPal next" : "Asked the brand to extend"); } catch (er) { toast(friendlyError(er), "bad"); } }));
+  bindSim();
   $$("[data-usage-confirm]").forEach(b => b.onclick = () => busy(b, async () => {
     try { await api(url("/usage/confirm"), { body: {} }); V = await api(url()); render(); toast("Extended: PayPal collected and paid"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   $$("[data-refund]").forEach(b => b.onclick = () => busy(b, async () => {
@@ -270,7 +271,7 @@ function activeRoom(d) {
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     ${nextStepHtml(d, pendingHolds)}
     <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
-    <div class="rt" data-tab="terms"><div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div></div>
+    <div class="rt" data-tab="terms"><div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>${simCardHtml(d)}</div>
     <div class="rt" data-tab="money"><div class="hide-desktop" style="margin-top:12px">${moneyCardHtml()}<div class="spine-slot" style="margin-top:12px"></div></div></div>
     <div class="rt" data-tab="delivery">${shipHtml()}<div class="hide-desktop" style="margin-top:12px">${checklistHtml(d)}</div><div id="work" style="margin-top:12px"></div></div>
     <div class="rt" data-tab="chat"><div id="chat" style="margin-top:12px"></div><div id="cancelbox"></div></div>
@@ -611,6 +612,53 @@ async function loadSpine(refresh = false) {
 }
 // The spine's PayPal objects as a table (AG Grid Community): every money line of every version, with where PayPal's
 // last status came from. A row opens its receipt hash, request ID and each PayPal object.
+// Deal Simulator: up to 24 futures run on throwaway copies of this deal with Amend's real rules and a fake PayPal.
+function simCardHtml(d) {
+  if (!["offered", "accepted", "in_progress"].includes(d.status) || (IS_BRAND && V.me.role !== "brand_main")) return "";
+  return `<div class="card sim" style="margin-top:12px"><h3>${icon("flask-conical")} Test the deal before you sign it</h3>
+    <p class="small muted">Amend plays up to 24 futures of this deal (changes, a late or incomplete post, a cancellation, nobody acting) with its
+      real rules on a throwaway copy, and shows where every dollar would go. Nothing here touches PayPal or the real deal.</p>
+    <button class="btn block" id="sim-run">${icon("play")} Run the futures</button></div>`;
+}
+function bindSim() { $$("#sim-run").forEach(b => b.onclick = () => busy(b, async () => { try { await simRun(); } catch (er) { toast(friendlyError(er), "bad"); } })); }
+async function simRun() {
+  const r = await api(url("/simulate"), { method: "POST" });
+  let d = document.getElementById("sim-sheet");
+  if (!d) {
+    d = document.createElement("dialog"); d.id = "sim-sheet"; d.className = "grid-sheet";
+    d.addEventListener("click", e => { if (e.target === d) d.close(); });
+    document.body.appendChild(d);
+  }
+  const weakN = r.results.filter(x => x.weak.length).length;
+  d.innerHTML = `<div class="gd-head"><h3>${icon("flask-conical")} ${r.finished} futures of this deal</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="banner small" style="margin:8px 0"><b>${esc(r.label)}</b></div>
+    <p class="tiny muted">${esc(r.written_by)} · ran in ${r.seconds} s${r.capped ? ` · stopped at the 10-second limit: ${r.finished} of ${r.planned} finished` : ""} ·
+      ${weakN ? `<b>${weakN} with weak spots</b>` : "no weak spots"} · every hold ${r.results.every(x => x.balanced) ? "balances" : "<b>does not balance in some futures</b>"}</p>
+    <div id="sim-grid"></div>`;
+  d.querySelector("[data-close]").onclick = () => d.close();
+  d.showModal ? d.showModal() : d.setAttribute("open", "");
+  const $u = p => p.value == null ? "" : usd(p.value);
+  await AGrid.mount($("#sim-grid"), { rows: r.results, file: "amend-simulated-futures.csv", placeholder: "Search futures…", label: "Simulated futures",
+    pageSize: 12, narrowFirst: ["collected_cents", "still_held_cents"],
+    onRow: x => AGrid.detail(x.title, [["Simulated", r.label], ...x.log.map((l, i) => [`Step ${i + 1}`, l]),
+      ["Collected", usd(x.collected_cents)], [`To ${V.creator.name.split(" ")[0]}`, usd(x.creator_cents)], ["To the team", usd(x.team_cents)],
+      ["Held back", usd(x.holdback_cents)], ["Back to the brand", usd(x.back_cents)], ["Still held", usd(x.still_held_cents)],
+      ["Every hold balances", x.balanced ? "Yes" : "No"], ["PayPal calls it would make", x.paypal_calls.join(" · ") || "none"],
+      ["Weak spots", x.weak.join(" · ") || "none"]]),
+    columns: [
+      { field: "title", headerName: "Future", flex: 2, minWidth: 220, tooltipField: "title" },
+      { field: "collected_cents", headerName: "Collected", width: 110, valueFormatter: $u, type: "rightAligned" },
+      { field: "creator_cents", headerName: "To creator", width: 110, valueFormatter: $u, type: "rightAligned" },
+      { field: "team_cents", headerName: "To team", width: 100, valueFormatter: $u, type: "rightAligned" },
+      { field: "holdback_cents", headerName: "Held back", width: 105, valueFormatter: $u, type: "rightAligned" },
+      { field: "back_cents", headerName: "Back to brand", width: 125, valueFormatter: $u, type: "rightAligned" },
+      { field: "still_held_cents", headerName: "Still held", width: 105, valueFormatter: $u, type: "rightAligned" },
+      { field: "status", headerName: "Ends", width: 105 },
+      { headerName: "Weak spots", colId: "weak_n", flex: 2, minWidth: 220, valueGetter: p => p.data.weak.join(" · ") || "none",
+        cellClass: p => p.data.weak.length ? "bal-bad" : "" },
+      { headerName: "PayPal calls", width: 115, valueGetter: p => p.data.paypal_calls.length },
+      { headerName: "Balances", width: 100, valueGetter: p => p.data.balanced ? "Yes" : "No" }] });
+}
 async function spineTable() {
   const S = SPINE, name = V.deal.title || V.deal.brand_org || "This deal";
   const rows = S.versions.flatMap(v => v.lines.map(l => ({ ...l, version: v.version, receipt_hash: v.receipt_hash, deal_name: name })));
@@ -799,7 +847,9 @@ function brand(d) {
       ${briefHtml(V.me.role === "brand_main")}
       <div class="banner wait" style="margin-top:12px"><i data-lucide='hourglass' aria-hidden='true'></i> Waiting for ${esc(first)} to accept</div>
       <div class="stack" style="margin-top:12px"><button class="btn block" id="edit">Edit brief</button></div>
-      <p class="hint">Prices come from ${esc(first)}'s own price list. The AI only picks the items; it never sets prices.</p>`;
+      <p class="hint">Prices come from ${esc(first)}'s own price list. The AI only picks the items; it never sets prices.</p>
+      ${simCardHtml(d)}`;
+    bindSim();
     $("#edit").onclick = () => editBrief();
     bindOffers();
     return;
@@ -820,7 +870,9 @@ function brand(d) {
         <button class="btn primary block" id="pay">${waiting ? "Continue at PayPal" : `Pay with PayPal: hold ${usd(V.total_cents)}`}</button>
       </div>
       <details class="card hide-desktop" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>
+      ${simCardHtml(d)}
       ${briefHtml(false)}`;
+    bindSim();
     if ($("#mbox")) setupMandate();
     $("#pay").onclick = e => busy(e.currentTarget, async () => {
       try {
@@ -943,7 +995,9 @@ function creator(d) {
     $("#view").innerHTML = `
       <div class="banner wait"><i data-lucide='hourglass' aria-hidden='true'></i> <b>Work starts when money is held</b></div>
       <p class="small muted" style="margin-top:8px">${h && h.status === "sent" ? `${esc(brandName)} is at PayPal now.` : h && h.status === "expired" ? "The hold expired. The brand needs to hold again." : `Waiting for ${esc(brandName)} to hold ${usd(V.total_cents)} with PayPal.`}</p>
-      <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>`;
+      <div class="card hide-desktop" style="margin-top:12px"><h2>Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div>
+      ${simCardHtml(d)}`;
+    bindSim();
     return;
   }
   if (["in_progress", "delivered", "paused", "completed"].includes(d.status)) return activeRoom(d);

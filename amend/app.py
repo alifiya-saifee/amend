@@ -1893,6 +1893,26 @@ async def brand_settle_confirm(token: str, body: SettleTapIn):
     return _work(deal["id"])
 
 
+async def _simulate(deal: dict, pid: str) -> dict:
+    from amend import simulate
+    if deal["status"] not in ("offered", "accepted", "in_progress"):
+        raise HTTPException(400, "The simulator is for a deal before the post.")
+    try:
+        return await simulate.run(get_db(), deal, pid)
+    except simulate.SimError as e:
+        raise HTTPException(429, str(e)[:1].upper() + str(e)[1:] + ".")
+
+
+@app.post("/api/deals/{deal_id}/simulate")
+async def creator_simulate(deal_id: str, c: dict = Depends(require_creator)):
+    return await _simulate(*_creator_ctx(deal_id, c))
+
+
+@app.post("/api/d/{token}/simulate")
+async def brand_simulate(token: str):
+    return await _simulate(*_brand_ctx(token))
+
+
 class CompetitorsIn(BaseModel):
     names: list[str] = Field(default_factory=list, max_length=5)
 

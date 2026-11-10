@@ -738,3 +738,20 @@ question wasn't answered, so the recommended option was taken.
   - README: production setup (PayPal-approved marketplace/platform, creator as seller of record; AUP) and the
     "Why this is not a payment link" table.
 - **Tests: 810 passed, 3 skipped.** New `test_conservation.py` (6), 5 more AI content tests. Browser walks: none.
+
+## Deal Simulator (10 Nov, before the Wed 12:00 stop)
+- `amend/simulate.py`: futures = short lists of steps from a fixed vocabulary (change, post with days_late/missing,
+  brand accepts the date / drops the missing item, release, cancel, bonus views, nobody acts, hold runs out). The AI
+  writes up to 24 (FUTURES_SYSTEM, validated: unknown steps or items dropped); if it can't, code writes 10–12.
+- Each future runs on its own in-memory SQLite copy of the deal (`_copy`: the deal's rows, its parties, creator and
+  price list; foreign keys off on the copy only) with a counting fake PayPal (`_CountingPayPal`): accept → hold →
+  steps through the real engine functions → outcome (collected, creator, team, holdback, back, still held, PayPal
+  calls, conservation, weak spots). A refused step is a result ("Step 'release' refused: …"), not a crash.
+- Sequential, 10 s cap (shows what finished), one run per deal per minute (kept in memory, so a run writes nothing
+  live). Routes: POST /api/d/{token}/simulate, /api/deals/{id}/simulate (offered, accepted, in progress).
+- UI: "Test the deal before you sign it" card (brand pay page, offer page, creator waiting page, deal room) → a sheet
+  with the label, a summary and an AG Grid table; a row opens the steps, the money and the PayPal calls.
+- **Tests: 816 passed, 3 skipped.** New `test_simulate.py` (6): live DB counts and PayPal calls unchanged, the AI
+  asked only before the run, where every dollar goes and every hold balances, AI futures validated, rate limit, the
+  10 s cap, bonus futures with a mandate. Browser `sim_flow.py` (390 + 1440): problems none; shots in
+  `docs/screenshots/simulator/`.
