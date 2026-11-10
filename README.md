@@ -235,6 +235,22 @@ or the AI's answer is rejected. Only confirmed people's words can change money; 
   creator with fixed weights (niche, audience country, language, views and engagement, budget fit, availability, track
   record, data quality) and shows the top 10 with "Why this match" reasons built from the score.
 
+## Production setup, and why this is not a payment link
+
+**Production needs a PayPal-approved marketplace or platform setup in which the creator is the seller of record.**
+PayPal's Acceptable Use Policy and API policies require pre-approval for escrow-style holds and marketplaces, and don't
+allow payment aggregation. The demo runs in sandbox with a platform account and Payouts; the money is always a **PayPal
+authorization hold on the brand's account**, never money held by Amend.
+
+| Elsewhere | Amend |
+|---|---|
+| A chatbot gives a **suggestion** | A **quoted, versioned change card** both sides confirm |
+| A payment link is a **checkout** | A **bounded PayPal authorization**, captured only after the evidence matches and both confirm |
+| "Released" is a status word | The exact PayPal **authorization, capture, void, payout item and webhook**, plus the **receipt hash** each carries |
+
+Every PayPal hold also balances on the spine, in integer cents: held = collected + released/voided + still open (✓ or
+a red mismatch), and the test suite checks it for every flow.
+
 ## Same engine, other uses
 
 - **Trade counters ↔ contractors:** order changes priced and confirmed, held, and released on line-item proof of

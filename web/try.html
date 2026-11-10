@@ -36,7 +36,7 @@ async function makeDeal() {
         <a class="btn primary block" href="${r.brand_link}" target="_blank" rel="noopener">1 · Open as the brand (hold the money)</a>
         <a class="btn block" href="${r.creator_link}" target="_blank" rel="noopener">2 · Open as the creator</a>
         <div class="chips"><span class="pill">Try typing: “Add a Story and post Monday”</span><span class="pill">“Can you also show the kitchen?”</span><span class="pill">“Brighter colours please”</span></div>
-        <button class="btn small" id="again">Reset: make a fresh deal</button>
+        <button class="btn small" id="again">Start a fresh demo deal</button>
         <a class="small" href="/story/${r.deal}">Money story (as the creator) →</a></div>`;
       $("#again").onclick = e => reset(e.currentTarget);
   } catch (e) { $("#err").textContent = friendlyError(e); $("#err").hidden = false; $("#gate").hidden = false; }

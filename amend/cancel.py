@@ -157,7 +157,8 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
             fee = ((r.get("seller_receivable_breakdown") or {}).get("paypal_fee") or {}).get("value")  # record PayPal's fee, as at release
             money._set_status(db, money.get_item(db, cap["id"]), "paid", by_party, paypal_id=r.get("id"),
                               fee_cents=round(float(fee) * 100) if fee else 0)
-            db.update("money_items", "id", h["id"], {"captured_cents": h["captured_cents"] + take})
+            db.update("money_items", "id", h["id"], {"captured_cents": h["captured_cents"] + take,
+                                                     "released_cents": h["amount_cents"] - h["captured_cents"] - take})
             money._set_status(db, money.get_item(db, h["id"]), "paid", by_party)  # final capture released the rest
             left -= take
         else:  # nothing to collect from this hold: release it
@@ -170,6 +171,7 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
                          payload={"item": vd["id"], "call": "void", "authorization": h["paypal_parent_id"], "request_id": vd["request_id"]})
             money._set_status(db, money.get_item(db, vd["id"]), "sent", by_party)
             money._set_status(db, money.get_item(db, vd["id"]), "paid", by_party)
+            db.update("money_items", "id", h["id"], {"released_cents": h["amount_cents"] - h["captured_cents"]})
             money._set_status(db, money.get_item(db, h["id"]), "voided", by_party)
     net = money.deduct_owed(db, deal["creator_id"], s["creator_cents"], deal_id=deal["id"], actor="system") if s["creator_cents"] > 0 and holds else 0
     if net > 0 and holds:

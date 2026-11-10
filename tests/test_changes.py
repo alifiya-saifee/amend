@@ -127,8 +127,8 @@ def test_s19_decrease_while_held_collects_less(client, mocks, held):
 def test_s20_decrease_after_collection_is_a_refund_proposal(client, mocks, held):
     deal, tok = held
     d = get_db()
-    hold = d.one("select * from money_items where kind = 'hold'")
-    d.update("money_items", "id", hold["id"], {"status": "paid", "captured_cents": 53000})
+    from .test_refund import collected
+    hold = collected(deal)  # collected in full, with its capture record (as release does)
     says(mocks, {"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": -1, "quote": "Drop the Story set"}], "quote": "Drop the Story set"})
     c = brand_says(client, tok, "Drop the Story set please")["change"]
     assert c["money"] == ["refund proposal $80 (never a cancel)"]

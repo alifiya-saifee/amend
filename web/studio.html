@@ -58,13 +58,14 @@ function moneyRowDetail(r, title) {
     ["Amount", r.amount_usd != null ? "$" + Number(r.amount_usd).toFixed(2) : r.net_cents != null ? usd(r.net_cents) : null],
     ["PayPal step", r.step], ["PayPal ID", r.paypal_id, true], ["PayPal-Request-Id", r.request_id, true], ["custom_id", r.custom_id, true],
     ["Status", r.status], ["Status from", r.source ? `${r.source}${r.seen_at ? " · " + fmtDate(r.seen_at) : ""}` : "not checked at PayPal yet"],
-    ["The words behind it", r.quote]],
+    ["The words behind it", r.quote], ["Why", r.why]],
     [["Open the money story", `/story/${r.deal}`], ["Open the deal", `/studio/deals/${r.deal}`], ["Receipt (PDF)", `/api/deals/${r.deal}/receipt.pdf`]]);
 }
 async function ledger() {
   const r = await api("/api/studio/ledger");
   $("#view").innerHTML = `<h1>Ledger</h1>
     <p class="muted small">Every payment with the words behind it. PayPal fees so far: <b>$${r.fees_usd.toFixed(2)}</b>, a platform cost Amend pays (never taken from you). Tap a row for its receipt hash and PayPal details.</p>
+    <p class="tiny muted">${AED_NOTE}</p>
     ${r.rows.length ? `<div id="lg"></div><p class="tiny muted">Built with AG Grid Community. Source: <b>reply</b> = PayPal's answer to Amend's call, <b>GET</b> = Amend checked at PayPal, <b>webhook</b> = PayPal told Amend.</p>`
       : `<div class="empty"><div class="ic"><i data-lucide='book-open' aria-hidden='true'></i></div>No payments yet. They appear here once a brand holds money.</div>`}`;
   if (!r.rows.length) return;
@@ -79,6 +80,7 @@ async function ledger() {
       { field: "amount_usd", headerName: "Amount", width: 115, valueFormatter: AGrid.usdCell, filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 130, cellRenderer: p => ledgerPill(p.data) },
       { field: "source", width: 200, cellRenderer: AGrid.source },
+      { field: "why", headerName: "Why", flex: 2, minWidth: 260, tooltipField: "why", valueFormatter: p => (p.value || "").length > 70 ? p.value.slice(0, 68) + "…" : p.value },
       { field: "item", headerName: "What", flex: 2, minWidth: 240, tooltipField: "item" },
       { field: "aed", headerName: "AED", width: 95, type: "rightAligned" },
       { field: "kind", width: 120, valueFormatter: p => KIND_LABEL[p.value] || p.value },

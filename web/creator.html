@@ -113,7 +113,7 @@ async function load() {
     <section class="card" style="margin-top:14px"><h2>Prices</h2><div class="list">${main.map(priceCard).join("") || '<div class="empty">No prices yet.</div>'}</div>
       ${extras.length ? `<details style="margin-top:8px"><summary class="muted">Extras & terms</summary><div class="list">${extras.map(priceCard).join("")}</div></details>` : ""}</section>
     <div class="card" style="margin-top:14px"><div class="icons3">
-      <div><span class="ic"><i data-lucide='lock' aria-hidden='true'></i></span><span>Money held by PayPal</span></div>
+      <div><span class="ic"><i data-lucide='lock' aria-hidden='true'></i></span><span>A PayPal authorization hold on the brand's account</span></div>
       <div><span class="ic"><i data-lucide='handshake' aria-hidden='true'></i></span><span>Every change confirmed by both</span></div>
       <div><span class="ic"><i data-lucide='circle-check' aria-hidden='true'></i></span><span>Released only when the delivery matches the deal</span></div></div></div>
     <button class="btn primary block" style="margin-top:16px" id="req">Request a deal</button>`;

@@ -87,8 +87,44 @@ def hold_clock(item: dict, at: datetime | None = None) -> dict | None:
     exp = datetime.fromisoformat(item["expires_at"].replace("Z", "+00:00")) if item.get("expires_at") else \
         start + timedelta(days=HOLD_DAYS)
     day = max(1, min(HOLD_DAYS, (at - start).days + 1))
+    at_risk = f"Hold at risk: collect or renew by {exp.date().isoformat()}" if day >= AT_RISK_DAY else None
     return {"day": day, "of": HOLD_DAYS, "honour_days": HONOUR_DAYS, "in_honour": at < honour,
-            "honour_until": item["honor_until"], "expires_at": exp.isoformat(), "days_left": max(0, (exp - at).days)}
+            "honour_until": item["honor_until"], "expires_at": exp.isoformat(), "days_left": max(0, (exp - at).days),
+            "at_risk": at_risk}
+
+
+AT_RISK_DAY = 20
+
+
+def conservation(db: Database, hold: dict) -> dict:
+    """Integer cents, per hold: held = collected + released/voided + still open (+ ran out). "collected" comes from the
+    capture records themselves (not the hold's own counter), so a booking mistake shows as a red mismatch."""
+    if str(hold.get("paypal_id") or hold.get("paypal_parent_id") or "").startswith("DEMO"):
+        return {"held": hold["amount_cents"], "demo": True, "ok": None, "text": "Demo history: not checked (never real PayPal objects)"}
+    auths = {a for a in (hold.get("paypal_parent_id"), hold.get("original_auth_id")) if a}
+    collected = sum(c["amount_cents"] for c in db.all(
+        "select amount_cents, paypal_parent_id from money_items where kind = 'capture' and status in ('paid', 'refunded') "
+        "and deal_id = :d", {"d": hold["deal_id"]}) if c["paypal_parent_id"] in auths) if auths else 0
+    released = hold.get("released_cents") or 0
+    st = hold["status"]
+    open_ = hold["amount_cents"] - (hold.get("captured_cents") or 0) - released if st == "authorized" else 0
+    ran_out = hold["amount_cents"] - (hold.get("captured_cents") or 0) - released if st == "expired" else 0
+    total = collected + released + open_ + ran_out
+    ok = total == hold["amount_cents"] and collected == (hold.get("captured_cents") or 0)
+    return {"held": hold["amount_cents"], "collected": collected, "released": released, "open": open_, "ran_out": ran_out,
+            "ok": ok, "off_by": hold["amount_cents"] - total}
+
+
+def lineage(db: Database, hold: dict) -> dict:
+    """Original authorization → reauthorization (if any) → capture(s), with the honour and expiry dates."""
+    current = hold.get("paypal_parent_id")
+    orig = hold.get("original_auth_id") or current
+    caps = [c["paypal_id"] for c in db.all("select paypal_id, paypal_parent_id from money_items where kind = 'capture' and deal_id = :d "
+                                           "and status in ('paid', 'refunded') order by created_at", {"d": hold["deal_id"]})
+            if c["paypal_parent_id"] in {orig, current} and c["paypal_id"]]
+    return {"order": hold.get("paypal_id"), "authorization": orig, "reauthorization": current if current != orig else None,
+            "reauthorized_at": hold.get("reauthorized_at"), "captures": caps, "honour_until": hold.get("honor_until"),
+            "expires_at": hold.get("expires_at")}
 
 
 def record_seen(db: Database, paypal_id: str | None, *, kind: str, status: str | None, source: str,
@@ -183,6 +219,8 @@ def view(db: Database, deal_id: str) -> dict:
                 "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it), "released_cents": it.get("released_cents") or 0,
                 "paypal_id": it.get("paypal_id") or it.get("paypal_parent_id"), "date": (it.get("updated_at") or it["created_at"])[:10],
                 "capture_path": it.get("capture_path"),
+                **({"conservation": conservation(db, it), "lineage": lineage(db, it)}
+                   if it["kind"] == "hold" and it["status"] in ("authorized", "paid", "voided", "expired", "refunded") else {}),
                 **row_facts(db, it, hcache)}
         versions.setdefault(line["version"], []).append(line)
     dispute = db.one("select paypal_dispute_id, status, outcome, reason, amount_cents, evidence_status from disputes "

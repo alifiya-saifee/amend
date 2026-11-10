@@ -127,6 +127,7 @@ const Work = (() => {
           ${c.declared ? `<div class="vlab"><span class="vtag">Creator declared</span><span class="small">${esc(c.declared)}</span></div>` : ""}
           <div class="vlab"><span class="vtag code ${c.ok ? "ok" : c.advisory ? "" : "bad"}">Code decided</span><span class="small">${esc(c.decided || ((c.ok ? "Pass: " : "Fail: ") + c.reason))}</span></div>
           ${(c.quotes && c.quotes.length ? c.quotes : c.quote ? [c.quote] : []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div></div>`).join("")}</div>
+      <p class="tiny muted" style="margin:6px 0 0">${icon("shield-check")} The signature proves this record wasn't changed; it doesn't prove Instagram's data.</p>
       <p class="tiny muted" style="margin:6px 0 0">${v.checks.some(c => c.ai_read && c.ai_read.source === "instagram") ? "The post's type, time and caption were read from Instagram." : "The AI only reads the caption."} Code decides every pass or fail against the confirmed deal; the AI never decides money.</p>
       ${pass && P ? `<div class="verdict-go"><div class="verdict-prop"><div class="tiny muted">Proposed release</div>
           ${row("PayPal collects", P.capture_cents)}${row(`Paid to ${esc(first())}`, P.creator_cents)}${row("Owed from a past refund", P.owed_deducted_cents)}

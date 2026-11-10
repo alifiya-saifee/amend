@@ -34,6 +34,8 @@ def _move(db: Database, item: dict | None, new: str, event_id: str, extra: dict 
                      payload={"event": event_id, "item": item["id"], "stale": True, "from": str(cur), "wanted": new})
         return f"stale: {cur} can't become {new}"
     changes = {"status": new, "updated_at": now(), **(extra or {})}
+    if item["kind"] == "hold" and new in ("voided",):  # PayPal voided it: everything not captured went back to the brand
+        changes.setdefault("released_cents", item["amount_cents"] - (item.get("captured_cents") or 0))
     db.update("money_items", "id", item["id"], changes)
     db.log_event("money.status", actor="paypal", deal_id=item["deal_id"],
                  payload={"item": item["id"], "from": str(cur), "to": new, "via": "webhook", "event": event_id},

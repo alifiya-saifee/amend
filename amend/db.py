@@ -270,7 +270,8 @@ COLUMNS = {
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
                     "deal_version": "integer", "custom_id": "text", "invoice_id": "text",
                     "released_cents": "integer not null default 0",
-                    "capture_path": "text"},  # how the capture happened: on day N, or reauthorized then captured  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
+                    "capture_path": "text",
+                    "original_auth_id": "text", "reauthorized_at": "text"},  # lineage: the first authorization, kept  # how the capture happened: on day N, or reauthorized then captured  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
     "events": {"prev_hash": "text", "hash": "text"},
     "bonuses": {"tiers_json": "text", "via_mandate": "text", "manual_json": "text"},  # bonus tiers signed in the brand's mandate  # receipt chain: each deal event carries the previous one's hash
     "accounts": {"settings_json": "text not null default '{}'"},

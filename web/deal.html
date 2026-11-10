@@ -315,6 +315,7 @@ function showRoomTab(k) {
   $$("[data-rt]").forEach(b => { const on = b.dataset.rt === k; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
 }
 function sumMoney(kind, statuses, f = i => i.amount_cents) { return (V.money || []).filter(i => i.kind === kind && statuses.includes(i.status)).reduce((a, i) => a + f(i), 0); }
+function aedNote() { return `<p class="tiny muted" style="margin:6px 0 0">${esc(AED_NOTE)}</p>`; }
 function moneyCardHtml() {
   const held = V.held_cents || 0, collected = sumMoney("capture", ["paid", "refunded"]), refunded = sumMoney("refund", ["paid", "refunded"]);
   const proposals = (V.money || []).filter(i => i.kind === "refund" && ["planned", "approved", "sent"].includes(i.status));
@@ -333,7 +334,7 @@ function moneyCardHtml() {
           <button class="btn small" data-refund-no="${p.id}">Decline</button></div>`}</div></div>`).join("")}
       ${h && h.authorization ? `<p class="tiny muted">PayPal authorisation ${esc(h.authorization)}</p>` : ""}
       ${!IS_BRAND ? `<a class="small" href="/studio/ledger">See every payment with the words behind it</a>` : ""}`
-      : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}</div>`;
+      : `<p class="muted small">Nothing held yet. Money is held once the deal is accepted and the brand pays.</p>`}${aedNote()}</div>`;
 }
 function checklistHtml(d) {
   // each deliverable in the latest confirmed version, the post date, then "what done means" (Posted, #ad …)
@@ -636,8 +637,18 @@ async function spineTable() {
       { field: "amount_cents", headerName: "Amount", width: 110, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 120, cellRenderer: p => moneyPill(p.value) },
       { field: "source", width: 200, cellRenderer: AGrid.source },
+      { headerName: "Balance", width: 150, valueGetter: p => !p.data.conservation ? "" : p.data.conservation.demo ? "Demo: not checked"
+          : p.data.conservation.ok ? "Balances" : `Mismatch: off by $${(Math.abs(p.data.conservation.off_by) / 100).toFixed(2)}`,
+        cellClass: p => p.data.conservation && p.data.conservation.ok === false ? "bal-bad" : "" },
       { field: "receipt_hash", headerName: "Receipt hash", hide: true }, { field: "request_id", headerName: "Request ID", hide: true },
       { field: "custom_id", hide: true }] });
+}
+// held = collected + released/voided + still open, in integer cents: a tick or a red mismatch
+function balanceHtml(c) {
+  if (c.demo) return `<div class="tiny muted">${esc(c.text)}</div>`;
+  const parts = [`${usd(c.collected)} collected`, `${usd(c.released)} released`, `${usd(c.open)} still open`].concat(c.ran_out ? [`${usd(c.ran_out)} ran out`] : []);
+  return c.ok ? `<div class="tiny sp-bal ok">${icon("circle-check")} ${usd(c.held)} held = ${parts.join(" + ")}</div>`
+    : `<div class="tiny sp-bal bad">${icon("triangle-alert")} Mismatch: ${usd(c.held)} held ≠ ${parts.join(" + ")} (off by ${usd(Math.abs(c.off_by))})</div>`;
 }
 function spineHtml(S) {
   const ago2 = t => t ? ago(t) : "";
@@ -656,6 +667,7 @@ function spineHtml(S) {
       Receipt chain: ${S.chain.events} events, each holding the previous one's hash · ${S.chain.ok ? "verified" : "BROKEN"} · head <code>${esc((S.chain.head || "").slice(0, 12))}…</code></p>`
       : `<p class="tiny muted" style="margin:0 0 6px">${icon("link")} Created before receipts: this deal's history was recorded before the receipt chain existed, so it has no chain (none is added afterwards).</p>`}
     ${S.released_back ? `<div class="sp-released">${icon("undo-2")} <b>${esc(S.released_back.text)}</b> <span class="tiny muted">(the unused part of the hold, released by PayPal at collection)</span></div>` : ""}
+    ${C && C.at_risk ? `<div class="banner bad small" style="margin:6px 0">${icon("alarm-clock")} <b>${esc(C.at_risk)}</b> (PayPal holds last 29 days)</div>` : ""}
     ${C ? `<div class="sp-clock"><b>Hold day ${C.day} of ${C.of}</b> · ${C.in_honour ? `PayPal honour period until ${esc(fmtDate(C.honour_until))}`
       : "honour period over: Amend re-authorises once, automatically, before collecting"} · expires ${esc(fmtDate(C.expires_at))}
       <div class="meter" aria-hidden="true"><span style="width:${pct(C.day, C.of)}%"></span></div></div>` : ""}
@@ -668,6 +680,9 @@ function spineHtml(S) {
     ${S.versions.map(v => `<div class="sp-ver"><div class="tiny muted">Version ${v.version}</div>${v.lines.map(l => `
       <div class="sp-line"><div class="row between"><span>${esc(l.step)}</span><b>${usd(l.amount_cents)}</b></div>
         ${l.capture_path ? `<div class="tiny muted">${icon("clock")} ${esc(l.capture_path)}</div>` : ""}
+        ${l.conservation ? balanceHtml(l.conservation) : ""}
+        ${l.lineage ? `<div class="tiny muted">${icon("git-commit-horizontal")} Authorization <code>${esc(l.lineage.authorization || "–")}</code>${l.lineage.reauthorization ? ` → reauthorized <code>${esc(l.lineage.reauthorization)}</code>` : ""}${(l.lineage.captures || []).map(c => ` → capture <code>${esc(c)}</code>`).join("")}
+          ${l.lineage.honour_until ? ` · honour period to ${esc(fmtDate(l.lineage.honour_until))}` : ""}${l.lineage.expires_at ? ` · expires ${esc(fmtDate(l.lineage.expires_at))}` : ""}</div>` : ""}
         ${l.objects.map(obj).join("")}${l.custom_id ? `<div class="tiny muted">custom_id <code>${esc(l.custom_id)}</code></div>` : ""}</div>`).join("")}</div>`).join("")}
     ${S.dispute ? `<div class="sp-ver"><div class="tiny muted">PayPal dispute</div>${obj({ type: "Dispute", id: S.dispute.paypal_dispute_id, seen: S.dispute.seen || { status: S.dispute.status, source: "webhook" } })}
       ${S.dispute.outcome ? `<div class="small">Outcome: <b>${esc(S.dispute.outcome)}</b></div>` : ""}</div>` : ""}</div>`;

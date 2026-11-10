@@ -662,6 +662,7 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
                 money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
                 db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "error": str(e2)[:160], "day": day})
                 raise DeliveryError("the hold needs renewing: ask the brand to hold the money again") from None
+            db.update("money_items", "id", hold["id"], {"original_auth_id": hold.get("original_auth_id") or auth_id, "reauthorized_at": now()})
             auth_id = r["id"]
             db.update("money_items", "id", hold["id"], {"paypal_parent_id": auth_id, "expires_at": r.get("expiration_time")})
             db.update("money_items", "id", it["id"], {"paypal_parent_id": auth_id, "request_id": f"{it['request_id']}-r"})  # stored first

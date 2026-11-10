@@ -680,6 +680,9 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 .m-tiers { margin: 4px 0 0 28px; }
 .m-tier, .m-tier-head { display: grid; grid-template-columns: 52px minmax(0, 1fr) minmax(0, 96px); gap: 6px; align-items: center; margin-top: 4px; }
 .m-tier input { width: 100%; min-width: 0; }
+/* conservation per hold */
+.sp-bal { margin-top: 2px; } .sp-bal.ok { color: var(--ok); } .sp-bal.bad { color: var(--bad); font-weight: 600; }
+.grid-box .bal-bad { color: var(--bad); font-weight: 600; }
 /* team splits */
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 64px; gap: 6px; margin-top: 6px; }
 .team-row input { min-width: 0; width: 100%; }

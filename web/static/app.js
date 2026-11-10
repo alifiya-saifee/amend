@@ -27,6 +27,9 @@ function usd(cents) {
   const d = Math.floor(cents / 100), c = cents % 100;
   return "$" + d.toLocaleString("en-US") + (c ? "." + String(c).padStart(2, "0") : "");
 }
+// The dirham is pegged to the US dollar at 3.6725 (Central Bank of the UAE, since 1997): a fixed rate, so an AED
+// amount is never recomputed from a later rate. Money settles in USD in this sandbox flow.
+const AED_NOTE = "AED shown at 3.6725 per USD: the dirham's fixed peg (Central Bank of the UAE, since 1997). Settles in USD in this sandbox flow.";
 function aed(cents, compact = true) {
   const v = Math.round(cents * AED) / 100;
   return "AED " + (compact ? Math.round(v).toLocaleString("en-US") : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));

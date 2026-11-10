@@ -91,3 +91,35 @@ def as_test_creator(monkeypatch):
     from tests import test_booking
     from amend.db import get_db
     monkeypatch.setattr(test_booking, "sara_id", lambda c: get_db().one("select id from creators where handle = 'clinicrobotest'")["id"])
+
+
+# ---- every flow balances: when a test's database is torn down, every PayPal hold must add up to the cent ----
+def _check_conservation(db):
+    from amend import spine
+    bad = []
+    for h in db.all("select * from money_items where kind = 'hold' and status in ('authorized', 'paid', 'voided', 'expired', 'refunded')"):
+        c = spine.conservation(db, h)
+        if c["ok"] is False:  # None = seeded demo history, labelled as not checked
+            bad.append((h["id"], h["note"], c))
+    return bad
+
+
+@pytest.fixture(autouse=True)
+def every_hold_balances(request, monkeypatch):
+    import amend.db as dbmod
+    if request.node.get_closest_marker("unbalanced_ok"):
+        yield
+        return
+    real = dbmod.set_db
+    seen = []
+
+    def checked(db):
+        cur = dbmod._db
+        if db is None and cur is not None:
+            seen.extend(_check_conservation(cur))
+        real(db)
+    monkeypatch.setattr(dbmod, "set_db", checked)
+    from tests import test_booking
+    monkeypatch.setattr(test_booking, "set_db", checked, raising=False)
+    yield
+    assert not seen, f"a PayPal hold doesn't balance (held = collected + released + open): {seen}"

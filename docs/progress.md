@@ -715,3 +715,26 @@ question wasn't answered, so the recommended option was taken.
 - Is a wrong declaration a money matter? Today it's a mismatch shown to the brand, not a gap.
 - Instagram may not allow switching the AI label on after publishing (a third-party claim, not confirmed in Meta's
   reference); the gap card says to re-post if so.
+
+## AI content refinements + audit items (10 Nov)
+- AI content: missing label when required → gap "The AI label can't be added after posting: delete and repost with
+  the label, or the brand accepts it as is"; a repost (new post read) or both tapping "Accept it as is" closes it.
+  Declaration vs credential mismatch → a draft gap only with the mandate rule (correct the declaration, code decides
+  again, or explain; no money); otherwise advisory. Draft gaps count in `open_gaps`.
+- Audit:
+  - `/try` button: "Start a fresh demo deal" (each one is a new deal per visitor, as before).
+  - **Conservation per hold** (`spine.conservation`): held = collected (from the capture records) + released/voided
+    + still open (+ ran out), integer cents, ✓ or a red mismatch on the spine and a Balance column in the spine table.
+    Seeded demo holds say "Demo history: not checked". **Every test now checks it** when its database closes
+    (tests/conftest.py). That found two real gaps, fixed: cancel didn't record what went back to the brand, and a
+    PayPal-side void (webhook) didn't either.
+  - **Lineage** (`spine.lineage`): original authorization (kept in `original_auth_id` on reauthorization) →
+    reauthorization → capture(s), honour and expiry dates, shown on the spine.
+  - **"Hold at risk: collect or renew by <date>"** from day 20 (spine).
+  - Verdict note: "The signature proves this record wasn't changed; it doesn't prove Instagram's data."
+  - Wording: "a PayPal authorization hold on the brand's account" on the landing, FAQ and profile; no "escrow" anywhere.
+  - Ledger **"Why"** column: version · the quote · who confirmed (signed mandate noted); full text in the row details.
+  - AED note: 3.6725, the dirham's fixed peg (Central Bank of the UAE, since 1997); settles in USD in this sandbox flow.
+  - README: production setup (PayPal-approved marketplace/platform, creator as seller of record; AUP) and the
+    "Why this is not a payment link" table.
+- **Tests: 810 passed, 3 skipped.** New `test_conservation.py` (6), 5 more AI content tests. Browser walks: none.

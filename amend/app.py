@@ -2393,6 +2393,30 @@ def story_page(key: str):
     return page("story.html")
 
 
+def _why(d, it: dict, quote: str | None, version) -> str:
+    """Each money line's cause: the words it rests on, the version, and who confirmed them."""
+    who = []
+    ch = d.one("select * from changes where id = :c", {"c": it["change_id"]}) if it.get("change_id") else None
+    deal = d.one("select brand_party_id, creator_id from deals where id = :d", {"d": it["deal_id"]}) or {}
+    name = lambda p: ((d.one("select name from parties where id = :p", {"p": p}) or {}).get("name") or "").split(" ")[0]
+    creator_p = (d.one("select party_id from creators where id = :c", {"c": deal.get("creator_id")}) or {}).get("party_id")
+    if ch:
+        quote = ch.get("quote") or quote
+        if ch.get("confirmed_brand_at"):
+            who.append(name(deal.get("brand_party_id")) + (" (signed mandate)" if ch.get("brand_via_mandate") else ""))
+        if ch.get("confirmed_creator_at"):
+            who.append(name(creator_p))
+    else:
+        f = json.loads(it.get("depends_on_fact_ids") or "[]")
+        sp = d.one("select speaker_id, source from facts where id = :f", {"f": f[0]}) if f else None
+        if sp and sp.get("speaker_id"):
+            who.append(name(sp["speaker_id"]) + (" (signed mandate)" if str(sp.get("source") or "").startswith("mandate:") else ""))
+        if not (it.get("change_id") or "").startswith(("bonus:", "usage:")):
+            who.append(name(creator_p) + " (accepted the deal)")
+    parts = [f"v{version}"] + ([f"“{quote}”"] if quote else []) + ([f"confirmed by {', '.join(w for w in who if w.strip())}"] if who else [])
+    return " · ".join(parts)
+
+
 def _ledger_label(it: dict) -> str:
     n = it.get("note") or ""
     if n.startswith("release:capture"):
@@ -2439,13 +2463,14 @@ def ledger(c: dict = Depends(require_creator)):
         facts = json.loads(it["depends_on_fact_ids"] or "[]")
         q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
         f = spine.row_facts(d, it, hc)  # the money line's own version (not the deal's current one), receipt hash, source
+        why = _why(d, it, (q or {}).get("quote"), f["version"])
         rows.append({"date": it["created_at"][:10], "deal": it["deal_id"], "deal_name": it["deal_title"] or it["brand_org"],
                      "brand": it["brand_org"], "item": _ledger_label(it),
                      "kind": it["kind"], "amount_usd": it["amount_cents"] / 100, "aed": money.aed_cents(it["amount_cents"]) / 100,
                      "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
                      "version": f["version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
                      "step": spine.step(it), "source": f["source"], "seen_at": f["seen_at"], "receipt_hash": f["receipt_hash"],
-                     "custom_id": it.get("custom_id"), "updated": it["updated_at"]})
+                     "custom_id": it.get("custom_id"), "updated": it["updated_at"], "why": why})
         if it["kind"] == "capture" and (it["fee_cents"] or 0) > 0:  # PayPal's fee is a platform cost: never taken from the creator
             rows.append({**rows[-1], "item": "Platform cost: PayPal fee (Amend pays, not you)", "kind": "platform_cost",
                          "amount_usd": it["fee_cents"] / 100, "aed": money.aed_cents(it["fee_cents"]) / 100, "status": "paid",
