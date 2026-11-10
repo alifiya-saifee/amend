@@ -114,7 +114,7 @@ class PayPalClient:
                 r = await c.request(method, path, json=body, headers=headers)
         except httpx.TimeoutException:
             log.warning("paypal %s %s timeout request_id=%s", method, path, request_id)
-            raise PayPalError(0, "TIMEOUT", "PayPal didn't answer. Nothing was charged.") from None
+            raise PayPalError(0, "TIMEOUT", "PayPal didn't answer in time. Try again: the retry uses the same request ID, so nothing is collected twice.") from None
         except httpx.HTTPError as e:
             log.warning("paypal %s %s network error %s request_id=%s", method, path, type(e).__name__, request_id)
             raise PayPalError(0, "NETWORK", type(e).__name__) from None

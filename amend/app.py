@@ -122,7 +122,8 @@ async def _link_error(request: Request, exc: deals.LinkError):
 
 @app.exception_handler(PayPalError)
 async def _paypal_error(request: Request, exc: PayPalError):
-    msg = "PayPal didn't answer. Nothing was charged." if exc.status == 0 else f"PayPal said no: {exc.name}. Nothing was charged."
+    msg = ("PayPal didn't answer in time. Try again: the retry uses the same request ID, so nothing is collected twice."
+           if exc.status == 0 else f"PayPal said no: {exc.name}. Nothing was charged.")
     return JSONResponse({"error": msg, "retry": True}, status_code=502)
 
 

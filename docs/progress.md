@@ -755,3 +755,18 @@ question wasn't answered, so the recommended option was taken.
   asked only before the run, where every dollar goes and every hold balances, AI futures validated, rate limit, the
   10 s cap, bonus futures with a mandate. Browser `sim_flow.py` (390 + 1440): problems none; shots in
   `docs/screenshots/simulator/`.
+
+## Final audit items (10 Nov)
+- `docs/judging.md`: the three PASTE lines replaced with "Judge logins, JUDGE_PASSWORD and the PayPal sandbox buyer are
+  in the Devpost submission's testing instructions." No PASTE/TODO left in public docs.
+- AED label: "AED shown at the official peg (3.6725 per USD, UAE Central Bank). PayPal settles in USD in this sandbox flow."
+- State tests (`tests/test_states.py`): day 30 → not one PayPal write, "the hold ran out"; refund after payout → one
+  PayPal refund with its own request ID, holdback first, then owed; a double tap moves nothing; capture timeout →
+  item failed, nobody paid → retry with the same PayPal-Request-Id → collected once, paid once.
+  - **Bug found and fixed:** retrying a failed capture, payout or void crashed ("money item can't go from failed to
+    paid"), because the retry didn't move the item back to "sent". It does now (same request ID).
+  - Timeout wording: "PayPal didn't answer in time. Try again: the retry uses the same request ID, so nothing is
+    collected twice." (it used to say "Nothing was charged", which a timeout can't know).
+- README and `docs/judging.md` start with the one-line judge path (what to see at each step), and "Built during the
+  hackathon, starting 7 Nov 2026."
+- **Tests: 819 passed, 3 skipped.**

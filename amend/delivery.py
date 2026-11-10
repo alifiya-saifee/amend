@@ -642,7 +642,7 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
         if hold and age is not None and age > HOLD_LIFE_DAYS:  # past PayPal's 29 days: nothing to capture or reauthorize
             db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "day": day})
             raise DeliveryError("the PayPal hold ran out after 29 days: the brand needs to hold the money again")
-        if it["status"] == "approved":
+        if it["status"] in ("approved", "failed"):  # a retry after a failure goes back to sent (same request ID)
             money._set_status(db, it, "sent", actor)
         remaining = (hold["amount_cents"] - hold["captured_cents"]) if hold else it["amount_cents"]
         path = f"captured on day {day} of the 29-day hold" if day else "captured"
@@ -720,7 +720,7 @@ async def _void_unused(db: Database, pp, it: dict, deal: dict, actor: str) -> No
     hid = (it.get("note") or "").split("void unused ", 1)[-1]  # release:void unused <hold> | bonus:void unused <hold>
     hold = money.get_item(db, hid)
     live = await pp.get_authorization(it["paypal_parent_id"])  # rule 7: live status first
-    if it["status"] == "approved":
+    if it["status"] in ("approved", "failed"):  # a retry after a failure goes back to sent (same request ID)
         money._set_status(db, it, "sent", actor)
     if live.get("status") in ("VOIDED", "EXPIRED"):  # already gone back to the brand: nothing to call
         money._set_status(db, money.get_item(db, it["id"]), "paid", actor)
@@ -751,7 +751,7 @@ async def _payout(db: Database, pp, it: dict, deal: dict, actor: str) -> None:
     if not email:
         from amend.config import get_settings
         email = get_settings().sandbox_creator_email
-    if it["status"] == "approved":
+    if it["status"] in ("approved", "failed"):  # a retry after a failure goes back to sent (same request ID)
         money._set_status(db, it, "sent", actor)
     from amend import spine
     ref = spine.refs(db, it)  # deal + version in the payout item, so PayPal's record leads back to the deal

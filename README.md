@@ -4,9 +4,11 @@
 
 Amend is a deal room for creator brand deals. The brand's payment is **held by PayPal before work starts**, every change
 in the chat becomes a **priced card both sides confirm**, and nothing is paid out until the **delivery matches the deal**.
-Entry for the PayPal AI Hackathon. **PayPal sandbox only. All people and brands are made up.**
+Entry for the PayPal AI Hackathon. **Built during the hackathon, starting 7 Nov 2026.** **PayPal sandbox only. All people and brands are made up.**
 
 **Live:** https://amend-r7le.onrender.com · **Try it in 2 minutes:** https://amend-r7le.onrender.com/try · **Judging guide:** [docs/judging.md](docs/judging.md)
+
+**Judge path (about 3 minutes):** [amend-r7le.onrender.com](https://amend-r7le.onrender.com) → **/try** → *Start a fresh demo deal* (you see a $70 deal, accepted) → *Open as the brand* → *Pay with PayPal* with the **PayPal sandbox buyer** (you come back to "$70 held by PayPal") → type **"Add one more Story set"** (a change card: +$20 from the price list, with the exact words) → *Open as the creator* → *Confirm* (version 2; the brand holds the extra $20) → as the creator, upload any short video and say whether AI was used → as the brand, *Approve draft* → as the creator, mark it posted on the agreed Friday (another day opens a date card the brand accepts; the delivery check then says "matches the latest confirmed deal") → the **signed delivery verdict** (Pass, per-check reasons, the PayPal calls next to the button) → both tap *Confirm verdict and release* (PayPal **captures** $90, pays the creator $81 by **Payouts** and keeps a $9 holdback; the spine shows "held = collected + released + open" with a tick).
 
 **Judges: start at [/try](https://amend-r7le.onrender.com/try).** It makes a fresh deal for you, with a real PayPal
 sandbox hold, and a reset button. A hold made today expires after **29 days** (PayPal's limit), so make a new one
@@ -291,7 +293,7 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 
 ## Honest limits
 
-- **Sandbox only**, USD only (AED shown at a fixed 3.6725).
+- **Sandbox only**, USD only. AED shown at the official peg (3.6725 per USD, UAE Central Bank). PayPal settles in USD in this sandbox flow.
 - **Holding money for others needs PayPal's pre-approval in production** (PayPal Acceptable Use Policy); the demo runs
   in sandbox.
 - **Real Instagram numbers come from one test creator only** ("Maya Rahman (test account)" · @clinicrobotest, the account linked to

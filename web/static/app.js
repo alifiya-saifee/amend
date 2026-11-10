@@ -29,13 +29,13 @@ function usd(cents) {
 }
 // The dirham is pegged to the US dollar at 3.6725 (Central Bank of the UAE, since 1997): a fixed rate, so an AED
 // amount is never recomputed from a later rate. Money settles in USD in this sandbox flow.
-const AED_NOTE = "AED shown at 3.6725 per USD: the dirham's fixed peg (Central Bank of the UAE, since 1997). Settles in USD in this sandbox flow.";
+const AED_NOTE = "AED shown at the official peg (3.6725 per USD, UAE Central Bank). PayPal settles in USD in this sandbox flow.";
 function aed(cents, compact = true) {
   const v = Math.round(cents * AED) / 100;
   return "AED " + (compact ? Math.round(v).toLocaleString("en-US") : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 }
 function money(cents) {
- return `<span>${usd(cents)}</span> <span class="aed" title="Fixed rate 3.6725. PayPal charges in USD.">· ${aed(cents)}</span>`;
+ return `<span>${usd(cents)}</span> <span class="aed" title="AED shown at the official peg (3.6725 per USD, UAE Central Bank). PayPal settles in USD in this sandbox flow.">· ${aed(cents)}</span>`;
 }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function $(sel, root = document) { return root.querySelector(sel); }

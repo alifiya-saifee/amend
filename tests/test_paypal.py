@@ -74,7 +74,7 @@ async def test_no_secret_or_token_in_logs_or_errors(caplog):  # checklist test 8
 async def test_timeout_says_nothing_was_charged():  # S55
     mock_token(respx)
     respx.post(f"{BASE}/v2/checkout/orders").mock(side_effect=httpx.ReadTimeout("slow"))
-    with pytest.raises(PayPalError, match="Nothing was charged"):
+    with pytest.raises(PayPalError, match="same request ID"):
         await client().create_order(amount_cents=100, deal_id="d", return_url="u", cancel_url="u", description="x",
                                     request_id="r3", approval=OK)
 

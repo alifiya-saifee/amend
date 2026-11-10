@@ -332,7 +332,7 @@ async def _run(db: Database, rail: money.PlatformRail, deal: dict, party_id: str
         live = await pp.get_authorization(it["paypal_parent_id"])  # rule 7: PayPal's live status first
         if live.get("status") not in ("CREATED", "PARTIALLY_CAPTURED", "PENDING"):
             raise BonusError("the bonus hold is no longer active at PayPal (holds last 29 days)")
-        if it["status"] == "approved":
+        if it["status"] in ("approved", "failed"):  # a retry after a failure goes back to sent (same request ID)
             money._set_status(db, it, "sent", party_id)
         cap = await pp.capture(it["paypal_parent_id"], amount_cents=it["amount_cents"], final=True, request_id=it["request_id"], approval=approval)
         from amend import spine
