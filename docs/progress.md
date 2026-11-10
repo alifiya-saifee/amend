@@ -655,3 +655,7 @@ Alifiya deployed 95546b3. Tiers (cc3567b), team splits (aece432) and settle (0c8
 ### Open questions
 - The test creator's display name is "Test Creator", so screens say "Test entered 2" / "Paid to Test". Rename it if
   you'd like a made-up first name.
+- **Test-clock bug (fixed in b56b3c0):** the mocked PayPal hold had a fixed 7 Nov date, so at 16:28 Dubai on 10 Nov its
+  honour period ended and 23 release tests failed (the code correctly re-authorises). b7e0172 was pushed in that
+  window because the check piped into `tail`; the app code was unchanged and the run before it passed. Tests and the
+  local fake now use a hold authorised an hour ago; pushes now check the result first. 772 passed.
