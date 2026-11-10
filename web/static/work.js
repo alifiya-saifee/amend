@@ -54,7 +54,7 @@ const Work = (() => {
     <label>Post link</label><input id="w-url" placeholder="https://www.instagram.com/reel/…">
         ${w.ig && w.ig.on && !w.ig.demo ? `<label>Your Instagram account</label><input id="w-ig" placeholder="@yourhandle" value="${esc(w.ig.handle ? "@" + w.ig.handle : "")}">
         <div class="hint">Amend reads the post from Instagram (professional accounts) and checks it against the latest confirmed deal. Stories can't be read for other accounts, so they come from what you enter.</div>` : ""}
-        <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
+        <label>Posted on</label><input id="w-date" type="date" value="${/^\d{4}-\d{2}-\d{2}/.test(ctx.V.deal.deadline || "") ? ctx.V.deal.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
         ${d && d.result.ai && d.result.ai.decision === "needs_label" ? `<div class="banner small" style="margin-top:8px">${icon("tag")} Switch on Instagram's AI label when you post. It can't be added later.</div>` : ""}
         <label>Caption as posted</label><textarea id="w-pcap" style="min-height:60px"></textarea>

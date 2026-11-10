@@ -12,11 +12,11 @@
   <p>You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal changes.</p>
   <ol class="steps">
     <li><span class="num">1</span><div><b>Hold</b><p class="muted">Open the brand's link and hold the money with a PayPal sandbox buyer account.</p></div></li>
-    <li><span class="num">2</span><div><b>Change</b><p class="muted">In the chat, type as the brand: “Add a Story and post Monday”. A change card appears with the ripple and the untouched count.</p></div></li>
-    <li><span class="num">3</span><div><b>Confirm</b><p class="muted">Confirm as the creator too. The deal goes to version 2 and a new hold appears for the difference.</p></div></li>
-    <li><span class="num">4</span><div><b>Deliver and get paid</b><p class="muted">As the creator, upload a short video and mark it posted. Resolve any gap, then both approve the release.</p></div></li>
+    <li><span class="num">2</span><div><b>Change</b><p class="muted">In the chat, type as the brand: “Add one more Story set”. A change card appears: +$20 from the price list, with the exact words and the untouched count.</p></div></li>
+    <li><span class="num">3</span><div><b>Confirm</b><p class="muted">Confirm as the creator too. The deal goes to version 2 ($90) and the brand holds the extra $20 with PayPal.</p></div></li>
+    <li><span class="num">4</span><div><b>Deliver and get paid</b><p class="muted">As the creator, upload a short video; as the brand, approve it; as the creator, mark it posted (today, as agreed). Both confirm the signed verdict: PayPal collects $90 and pays the creator.</p></div></li>
   </ol>
-  <form id="gate" class="card"><label for="pw">Demo password (in the Devpost submission)</label>
+  <form id="gate" class="card"><label for="pw">Judge password (JUDGE_PASSWORD, in the Devpost testing instructions)</label>
     <div class="row" style="gap:8px"><input id="pw" type="password" class="grow" required><button class="btn primary" id="go">Start</button></div>
     <div class="err" id="err" hidden></div></form>
   <div id="out"></div>
@@ -35,7 +35,7 @@ async function makeDeal() {
         <p class="small">Demo Creator × Judge Brand · Reel $50 + Story set $20 = <b>$70</b>, accepted. Cap $100.</p>
         <a class="btn primary block" href="${r.brand_link}" target="_blank" rel="noopener">1 · Open as the brand (hold the money)</a>
         <a class="btn block" href="${r.creator_link}" target="_blank" rel="noopener">2 · Open as the creator</a>
-        <div class="chips"><span class="pill">Try typing: “Add a Story and post Monday”</span><span class="pill">“Can you also show the kitchen?”</span><span class="pill">“Brighter colours please”</span></div>
+        <div class="chips"><span class="pill">Try typing: “Add one more Story set”</span><span class="pill">“Can you also show the kitchen?”</span><span class="pill">“Brighter colours please”</span></div>
         <button class="btn small" id="again">Start a fresh demo deal</button>
         <a class="small" href="/story/${r.deal}">Money story (as the creator) →</a></div>`;
       $("#again").onclick = e => reset(e.currentTarget);

@@ -2791,7 +2791,8 @@ class TryIn(BaseModel):
 @app.post("/api/try/start")
 def try_start(body: TryIn, request: Request):
     _, fails = _check_rate(request)
-    want = get_settings().amend_demo_password.get_secret_value()
+    s = get_settings()
+    want = s.judge_password.get_secret_value() or s.amend_demo_password.get_secret_value()  # one judge password
     if not want or not hmac.compare_digest(body.password.encode(), want.encode()):
         _login_fails[request.client.host if request.client else "?"] = fails + [time.time()]
         raise HTTPException(401, "That password isn't right.")
@@ -2812,11 +2813,13 @@ def try_reset(request: Request):
     cid = ensure_try_creator(d)
     deal, token = deals.create_deal(d, cid, brand_org="Judge Brand", contact_name="Judge", actor="try")
     d.update("deals", "id", deal["id"], {"is_try": 1})
-    brief = "1 Reel showing our new snack, plus 1 Story set. Post Friday. #ad."
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    today = (_dt.now(_tz.utc) + _td(hours=4)).date().isoformat()  # today in Dubai: no date card on any day
+    brief = "1 Reel showing our new snack, plus 1 Story set. Post today. #ad."
     plist = {p["code"]: p for p in engine.price_items(d, cid)}
     lines = [ai.DraftLine("reel", plist["reel"]["id"], plist["reel"]["name"], 1, "1 Reel showing our new snack", 5000, 5000),
              ai.DraftLine("story_set", plist["story_set"]["id"], plist["story_set"]["name"], 1, "plus 1 Story set", 2000, 2000)]
-    draft = ai.Draft(lines=lines, not_on_list=[], post_date={"value": "Friday", "quote": "Post Friday"}, done_means=[],
+    draft = ai.Draft(lines=lines, not_on_list=[], post_date={"value": today, "quote": "Post today"}, done_means=[],
                      total_cents=7000, provider="demo", attempts=0, fell_back=False, fields=[])
     d.update("deal_links", "token", token, {"opened_at": db_now()})
     deals.store_draft(d, token, brief, draft)

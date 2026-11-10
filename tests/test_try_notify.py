@@ -64,9 +64,9 @@ def test_s42_try_page_reset_and_cap(client, mocks):
     assert v["deal"]["status"] == "accepted" and v["total_cents"] == 7000 <= r["cap_cents"]
     client.post(f"/api/d/{tok}/pay", headers=ORIGIN)
     client.get(f"/paypal/return?t={tok}&token=ORDER1", follow_redirects=False)
-    mocks.ai.mock(return_value=ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "Add a Story"}],
-                                         "quote": "Add a Story"}))
-    c = client.post(f"/api/d/{tok}/messages", json={"body": "Add a Story and post Monday"}, headers=ORIGIN).json()["change"]
+    mocks.ai.mock(return_value=ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "Add one more Story set"}],
+                                         "quote": "Add one more Story set"}))
+    c = client.post(f"/api/d/{tok}/messages", json={"body": "Add one more Story set"}, headers=ORIGIN).json()["change"]
     assert c["delta_cents"] == 2000
     back = client.get(r["creator_link"].replace("http://testserver", ""), follow_redirects=False)
     assert back.status_code == 303 and back.headers["location"] == f"/studio/deals/{r['deal']}"
@@ -96,3 +96,24 @@ def test_try_start_actually_makes_the_deal():
     from pathlib import Path
     html = (Path(__file__).resolve().parents[1] / "web" / "try.html").read_text()
     assert 'await reset($("#go"))' not in html and "await reset(null)" in html
+
+
+def test_try_uses_the_judge_password_when_set(client, monkeypatch):
+    from amend.config import get_settings
+    monkeypatch.setenv("JUDGE_PASSWORD", "judge-only-test-pw")
+    get_settings.cache_clear()
+    try:
+        assert client.post("/api/try/start", json={"password": "test-demo-pw"}, headers=ORIGIN).status_code == 401  # not the demo one
+        assert client.post("/api/try/start", json={"password": "judge-only-test-pw"}, headers=ORIGIN).status_code == 200
+    finally:
+        get_settings.cache_clear()
+
+
+def test_try_deals_post_today_in_dubai(client):
+    from datetime import datetime, timedelta, timezone
+    from amend.db import get_db
+    client.post("/api/try/start", json={"password": "test-demo-pw"}, headers=ORIGIN)
+    r = client.post("/api/try/reset", headers=ORIGIN).json()
+    d = get_db().one("select deadline, brief from deals where id = :i", {"i": r["deal"]})
+    assert d["deadline"][:10] == (datetime.now(timezone.utc) + timedelta(hours=4)).date().isoformat()  # no date card on any day
+    assert "Post today" in d["brief"]

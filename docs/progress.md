@@ -801,3 +801,18 @@ question wasn't answered, so the recommended option was taken.
 - FAQ currencies: the official peg line. "Planned: after the beta, …".
 - Rendered home page checked in a browser (`tests/browser/home_copy.py`, 390 + 1440, FAQ opened): no "---", markers,
   template text or old CTAs. **Tests: 827 passed, 3 skipped.**
+
+## Judge guide + /try (10 Nov, freeze: fixes only)
+- /try deals post **today (Dubai)**: brief "Post today", deadline = today's Dubai date, and Mark posted defaults to
+  the agreed date, so no date card appears on any day. "On the agreed Friday" removed from the path.
+- One phrase: **"Add one more Story set"** (+$20 → $90) on the /try page, the guide and the README path.
+- One judge password: /try takes **JUDGE_PASSWORD** (the demo password only when no judge password is set, e.g.
+  locally). Option B logs in as judge.sara@creators.example / judge.brand@amend.example with JUDGE_PASSWORD (a clean
+  account: the guide says it fills as you go).
+- "Judge logins, JUDGE_PASSWORD and the PayPal sandbox buyer are in the Devpost testing instructions." once, at the
+  top. Note: "In this quick path you type the post details; the video shows the Instagram read on a connected test
+  account." The path ends with "$70 held = $70 collected" and "$20 held = $20 collected".
+- Browser `tests/browser/try_path.py` walks the whole path (hold $70 → change +$20 → confirm v2 $90 → extra hold →
+  draft → approve → post with today's date, no date card → verdict Pass → both confirm → $90 captured, $81 paid,
+  $9 holdback → both balance lines on the spine): problems none. Shots in `docs/screenshots/try/`.
+- **Tests: 829 passed, 3 skipped.**
