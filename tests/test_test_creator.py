@@ -10,7 +10,7 @@ from .test_igpost import GRAPH, LINK, on, submit  # noqa: F401
 
 def test_the_test_creator_is_seeded_with_real_instagram_only(client):
     c = get_db().one("select * from creators where handle = 'clinicrobotest'")
-    assert c["display_name"] == "Test Creator" and c["ig_handle"] == "clinicrobotest" and not c["is_demo"]
+    assert c["display_name"] == "Maya Rahman (test account)" and c["ig_handle"] == "clinicrobotest" and not c["is_demo"]
     assert not get_db().one("select id from creator_metrics where creator_id = :c", {"c": c["id"]})  # no demo numbers
     assert not get_db().one("select id from deals where creator_id = :c", {"c": c["id"]})  # no history
     assert get_db().one("select count(*) as n from price_items where creator_id = :c", {"c": c["id"]})["n"] >= 5

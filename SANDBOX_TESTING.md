@@ -43,7 +43,7 @@ public, so it holds **placeholders only**: real passwords are never written into
 ## The video deal: live, end to end, then a dispute won by the seller (team only)
 
 Nothing is seeded: every step is a real sandbox call on a new deal, so its receipt chain is complete.
-1. Sign in as the **test creator**: `clinicrobotest@creators.example` with the demo password (its Instagram account,
+1. Sign in as the **test creator**, Maya Rahman (test account): `clinicrobotest@creators.example` with the demo password (its Instagram account,
    @clinicrobotest, is already set in Settings). Not Sara: Sara is demo data and never reads Instagram.
    Deals → New deal → brand "Dune Roast Coffee", contact "Nadia". Open the link in a private window.
 2. **Brand** writes the brief: "1 Reel and 1 Story set, post Friday, #ad". **Creator** accepts.
@@ -60,7 +60,7 @@ Nothing is seeded: every step is a real sandbox call on a new deal, so its recei
    "Disclosure (#ad), required by the signed mandate" → **Instagram read** "no #ad in the caption", **Code decided**
    Fail. The gap card says "Add #ad at the start of the caption", then edit it on Instagram.
 8. **Edit the caption on Instagram** (add #ad at the start), then tap **Re-check on Instagram** in Amend. A new verdict
-   is signed: Pass, "Test added #ad to the caption on Instagram". The Story line says "Stories can't be read for other
+   is signed: Pass, "Maya added #ad to the caption on Instagram". The Story line says "Stories can't be read for other
    accounts; from the creator's upload".
 9. **Delivery verdict**: Pass, signed. Both tap **Confirm verdict and release**. PayPal collects $610 (`final_capture`),
    pays the test creator by Payouts, and the spine shows "$70 released back to Nadia".

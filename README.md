@@ -224,11 +224,12 @@ or the AI's answer is rejected. Only confirmed people's words can change money; 
 ## Same engine, other uses
 
 - **Trade counters ↔ contractors:** order changes priced and confirmed, held, and released on line-item proof of
-  delivery. About 2 in 5 UAE B2B invoices are paid late (Atradius UAE Payment Practices Barometer, Jul 2026).
+  delivery. About 2 in 5 UAE B2B invoices are paid late ([Atradius UAE Payment Practices Barometer, 2026](https://atradius.de/newsroom/reports/b2b-payment-practices-trends-in-united-arab-emirates-2026)).
 - **Small trades jobs:** the deposit is held until the job is proven done. 81,925 US home-improvement scam reports in
-  2024, median loss $1,800 (FTC / BBB).
+  2024, median loss $1,800 (FTC / BBB figures, [reported by KEYT / Stacker, Aug 2026](https://keyt.com/stacker-crime-safety/2026/08/14/home-improvement-scams-are-heating-up-this-summer/)).
 - **Agent-to-agent services:** hold until the output matches the task. Current agent payment protocols record consent,
-  not conditional release (AP2, x402, Visa TAP).
+  not conditional release ([AP2](https://ap2-protocol.org/), [x402](https://docs.cdp.coinbase.com/x402/how-it-works.md),
+  [Visa TAP](https://www.digitaltransactions.net/visa-launches-trusted-agent-an-agentic-commerce-protocol/)).
 
 ## Live-tested on the PayPal sandbox
 
@@ -254,7 +255,7 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 - **Sandbox only**, USD only (AED shown at a fixed 3.6725).
 - **Holding money for others needs PayPal's pre-approval in production** (PayPal Acceptable Use Policy); the demo runs
   in sandbox.
-- **Real Instagram numbers come from one test creator only** ("Test creator · @clinicrobotest", the account linked to
+- **Real Instagram numbers come from one test creator only** ("Maya Rahman (test account)" · @clinicrobotest, the account linked to
   Amend's token). Sara and the other creators are demo data and never use Instagram. The test creator is hidden from
   Discover unless its handle is searched.
 - **Platform account + Payouts instead of marketplace mode.** The brand pays Amend's sandbox business account and the

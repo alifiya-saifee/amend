@@ -187,7 +187,7 @@ const Work = (() => {
   function bonusHtml(b, w, main) {
     const canOffer = ctx.IS_BRAND && main && ["accepted", "in_progress"].includes(ctx.V.deal.status) && !ctx.V.deal.posted_at;
     const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
-    const rules = `<p class="tiny muted" style="margin:6px 0 0">Held by PayPal as its own hold. On day D after the post, Amend reads the views from Instagram insights and code decides. No screenshots as proof: if Instagram can't be read by day D + 2, you both decide by hand; if you haven't agreed by day D + 7, it goes back to the brand. Both of you confirm before PayPal moves it.</p>`;
+    const rules = `<p class="tiny muted" style="margin:6px 0 0">Held by PayPal as its own hold. On day D after the post, Amend reads the views from Instagram insights and code decides. No screenshots as proof: if Instagram can't read the views by day D + 2, you both decide by hand. If neither of you acts by day 7 after the deadline, the ${b ? usd(b.amount_cents) : "bonus"} goes back to the brand. Both of you confirm before PayPal moves it.</p>`;
     if (!b || b.status === "withdrawn") {
       if (!canOffer) return "";
       return `<details class="card"><summary><b>${icon("trophy")} Add a performance bonus</b> <span class="small muted">(optional)</span></summary>

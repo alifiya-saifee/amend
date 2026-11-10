@@ -155,18 +155,55 @@ def test_s36_removed_post_grace_then_returned(client, mocks, held):
     assert d.one("select status from deals where id = :d", {"d": deal})["status"] == "completed"
 
 
-def test_s37_past_honour_reauthorises_first(client, mocks, held):
+def _release_on_day(client, mocks, held, age_days, capture_fails_first=False):
+    """Release when the hold is age_days old. Optionally PayPal refuses the first capture."""
     deal, tok = held
     set_deadline(deal)
     d = get_db()
-    d.execute("update money_items set honor_until = '2026-01-01T00:00:00+00:00' where kind = 'hold'")
+    start = datetime.now(timezone.utc) - timedelta(days=age_days)
+    d.execute("update money_items set honor_until = :h where kind = 'hold'", {"h": (start + timedelta(days=3)).isoformat()})
     reauth = mocks.post(f"{PP}/v2/payments/authorizations/AUTH1/reauthorize").mock(
         return_value=httpx.Response(201, json={"id": "AUTH9", "status": "CREATED", "expiration_time": "2026-12-30T00:00:00Z"}))
     mocks.get(f"{PP}/v2/payments/authorizations/AUTH1").mock(return_value=httpx.Response(200, json={"id": "AUTH1", "status": "CREATED"}))
+    ok = httpx.Response(201, json={"id": "CAP1", "status": "COMPLETED"})
+    refused = httpx.Response(422, json={"name": "UNPROCESSABLE_ENTITY", "details": [{"issue": "AUTHORIZATION_EXPIRED"}]})
+    mocks.capture.mock(side_effect=[refused, ok] if capture_fails_first else [ok])
     post(client, deal, {"reel": 1, "story_set": 1})
     client.post(f"/api/d/{tok}/release/approve", headers=ORIGIN)
-    client.post(f"/api/deals/{deal}/release/approve", headers=ORIGIN)
+    r = client.post(f"/api/deals/{deal}/release/approve", headers=ORIGIN)
+    cap = d.one("select * from money_items where deal_id = :d and kind = 'capture'", {"d": deal})
+    return r, reauth, cap
+
+
+@pytest.mark.parametrize("age", [2, 3.5, 5, 28])
+def test_inside_the_29_days_capture_comes_first_and_no_reauthorize(client, mocks, held, age):
+    r, reauth, cap = _release_on_day(client, mocks, held, age)
+    assert r.status_code == 200, r.text
+    assert not reauth.called and "/authorizations/AUTH1/capture" in str(mocks.capture.calls.last.request.url)
+    assert cap["status"] == "paid" and cap["capture_path"] == f"captured on day {int(age) + 1} of the 29-day hold"
+
+
+def test_day_3_5_a_refused_capture_never_reauthorizes(client, mocks, held):
+    r, reauth, cap = _release_on_day(client, mocks, held, 3.5, capture_fails_first=True)
+    assert r.status_code >= 400 and not reauth.called  # PayPal refuses a reauthorization before day 4
+    assert cap["status"] == "failed"
+
+
+@pytest.mark.parametrize("age", [5, 28])
+def test_from_day_4_a_refused_capture_reauthorizes_then_captures(client, mocks, held, age):
+    r, reauth, cap = _release_on_day(client, mocks, held, age, capture_fails_first=True)
+    assert r.status_code == 200, r.text
     assert reauth.called and "/authorizations/AUTH9/capture" in str(mocks.capture.calls.last.request.url)
+    assert cap["status"] == "paid" and cap["capture_path"].startswith(f"day {int(age) + 1}: the capture was refused, so Amend reauthorized")
+    assert cap["request_id"].endswith("-r")  # the second capture's own PayPal-Request-Id, stored on the item
+    sp = client.get(f"/api/d/{held[1]}/spine").json()
+    assert any(l.get("capture_path", "") and "reauthorized" in l["capture_path"] for v in sp["versions"] for l in v["lines"])
+
+
+def test_day_30_the_hold_ran_out(client, mocks, held):
+    r, reauth, cap = _release_on_day(client, mocks, held, 30)
+    assert r.status_code == 400 and "29 days" in r.json()["detail"]
+    assert not mocks.capture.called and not reauth.called
 
 
 def test_hold_no_longer_active_needs_renewing(client, mocks, held):

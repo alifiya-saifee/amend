@@ -90,7 +90,7 @@ with sync_playwright() as p:
     cr.reload(); cr.wait_for_selector("#w-bn-tap", timeout=20000); cr.wait_for_timeout(500)
     t = cr.inner_text(".bonus")
     check("48,250 views" in t and "tier +$50" in t and "reached" in t, f"decision: {t[:400]}")
-    check("Pre-signed in" in t and "only Test taps" in t, "pre-signed note")
+    check("Pre-signed in" in t and "only Maya taps" in t, "pre-signed note")
     check("collect $50 from the $150 bonus hold" in t and "$100 goes back" in t, "PayPal calls text")
     cr.locator(".bonus").screenshot(path=str(OUT / "07-tiers-decided-creator-1440.png"))
     br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector(".bonus", timeout=20000); br.wait_for_timeout(600)

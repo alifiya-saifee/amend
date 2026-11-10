@@ -182,6 +182,7 @@ def view(db: Database, deal_id: str) -> dict:
                 "step": st, "note": it.get("note"), "request_id": it["request_id"], "custom_id": it.get("custom_id"),
                 "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it), "released_cents": it.get("released_cents") or 0,
                 "paypal_id": it.get("paypal_id") or it.get("paypal_parent_id"), "date": (it.get("updated_at") or it["created_at"])[:10],
+                "capture_path": it.get("capture_path"),
                 **row_facts(db, it, hcache)}
         versions.setdefault(line["version"], []).append(line)
     dispute = db.one("select paypal_dispute_id, status, outcome, reason, amount_cents, evidence_status from disputes "

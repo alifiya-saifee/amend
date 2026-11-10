@@ -475,6 +475,7 @@ def ensure_demo_accounts(db: Database) -> int:
 
 VIDEO_HANDLE = "sara.video"
 TEST_HANDLE = "clinicrobotest"  # the test creator: Alifiya's own test Instagram account, real numbers only
+TEST_NAME = "Maya Rahman (test account)"  # a made-up name; the account and its numbers are real
 
 
 def ensure_test_creator(db: Database) -> str:
@@ -483,14 +484,18 @@ def ensure_test_creator(db: Database) -> str:
     Login clinicrobotest@creators.example (demo password). Hidden from Discover unless the handle is searched. The
     demo video deal uses it. Demo creators (Sara and the others) never use Instagram: any handle on them is cleared."""
     db.execute("update creators set ig_handle = null where is_demo = 1 and ig_handle is not null")
-    have = db.one("select id from creators where handle = :h", {"h": TEST_HANDLE})
+    have = db.one("select id, party_id, display_name from creators where handle = :h", {"h": TEST_HANDLE})
     if have:
+        if have["display_name"] != TEST_NAME:  # renamed: "Test Creator" → "Maya Rahman (test account)"
+            db.update("creators", "id", have["id"], {"display_name": TEST_NAME})
+            db.update("parties", "id", have["party_id"], {"name": TEST_NAME})
+            db.execute("update accounts set name = :n where creator_id = :c", {"n": TEST_NAME, "c": have["id"]})
         return have["id"]
     base = dict(CREATORS[0])
     t, pid, cid = now(), new_id("p"), new_id("c")
-    db.insert("parties", {"id": pid, "name": "Test Creator", "role": "creator", "handle": TEST_HANDLE, "confirmed": 1,
+    db.insert("parties", {"id": pid, "name": TEST_NAME, "role": "creator", "handle": TEST_HANDLE, "confirmed": 1,
                           "paypal_email": get_settings().sandbox_creator_email, "created_at": t})
-    db.insert("creators", {"id": cid, "party_id": pid, "handle": TEST_HANDLE, "display_name": "Test Creator",
+    db.insert("creators", {"id": cid, "party_id": pid, "handle": TEST_HANDLE, "display_name": TEST_NAME,
                            "bio": "Amend's test creator: a real, professional Instagram account connected to Amend. Every "
                                   "number here comes from Instagram.",
                            "followers": None, "audience": None, "niche": "Test account", "permit_no": None, "permit_expiry": None,

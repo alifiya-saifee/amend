@@ -677,3 +677,16 @@ Alifiya deployed 0c83a2d. The test creator (item 1) was already in 1a34161 (star
 - Not started: sales commission and the passkey mandate (both waited on a clean real run): README "Next".
 - AI content check: not started; see the questions in the report (C2PA needs the original file, which never reaches
   the server today; and whether Instagram's API exposes the AI label needs checking).
+
+## Honour period, Maya, wording, sources (10 Nov)
+Alifiya deployed 1a34161 and answered: the D+7 void from the terms is fine; capture first.
+- **Honour period:** within the 29-day hold, release always captures first. Only if PayPal refuses that capture and
+  the hold is at least 4 full days old (PayPal refused reauthorization inside the honour period:
+  REAUTHORIZATION_TOO_SOON, 7 Nov probe) does Amend reauthorize, then capture again (new request ID stored first).
+  Older than 29 days: no PayPal call, "the hold ran out". The capture line on the spine says which happened
+  (`money_items.capture_path`). Tests: ages 2, 3.5, 5, 28 (capture first), 3.5 refused (no reauth), 5 and 28
+  refused (reauth then capture), 30 (ran out).
+- **Test creator renamed** "Maya Rahman (test account)", still @clinicrobotest (start-up renames an existing one).
+- **Bonus card upfront:** "If neither of you acts by day 7 after the deadline, the $150 goes back to the brand."
+- **README:** source links on "Same engine, other uses" (Atradius, KEYT/Stacker for FTC/BBB, AP2, x402, Visa TAP).
+- **Tests: 783 passed, 3 skipped.** Browser walks: problems none.

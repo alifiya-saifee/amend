@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate", "bonus.unverifiable", "bonus.by_hand", "approval.from_terms", "team.set", "team.owed_settled", "usage.extension_offered", "usage.extended", "usage.ended", "usage.alert", "usage.still_used", "approval.via_extend", "settle.proposed", "settle.confirmed", "settle.withdrawn", "settle.done", "team.refund_shared", "payout.item",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate", "bonus.unverifiable", "bonus.by_hand", "approval.from_terms", "team.set", "team.owed_settled", "usage.extension_offered", "usage.extended", "usage.ended", "usage.alert", "usage.still_used", "approval.via_extend", "hold.reauthorized", "settle.proposed", "settle.confirmed", "settle.withdrawn", "settle.done", "team.refund_shared", "payout.item",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -269,7 +269,8 @@ COLUMNS = {
                 "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
                     "deal_version": "integer", "custom_id": "text", "invoice_id": "text",
-                    "released_cents": "integer not null default 0"},  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
+                    "released_cents": "integer not null default 0",
+                    "capture_path": "text"},  # how the capture happened: on day N, or reauthorized then captured  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
     "events": {"prev_hash": "text", "hash": "text"},
     "bonuses": {"tiers_json": "text", "via_mandate": "text", "manual_json": "text"},  # bonus tiers signed in the brand's mandate  # receipt chain: each deal event carries the previous one's hash
     "accounts": {"settings_json": "text not null default '{}'"},

@@ -664,6 +664,7 @@ function spineHtml(S) {
       <ul class="tiny">${(M.conditions || []).map(c => `<li>${esc(c.label || c.type)}</li>`).join("")}</ul></div>` : ""}
     ${S.versions.map(v => `<div class="sp-ver"><div class="tiny muted">Version ${v.version}</div>${v.lines.map(l => `
       <div class="sp-line"><div class="row between"><span>${esc(l.step)}</span><b>${usd(l.amount_cents)}</b></div>
+        ${l.capture_path ? `<div class="tiny muted">${icon("clock")} ${esc(l.capture_path)}</div>` : ""}
         ${l.objects.map(obj).join("")}${l.custom_id ? `<div class="tiny muted">custom_id <code>${esc(l.custom_id)}</code></div>` : ""}</div>`).join("")}</div>`).join("")}
     ${S.dispute ? `<div class="sp-ver"><div class="tiny muted">PayPal dispute</div>${obj({ type: "Dispute", id: S.dispute.paypal_dispute_id, seen: S.dispute.seen || { status: S.dispute.status, source: "webhook" } })}
       ${S.dispute.outcome ? `<div class="small">Outcome: <b>${esc(S.dispute.outcome)}</b></div>` : ""}</div>` : ""}</div>`;

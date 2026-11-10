@@ -25,6 +25,16 @@ from amend.paypal import PayPalError, to_cents
 MAX_FRAMES = 8
 MAX_FRAME_BYTES = 300_000
 HOLDBACK_PCT = 10
+HOLD_LIFE_DAYS = 29   # a PayPal authorization lasts 29 days
+REAUTH_FROM_DAY = 4   # PayPal refuses a reauthorization inside the 3-day honour period (REAUTHORIZATION_TOO_SOON)
+
+
+def hold_age(hold: dict, at: datetime | None = None) -> float | None:
+    """How many days ago PayPal authorised this hold (3.5 = three and a half days)."""
+    if not hold or not hold.get("honor_until"):
+        return None
+    start = datetime.fromisoformat(hold["honor_until"].replace("Z", "+00:00")) - timedelta(days=3)
+    return ((at or datetime.now(timezone.utc)) - start).total_seconds() / 86400
 GRACE_HOURS = 48
 
 
@@ -595,25 +605,44 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
             db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"] if hold else None,
                                                                                             "status": live.get("status")})
             raise DeliveryError("the hold is no longer active: the brand needs to hold again")
-        if hold and hold.get("honor_until") and datetime.now(timezone.utc) > datetime.fromisoformat(hold["honor_until"]):
-            try:
-                r = await pp.reauthorize(auth_id, amount_cents=hold["amount_cents"], request_id=f"{it['request_id']}-reauth", approval=approval)
-                auth_id = r["id"]
-                db.update("money_items", "id", hold["id"], {"paypal_parent_id": auth_id, "expires_at": r.get("expiration_time")})
-            except PayPalError as e:
-                db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "error": str(e)[:160]})
-                if "TOO_SOON" not in e.name + " ".join(e.issues):
-                    raise DeliveryError("the hold needs renewing: ask the brand to hold the money again") from None
+        age = hold_age(hold) if hold else None
+        day = int(age) + 1 if age is not None else None  # day 1 = the first 24 hours, as on the spine's hold clock
+        if hold and age is not None and age > HOLD_LIFE_DAYS:  # past PayPal's 29 days: nothing to capture or reauthorize
+            db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "day": day})
+            raise DeliveryError("the PayPal hold ran out after 29 days: the brand needs to hold the money again")
         if it["status"] == "approved":
             money._set_status(db, it, "sent", actor)
         remaining = (hold["amount_cents"] - hold["captured_cents"]) if hold else it["amount_cents"]
-        try:  # always the last capture on this hold: final_capture releases whatever is left back to the brand
+        path = f"captured on day {day} of the 29-day hold" if day else "captured"
+        try:  # within the 29-day hold, capture first (final_capture releases whatever is left back to the brand)
             cap = await pp.capture(auth_id, amount_cents=it["amount_cents"], final=True,
                                    request_id=it["request_id"], approval=approval)
         except PayPalError as e:
-            money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
-            db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "capture", "error": str(e)[:200]})
-            raise
+            # reauthorize only from day 4 (PayPal refuses it sooner: REAUTHORIZATION_TOO_SOON in our 7 Nov probe), and
+            # only because the capture failed; then capture once more on the new authorization
+            if not (hold and age is not None and age >= REAUTH_FROM_DAY):  # 4 full days after the authorization
+                money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
+                db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "capture", "error": str(e)[:200], "day": day})
+                raise
+            try:
+                r = await pp.reauthorize(auth_id, amount_cents=hold["amount_cents"], request_id=f"{it['request_id']}-reauth", approval=approval)
+            except PayPalError as e2:
+                money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
+                db.log_event("hold.renewal_needed", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "error": str(e2)[:160], "day": day})
+                raise DeliveryError("the hold needs renewing: ask the brand to hold the money again") from None
+            auth_id = r["id"]
+            db.update("money_items", "id", hold["id"], {"paypal_parent_id": auth_id, "expires_at": r.get("expiration_time")})
+            db.update("money_items", "id", it["id"], {"paypal_parent_id": auth_id, "request_id": f"{it['request_id']}-r"})  # stored first
+            db.log_event("hold.reauthorized", actor="system", deal_id=deal["id"], payload={"hold": hold["id"], "day": day, "authorization": auth_id})
+            try:
+                cap = await pp.capture(auth_id, amount_cents=it["amount_cents"], final=True,
+                                       request_id=f"{it['request_id']}-r", approval=approval)
+            except PayPalError as e3:
+                money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
+                db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "capture", "error": str(e3)[:200]})
+                raise
+            path = f"day {day}: the capture was refused, so Amend reauthorized the hold, then captured"
+        db.update("money_items", "id", it["id"], {"capture_path": path})
         from amend import spine
         spine.record_seen(db, cap.get("id"), kind="capture", status=cap.get("status"), source="response", item_id=it["id"],
                           deal_id=deal["id"])

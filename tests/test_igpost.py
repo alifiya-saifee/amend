@@ -132,7 +132,7 @@ def test_not_found_falls_back_to_what_she_entered_and_says_so(client, mocks, on,
     assert w["post"]["posted_at"] == "2026-11-20" and w["post"]["result"]["caption"] == "typed caption #ad"
     reel = check(w, "1 × Reel")
     assert reel["ai_read"]["source"] == "ai" and reel["ai_read"]["note"].startswith("This link isn't among @clinicrobotest's")
-    assert "Test entered 1" in reel["ai_read"]["note"]
+    assert "Maya entered 1" in reel["ai_read"]["note"]
 
 
 def test_a_personal_account_falls_back(client, mocks, on, held):
