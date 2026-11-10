@@ -99,6 +99,16 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **AI content, checked before posting and confirmed after.** A deal term: not allowed / allowed if labelled (default) /
+  allowed, in the brief and optionally in the signed mandate. On the draft, the creator's browser reads the file's
+  **Content Credentials (C2PA)** with `@contentauth/c2pa-web` (pinned; nothing but the result is uploaded), and the
+  creator must declare "no AI / edited with AI / generated with AI". Both go into the receipt chain, and the brand sees
+  **AI read** (the credential, or none found), **Creator declared** and **Code decided** before approving: a draft that
+  breaks the rule is flagged, and approving it takes an explicit "Approve anyway". After posting, Instagram's
+  `is_ai_generated` (the AI info label) is read for the connected account: AI used and the label off → verdict fail
+  and a gap card, only when the rule is in the signed mandate (otherwise advisory). Accounts read through Business
+  Discovery: "AI label can't be read for this account". Amend never guesses with an AI detector, and **no credential
+  never means "proven real"**.
 - **Usage-rights extensions, end to end.** 7 days before the usage rights end, both are told. The brand taps
   "Extend 30 days": the price is the creator's usage rate from the deal (code). The brand holds it with PayPal, the
   creator confirms, and PayPal collects it (`final_capture`) and pays her and her team (the deal's team split, one
@@ -167,6 +177,9 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   logged, no secret printed), and the fingerprint above won't match. Make a key with `python -m scripts.verdict_key`:
   it writes the seed to a private file and prints only the public key and fingerprint.
 - Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
+- Content Credentials are read in the creator's browser, so the result is what her browser reports; the declaration is
+  what counts, and most files carry no credential at all. Instagram may not let a creator switch on the AI label after
+  posting: the gap card then asks her to post again with the label on.
 - A settlement and a usage extension keep no holdback (a holdback protects "the post stays live"; neither is a post).
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without

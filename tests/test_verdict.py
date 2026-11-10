@@ -145,7 +145,7 @@ def test_when_the_ai_is_busy_the_verdict_still_runs_and_says_so(client, mocks, h
     post(client, deal, {"reel": 1, "story_set": 1})
     v = work(client, tok)["verdict"]
     assert v["result"] == "pass"
-    assert all(c["ai_read"]["what"] is None for c in v["checks"] if not c["check"].startswith("Draft"))
+    assert all(c["ai_read"]["what"] is None for c in v["checks"] if not c["check"].startswith(("Draft", "AI content")))
     assert "couldn't read the caption" in v["checks"][0]["ai_read"]["note"]
 
 

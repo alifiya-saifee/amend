@@ -48,7 +48,7 @@ FRAMES_JS = """async (url) => { const frames = [];
     g.fillStyle = '#17130a'; g.font = '28px sans-serif'; g.fillText('Cold brew at home · ' + i, 30, 320);
     frames.push({ data_b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], t: i * 1.5 }); }
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ frames, caption: 'Trying the new cold brew at home with @dune.roast #ad' }) }); return r.status; }"""
+    body: JSON.stringify({ frames, ai_declared: 'none', caption: 'Trying the new cold brew at home with @dune.roast #ad' }) }); return r.status; }"""
 
 
 def main() -> None:

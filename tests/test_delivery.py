@@ -48,7 +48,7 @@ def test_s31_draft_frames_checked_with_times(client, mocks, held):
     mocks.ai.mock(return_value=ai_reply({"checks": [{"check": "Product visible", "ok": True, "frame": 2, "note": "bottle on the counter"},
                                                     {"check": "Says 'new cold brew'", "ok": True, "frame": 4, "note": "caption card"}]}))
     frames = [{"data_b64": JPEG, "t": i * 1.5} for i in range(6)]
-    w = client.post(f"/api/deals/{deal}/draft", json={"frames": frames, "caption": "Trying the new cold brew #ad"}, headers=ORIGIN).json()
+    w = client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": frames, "caption": "Trying the new cold brew #ad"}, headers=ORIGIN).json()
     checks = w["draft"]["result"]["checks"]
     assert checks[0] == {"check": "Product visible", "ok": True, "frame": 2, "time": 3.0, "note": "bottle on the counter"}
     assert any(c["check"].startswith("Disclosure") and c["ok"] for c in checks)  # #ad checked by code
@@ -60,14 +60,14 @@ def test_s31_draft_frames_checked_with_times(client, mocks, held):
 def test_draft_limits(client, mocks, held):
     deal, tok = held
     big = base64.b64encode(b"0" * 310_000).decode()
-    assert client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": big, "t": 0}]}, headers=ORIGIN).status_code in (400, 422)
-    assert client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG}] * 9}, headers=ORIGIN).status_code == 422
+    assert client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": big, "t": 0}]}, headers=ORIGIN).status_code in (400, 422)
+    assert client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG}] * 9}, headers=ORIGIN).status_code == 422
 
 
 def test_s75_silent_approval(client, mocks, held):
     deal, tok = held
     mocks.ai.mock(return_value=ai_reply({"checks": []}))
-    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
     d = get_db()
     assert d.one("select silent_approval_days from deals where id = :d", {"d": deal})["silent_approval_days"] == 3
     assert delivery.tick_silent(d, datetime.now(timezone.utc) + timedelta(days=2)) == {"silent_approvals": 0}
@@ -264,7 +264,7 @@ def test_draft_check_skips_post_only_items(client, mocks, held):
     deal, tok = held
     mocks.ai.mock(return_value=ai_reply({"checks": [{"check": "Disclosure: #ad", "ok": True, "frame": 1, "note": "on screen"}]}))
     frames = [{"data_b64": JPEG, "t": i * 1.5} for i in range(6)]
-    client.post(f"/api/deals/{deal}/draft", json={"frames": frames, "caption": "Trying the new cold brew #ad"}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": frames, "caption": "Trying the new cold brew #ad"}, headers=ORIGIN)
     sent = json.dumps(json.loads(mocks.ai.calls.last.request.content)["messages"])
     for post_only in ("Posted on", "Matches the approved draft", "Live for"):
         assert post_only not in sent, post_only

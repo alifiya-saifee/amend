@@ -151,6 +151,8 @@ def tick_silent(db: Database, at: datetime | None = None) -> dict:
     n = 0
     for deal in db.all("select * from deals where status = 'in_progress' and silent_approval_days is not null"):
         d = latest(db, deal["id"], "draft")
+        if d and (d["result"].get("ai") or {}).get("decision") == "not_allowed":
+            continue  # breaks the AI content rule: the brand decides, never silence
         if d and d["result"].get("status") == "submitted" and \
                 at - datetime.fromisoformat(d["created_at"]) >= timedelta(days=deal["silent_approval_days"]):
             approve_draft(db, deal, "system", silent=True)
@@ -205,6 +207,10 @@ def submit_post(db: Database, deal: dict, creator_party: str, *, post_url: str, 
     disclosure_ok = has_tag(caption, tag or "#ad") if caption else None
     if tag and not disclosure_ok:  # the brand's signed mandate requires it: a money gap only the creator can fix
         gaps.append(disclosure_gap(tag))
+    from amend import aicontent
+    ag = aicontent.post_gap(db, deal, ig)
+    if ag:
+        gaps.append(ag)
     row = {"id": new_id("dv"), "deal_id": deal["id"], "kind": "post", "post_url": post_url[:500], "posted_at": posted_on,
            "result_json": json.dumps({"delivered": delivered, "gaps": gaps, "caption": caption[:2200], "disclosure_ok": disclosure_ok,
                                       "disclosure_tag": tag or "#ad", "disclosure_required": bool(tag), "ig": ig,
@@ -333,6 +339,13 @@ def recheck_instagram(db: Database, deal: dict, actor: str, ig: dict) -> dict:
             open_d.update(status="resolved", resolution="fixed", by=actor, at=now(), on="instagram")
         elif required and not ok and not open_d:
             gaps.append(disclosure_gap(tag))
+        from amend import aicontent
+        open_ai = next((g for g in gaps if g["kind"] == "ai_label" and g["status"] == "open"), None)
+        new_ai = aicontent.post_gap(db, deal, ig)
+        if open_ai and not new_ai:
+            open_ai.update(status="resolved", resolution="fixed", by=actor, at=now(), on="instagram")
+        elif new_ai and not open_ai:
+            gaps.append(new_ai)
         if ig["posted_on"] != str(p["posted_at"])[:10]:
             db.update("deliveries", "id", p["id"], {"posted_at": ig["posted_on"]})
             db.update("deals", "id", deal["id"], {"posted_at": ig["posted_on"]})
@@ -358,6 +371,8 @@ def resolution_text(db: Database, g: dict) -> str:
         return f"{who} accepted {when}"
     if g.get("kind") == "disclosure":
         return f"{who} added {g.get('tag') or '#ad'} to the caption" + (" on Instagram" if g.get("on") == "instagram" else "")
+    if g.get("kind") == "ai_label":
+        return f"{who} fixed the AI label on Instagram"
     return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
             "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
             "will_deliver": f"{who} will deliver it", "settled": "Settled by both, before any dispute"}.get(r, f"Resolved by {who}")
@@ -375,7 +390,9 @@ def resolve_gap(db: Database, deal: dict, party_id: str, gap_id: str, resolution
         raise DeliveryError("that gap is already resolved")
     side = side_of(db, deal, party_id)
     allowed = {"extra": {"add": "brand", "free": "creator", "remove": "brand"}, "missing": {"drop": "brand", "will_deliver": "creator"},
-               "date": {"accept": "brand"}, "disclosure": {}}[g["kind"]]
+               "date": {"accept": "brand"}, "disclosure": {}, "ai_label": {}}[g["kind"]]
+    if g["kind"] == "ai_label":
+        raise DeliveryError("fix the AI label on Instagram, then tap Re-check: the signed mandate requires it")
     if g["kind"] == "disclosure":
         raise DeliveryError(f"add {g.get('tag') or '#ad'} to the caption to close this one: the signed mandate requires it")
     if resolution not in allowed:

@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deal · Amend</title><meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0a0d13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/static/icon.svg">
-<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script><script src="/static/grid.js"></script><script src="/static/shell.js"></script>
+<link rel="stylesheet" href="/static/app.css"><script src="/static/app.js"></script><script src="/static/chat.js"></script><script src="/static/work.js"></script><script src="/static/grid.js"></script><script src="/static/c2pa-read.js"></script><script src="/static/shell.js"></script>
 </head><body class="dealroom">
 <header class="top">
   <a class="back" id="back" href="/studio/deals" hidden>←</a><a class="logo" id="logo" href="/">Amend</a>
@@ -501,11 +501,12 @@ function holdSum(extra) {
 }
 function mandateHtml() {
   return `<details class="mandate-box" id="mbox"><summary><b>Pre-approve small changes</b> <span class="muted small">(optional · signed on this device)</span></summary>
-    <p class="small muted">An AP2-style mandate: you sign up to 4 conditions now. A change inside them counts as your confirmation; ${esc(V.creator.name.split(" ")[0])} still confirms.
+    <p class="small muted">An AP2-style mandate: you sign up to 5 conditions now. A change inside them counts as your confirmation; ${esc(V.creator.name.split(" ")[0])} still confirms.
       PayPal holds the deal plus the extras you allow, and releases whatever isn't used.</p>
     <label class="chk"><input type="checkbox" id="m-x"> <span>Extra <select id="m-item" aria-label="Item"></select> up to $<input id="m-max" type="number" value="150" min="1" max="1000" step="1" aria-label="Limit in dollars"> in total</span></label>
     <label class="chk"><input type="checkbox" id="m-w"> <span>The post date can move between <input type="date" id="m-from" aria-label="From"> and <input type="date" id="m-to" aria-label="To"></span></label>
     <label class="chk"><input type="checkbox" id="m-ad"> <span>Every post carries #ad</span></label>
+    <label class="chk"><input type="checkbox" id="m-ai"> <span>AI content: <select id="m-ai-rule" aria-label="AI content rule"><option value="labelled">only with Instagram's AI label</option><option value="not_allowed">not allowed</option></select></span></label>
     <label class="chk"><input type="checkbox" id="m-bn"> <span>Performance bonus, read from Instagram on day <input id="m-bn-day" type="number" value="7" min="1" max="21" style="width:64px" aria-label="Read on day"> after posting:</span></label>
     <div class="m-tiers"><div class="m-tier-head tiny muted"><span></span><span>Views</span><span>Bonus $</span></div>
       ${[[10000, 50], [50000, 150], ["", ""]].map(([v, d], i) => `<div class="m-tier">
@@ -549,6 +550,8 @@ function mandateConditions() {
   if ($("#m-w").checked) out.push({ type: "post_window", from: $("#m-from").value, to: $("#m-to").value,
     label: `The post date can move between ${$("#m-from").value} and ${$("#m-to").value}` });
   if ($("#m-ad").checked) out.push({ type: "disclosure", tag: "#ad", label: "Every post carries #ad" });
+  if ($("#m-ai") && $("#m-ai").checked) out.push({ type: "ai_content", rule: $("#m-ai-rule").value,
+    label: $("#m-ai-rule").value === "not_allowed" ? "No AI content" : "AI content only with Instagram's AI label" });
   const tiers = bonusTiers();
   if ($("#m-bn") && $("#m-bn").checked && tiers.length) {
     const day = Math.round(+$("#m-bn-day").value) || 7;

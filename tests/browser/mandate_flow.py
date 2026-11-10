@@ -40,7 +40,7 @@ FRAMES_JS = """async (url) => {
     frames.push({ data_b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], t: i * 1.5 });
   }
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ frames, caption: 'National Day cold brew #ad' }) });
+    body: JSON.stringify({ frames, ai_declared: 'none', caption: 'National Day cold brew #ad' }) });
   return r.status;
 }"""
 

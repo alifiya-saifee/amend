@@ -212,6 +212,11 @@ def _checks(db: Database, deal: dict, post: dict) -> list[dict]:
             c["advisory"] = True
         cap = res.get("caption") or ""
         out.append(_label(c, read.get("disclosure"), f"{not_read}Code looked for {tag} in the caption" if cap else "No caption to read", src))
+    from amend import aicontent
+    ac = aicontent.verdict_check(db, deal, post)
+    if ac:
+        c, rd = ac
+        out.append(_label(c, rd, "Not read", "instagram" if ig.get("status") == "found" else "ai"))
     d = delivery.latest(db, deal["id"], "draft")
     if d:
         st = (d["result"] or {}).get("status")

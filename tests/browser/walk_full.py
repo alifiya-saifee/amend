@@ -55,7 +55,7 @@ def frames_js() -> str:
         frames.push({ data_b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], t: i * 1.5 });
       }
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frames, caption: 'Trying the new cold brew at home #ad' }) });
+        body: JSON.stringify({ frames, ai_declared: 'none', caption: 'Trying the new cold brew at home #ad' }) });
       return r.status;
     }"""
 

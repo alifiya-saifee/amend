@@ -36,7 +36,7 @@ def test_s43_split_from_evidence_with_second_opinion(client, mocks, held, monkey
     from amend.config import get_settings
     get_settings.cache_clear()
     mocks.ai.mock(return_value=ai_reply({"checks": []}))
-    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
     nv = mocks.post(NVIDIA).mock(return_value=httpx.Response(200, json={"choices": [{"message": {"content": '{"pct": 55, "reason": "draft done"}'}}]}))
     r = client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN).json()
     p = r["proposal"]
@@ -68,7 +68,7 @@ def test_second_opinion_disagrees_shows_both(client, mocks, held, monkeypatch):
 def test_s44_both_approve_partial_collect_release_rest(client, mocks, held):
     deal, tok = held
     mocks.ai.mock(return_value=ai_reply({"checks": []}))
-    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
     client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN)
     assert not mocks.capture.called
     r = client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN).json()
@@ -200,7 +200,7 @@ def test_cancel_capture_records_paypal_fee(client, mocks, held):
     mocks.capture.mock(return_value=httpx.Response(201, json={"id": "CAPF", "status": "COMPLETED",
         "seller_receivable_breakdown": {"paypal_fee": {"currency_code": "USD", "value": "9.91"}}}))
     mocks.ai.mock(return_value=ai_reply({"checks": []}))
-    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
     client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN)
     client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN)
     cap = get_db().one("select fee_cents, status from money_items where kind = 'capture'")
@@ -214,7 +214,7 @@ def test_paypal_fee_is_a_platform_cost_in_the_ledger(client, mocks, held):
     mocks.capture.mock(return_value=httpx.Response(201, json={"id": "CAPF", "status": "COMPLETED",
         "seller_receivable_breakdown": {"paypal_fee": {"currency_code": "USD", "value": "9.91"}}}))
     mocks.ai.mock(return_value=ai_reply({"checks": []}))
-    client.post(f"/api/deals/{deal}/draft", json={"frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
+    client.post(f"/api/deals/{deal}/draft", json={"ai_declared": "none", "frames": [{"data_b64": JPEG, "t": 0}]}, headers=ORIGIN)
     client.post(f"/api/d/{tok}/cancel", json={"reason": "Launch postponed"}, headers=ORIGIN)
     client.post(f"/api/deals/{deal}/cancel/approve", headers=ORIGIN)
     d = get_db()

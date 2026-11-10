@@ -212,7 +212,7 @@ SYSTEM = """You turn a brand's brief into deal lines for a creator. Reply with O
  "done_means":[{"value":"<a delivery condition>","quote":"<exact words>"}],
  "fields":[{"key":"<one of: objective, kpi, audience, key_messages, must_include, platform, format, length, posting_window,
    cross_posting, days_live, dos_donts, banned_claims, disclosure, product, draft_due, review_days, revision_rounds,
-   usage_rights, exclusivity, assets, budget>","value":"<short value>","quote":"<exact words from the brief>"}]}
+   usage_rights, exclusivity, ai_content, assets, budget>","value":"<short value>","quote":"<exact words from the brief>"}]}
 Usage rights for paid ads for N months = a line "usage_rights" with qty N. Exclusivity for N months = a line "exclusivity"
 with qty N (only if those codes are on the price list). Only include fields the brief actually states; leave others out.
 Rules: never invent prices or totals. Every quote must be copied word for word from the brief (a short exact

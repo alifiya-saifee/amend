@@ -32,8 +32,8 @@ from datetime import date, datetime, timedelta, timezone
 from amend import spine  # noqa: F401  (hold life)
 from amend.db import Database, new_id, now
 
-MAX_CONDITIONS = 4
-TYPES = ("extra_item", "post_window", "disclosure", "bonus_tiers")
+MAX_CONDITIONS = 5
+TYPES = ("extra_item", "post_window", "disclosure", "bonus_tiers", "ai_content")
 MAX_TIERS = 3
 
 
@@ -80,7 +80,7 @@ def _check_conditions(db: Database, deal: dict, conds) -> list[dict]:
     for c in conds:
         t = c.get("type") if isinstance(c, dict) else None
         if t not in TYPES or t in seen:
-            raise MandateError("each condition must be one of: extra item, post window, disclosure, bonus tiers (once each)")
+            raise MandateError("each condition must be one of: extra item, post window, disclosure, bonus tiers, AI content (once each)")
         seen.add(t)
         if t == "extra_item":
             if c.get("item") not in codes or not isinstance(c.get("max_cents"), int) or not 0 < c["max_cents"] <= 100_000:
@@ -94,6 +94,8 @@ def _check_conditions(db: Database, deal: dict, conds) -> list[dict]:
                 raise MandateError("post window: an end after the start, at most 30 days")
         elif t == "disclosure" and c.get("tag") not in ("#ad", "#sponsored", "#paidpartnership"):
             raise MandateError("disclosure: #ad, #sponsored or #paidpartnership")
+        elif t == "ai_content" and c.get("rule") not in ("not_allowed", "labelled"):
+            raise MandateError("AI content: not allowed, or allowed if labelled")
         elif t == "bonus_tiers":
             tiers = c.get("tiers")
             ok = isinstance(tiers, list) and 1 <= len(tiers) <= MAX_TIERS and c.get("metric") == "views" \

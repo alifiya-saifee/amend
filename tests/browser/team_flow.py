@@ -29,7 +29,7 @@ problems, errs = [], []
 FRAMES_JS = """async (url) => { const frames = [];
   for (let i = 0; i < 6; i++) { const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d');
     g.fillStyle = '#a77b1f'; g.fillRect(0, 0, 360, 640); frames.push({ data_b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], t: i * 1.5 }); }
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frames, caption: '#ad' }) });
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frames, ai_declared: 'none', caption: '#ad' }) });
   return r.status; }"""
 
 

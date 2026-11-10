@@ -32,13 +32,18 @@ const Work = (() => {
         h += `<div class="frames">${d.frames.map(f => `<figure><img src="${ctx.IS_BRAND ? f.url + "?t=" + encodeURIComponent(location.pathname.split("/")[2]) : f.url}" alt="frame at ${f.t.toFixed(1)} s"><figcaption>${f.t.toFixed(1)} s</figcaption></figure>`).join("")}</div>
           <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "<i data-lucide='circle-check' aria-hidden='true'></i>" : "<i data-lucide='triangle-alert' aria-hidden='true'></i>"}</span><div class="grow">${esc(c.check)}
             <div class="tiny muted">${esc(c.note || "")}${c.time != null ? ` · frame at ${c.time.toFixed(1)} s` : ""}</div></div></div>`).join("")}</div>
-          ${d.result.caption ? `<p class="small muted">Caption: ${esc(d.result.caption)}</p>` : ""}`;
-        if (main && d.result.status === "submitted") h += `<div class="row" style="gap:8px;margin-top:8px"><button class="btn primary grow" id="w-approve">Approve draft</button>
+          ${d.result.caption ? `<p class="small muted">Caption: ${esc(d.result.caption)}</p>` : ""}
+          ${aiDraftHtml(d.result.ai, brand)}`;
+        const aiBad = d.result.ai && d.result.ai.decision === "not_allowed";
+        if (main && d.result.status === "submitted") h += `<div class="row" style="gap:8px;margin-top:8px"><button class="btn ${aiBad ? "danger" : "primary"} grow" id="w-approve" data-ai-conflict="${aiBad ? 1 : ""}">${aiBad ? "Approve anyway" : "Approve draft"}</button>
             <button class="btn grow" id="w-feedback">Ask for changes</button></div>
           ${w.silent_approval_days ? `<p class="hint">If you don't review within ${w.silent_approval_days} days, the draft counts as approved (agreed at acceptance).</p>` : ""}`;
       } else if (!brand) h += `<p class="small muted">Upload the draft video: Amend takes 6–8 still frames in your browser and checks them against the brief.</p>`;
       else h += `<p class="small muted">Waiting for ${esc(first())}'s draft.</p>`;
    if (!brand && w.status === "in_progress") h += `<div class="stack" style="margin-top:8px"><textarea id="w-caption" placeholder="Caption (include #ad)" style="min-height:60px"></textarea>
+          <label for="w-aidecl">AI used in this draft? <span class="muted">(required · the deal says: ${esc((w.ai_rule || {}).label || "allowed if labelled")})</span></label>
+          <select id="w-aidecl"><option value="">Choose…</option><option value="none">No AI used</option><option value="edited">Edited with AI</option><option value="generated">Generated with AI</option></select>
+          <div class="hint">Amend also reads the file's Content Credentials in your browser (nothing else is uploaded). No credential doesn't prove a file is real; your answer counts.</div>
           <button class="btn ${d ? "" : "primary"} block" id="w-upload">${d ? "Upload a new draft" : "Upload draft video"}</button><input type="file" id="w-file" accept="video/*" hidden>
           <div class="hint">Requirements: ${w.requirements.map(esc).join(" · ")}</div></div>`;
       parts.push(h + `</div>`);
@@ -51,6 +56,7 @@ const Work = (() => {
         <div class="hint">Amend reads the post from Instagram (professional accounts) and checks it against the latest confirmed deal. Stories can't be read for other accounts, so they come from what you enter.</div>` : ""}
         <label>Posted on</label><input id="w-date" type="date" value="${new Date().toISOString().slice(0, 10)}">
         <label>What you delivered</label>${ctx.V.terms.map(t => `<div class="row between"><span>${esc(t.name)}</span><input type="number" min="0" max="20" value="${t.qty}" data-deliv="${esc(t.code)}" style="max-width:80px"></div>`).join("")}
+        ${d && d.result.ai && d.result.ai.decision === "needs_label" ? `<div class="banner small" style="margin-top:8px">${icon("tag")} Switch on Instagram's AI label when you post: the draft used AI.</div>` : ""}
         <label>Caption as posted</label><textarea id="w-pcap" style="min-height:60px"></textarea>
         <button class="btn primary block" id="w-post" style="margin-top:10px">Submit post for the delivery check</button></div>`);
     }
@@ -118,6 +124,7 @@ const Work = (() => {
       <div class="list">${v.checks.map(c => `<div class="line"><span>${icon(c.ok ? "circle-check" : c.advisory ? "info" : "triangle-alert")}</span><div class="grow">
           <b>${esc(c.check)}</b>${c.advisory ? ' <span class="tiny muted">(advisory: doesn\'t hold money)</span>' : ""}
           ${c.ai_read ? `<div class="vlab"><span class="vtag ai">${c.ai_read.source === "instagram" ? "Instagram read" : c.ai_read.source === "amend" ? "Amend record" : c.ai_read.source === "creator" ? `From ${esc(first())}` : "AI read"}</span><span class="small">${c.ai_read.what ? `${esc(c.ai_read.what)}${c.ai_read.quote ? ` <span class="tiny muted">“${esc(c.ai_read.quote)}”</span>` : ""}` : `<span class="muted">${esc(c.ai_read.note || "Not read by AI")}</span>`}</span></div>` : ""}
+          ${c.declared ? `<div class="vlab"><span class="vtag">Creator declared</span><span class="small">${esc(c.declared)}</span></div>` : ""}
           <div class="vlab"><span class="vtag code ${c.ok ? "ok" : c.advisory ? "" : "bad"}">Code decided</span><span class="small">${esc(c.decided || ((c.ok ? "Pass: " : "Fail: ") + c.reason))}</span></div>
           ${(c.quotes && c.quotes.length ? c.quotes : c.quote ? [c.quote] : []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div></div>`).join("")}</div>
       <p class="tiny muted" style="margin:6px 0 0">${v.checks.some(c => c.ai_read && c.ai_read.source === "instagram") ? "The post's type, time and caption were read from Instagram." : "The AI only reads the caption."} Code decides every pass or fail against the confirmed deal; the AI never decides money.</p>
@@ -182,6 +189,18 @@ const Work = (() => {
       <select id="w-team-rule"><option value="creator" ${t.refund_rule !== "shared" ? "selected" : ""}>I cover refunds (default)</option>
         <option value="shared" ${t.refund_rule === "shared" ? "selected" : ""}>Shared by share: each person's future payouts are reduced by their share</option></select>
       <button class="btn small primary" id="w-team-save" style="margin-top:8px">Save team</button></details>`;
+  }
+  // AI content on the draft: what the file's Content Credentials say, what she declared, what code decided.
+  function aiDraftHtml(a, brand) {
+    if (!a) return "";
+    const dec = { allowed: ["ok", "Allowed"], needs_label: ["", "Needs Instagram's AI label"], not_allowed: ["bad", "Not allowed"] }[a.decision] || ["", a.decision];
+    return `<div class="ai-box" style="margin-top:8px"><div class="small"><b>AI content</b> · the deal says: ${esc(a.term.label)}${a.term.source === "mandate" ? " (in the signed mandate)" : ""}</div>
+      <div class="vlab"><span class="vtag ai">AI read</span><span class="small">${esc(a.credential_text || "")}</span></div>
+      <div class="vlab"><span class="vtag">Creator declared</span><span class="small">${esc(a.declared_text || a.declared)}</span></div>
+      <div class="vlab"><span class="vtag code ${dec[0]}">Code decided</span><span class="small">${esc(dec[1])}: ${esc(a.reason)}</span></div>
+      ${a.decision === "not_allowed" ? `<div class="banner bad small" style="margin-top:6px">${icon("triangle-alert")} ${brand ? "This draft breaks the deal's AI content rule. You can ask for changes, or approve it anyway."
+        : "This draft breaks the deal's AI content rule. Upload a new draft without AI, or talk to the brand."}</div>` : ""}
+      ${a.decision === "needs_label" && !brand ? `<p class="small" style="margin:6px 0 0">${icon("tag")} <b>Switch on Instagram's AI label when you post.</b> Instagram may not let you add it afterwards.</p>` : ""}</div>`;
   }
   // Performance bonus: held by PayPal, read from Instagram insights on day D, decided by code, both tap.
   function bonusHtml(b, w, main) {
@@ -290,6 +309,7 @@ const Work = (() => {
     const done = g.status === "resolved";
     const choices = g.kind === "extra" ? btn("add", `Yes, add ${usd(g.amount_cents)}`, "brand") + btn("free", "Free extra", "creator") + btn("remove", "Remove it", "brand")
       : g.kind === "missing" ? btn("drop", `Remove from the deal (collect ${usd(g.amount_cents)} less)`, "brand") + btn("will_deliver", "I'll deliver it", "creator")
+      : g.kind === "ai_label" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><span class="small">${esc(g.fix || "")}</span></div>`)
       : g.kind === "disclosure" && ctx._igFound ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
           <span class="small">Edit the caption on Instagram, then tap <b>Re-check on Instagram</b>. Amend reads it again and signs a new verdict.</span></div>`)
       : g.kind === "disclosure" ? (ctx.IS_BRAND ? "" : `<div class="stack grow"><b class="small">${esc(g.fix || "Add #ad at the start of the caption")}</b>
@@ -304,7 +324,10 @@ const Work = (() => {
   function bind(el, w) {
   const go = (b, fn, msg) => busy(b, async () => { try { await fn(); if (msg) toast(msg); ctx.reload(); } catch (e) { toast(e.message, "bad"); } });
     const on = (id, fn) => { const b = $("#" + id, el); if (b) b.onclick = () => fn(b); };
-    on("w-approve", b => go(b, () => api(ctx.url("/draft/approve"), { method: "POST" }), "Draft approved"));
+    on("w-approve", b => {
+      if (b.dataset.aiConflict && !confirm("This draft breaks the deal's AI content rule. Approve it anyway?")) return;
+      go(b, () => api(ctx.url("/draft/approve"), b.dataset.aiConflict ? { body: { accept_ai_conflict: true } } : { method: "POST" }), "Draft approved");
+    });
   on("w-feedback", () => { const i = $("#chat-in"); if (i) { i.focus(); i.placeholder = "What should change? e.g. “Brighter colours” or “Can you also show the kitchen?”"; } });
     on("w-upload", () => $("#w-file", el).click());
     const f = $("#w-file", el);
@@ -313,8 +336,11 @@ const Work = (() => {
       const b = $("#w-upload", el);
       await busy(b, async () => {
         try {
+          const decl = $("#w-aidecl", el).value;
+          if (!decl) throw new Error("Say whether AI was used in this draft first.");
+          const c2pa = window.C2PARead ? await window.C2PARead.read(file) : { read: "unsupported" };
           const frames = await extractFrames(file, 7);
-          await api(ctx.url("/draft"), { body: { frames, caption: $("#w-caption", el).value } });
+          await api(ctx.url("/draft"), { body: { frames, caption: $("#w-caption", el).value, ai_declared: decl, c2pa } });
      toast("Draft uploaded and checked"); ctx.reload();
     } catch (e) { toast(e.message || "Couldn't read that video", "bad"); }
       });

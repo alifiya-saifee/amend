@@ -113,9 +113,22 @@ def read(db: Database, deal_id: str, handle: str | None, post_url: str, *,
         return {"status": "not_found", "message": MESSAGES["not_found"].format(h=h), "handle": h}
     day, label = dubai_label(m["timestamp"])
     log.info("instagram post read media=%s", m.get("id"))  # the media id only
+    ai_label, ai_note = None, "AI label can't be read for this account"
+    try:
+        from amend import igdata
+        if igdata.connected(db, h):  # the owner's own media: Instagram shares is_ai_generated
+            with httpx.Client(transport=transport or TRANSPORT, timeout=15) as c2:
+                r2 = c2.get(f"https://graph.facebook.com/{s.meta_graph_version}/{m['id']}", params={"fields": "is_ai_generated"},
+                            headers={"Authorization": f"Bearer {s.meta_ig_token.get_secret_value()}"})
+            v = (r2.json() or {}).get("is_ai_generated") if r2.status_code < 400 else None
+            if isinstance(v, bool):
+                ai_label, ai_note = v, None
+    except (httpx.HTTPError, ValueError, Exception):  # never breaks the post check
+        pass
     return {"status": "found", "handle": h, "media_id": m.get("id"), "media_type": m.get("media_type"),
             "media_product_type": m.get("media_product_type"), "timestamp": m.get("timestamp"), "posted_on": day,
-            "posted_label": label, "caption": (m.get("caption") or "")[:2200], "permalink": m.get("permalink"), "read_at": now()}
+            "posted_label": label, "caption": (m.get("caption") or "")[:2200], "permalink": m.get("permalink"), "read_at": now(),
+            "is_ai_generated": ai_label, "ai_label_note": ai_note}
 
 
 def kind_label(ig: dict) -> str:

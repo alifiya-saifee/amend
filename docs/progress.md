@@ -690,3 +690,28 @@ Alifiya deployed 1a34161 and answered: the D+7 void from the terms is fine; capt
 - **Bonus card upfront:** "If neither of you acts by day 7 after the deadline, the $150 goes back to the brand."
 - **README:** source links on "Same engine, other uses" (Atradius, KEYT/Stacker for FTC/BBB, AP2, x402, Visa TAP).
 - **Tests: 783 passed, 3 skipped.** Browser walks: problems none.
+
+## AI content check (10 Nov)
+Choice: option (a), read Content Credentials in the browser (keeps "never process video on the server"); her C2PA
+question wasn't answered, so the recommended option was taken.
+- `amend/aicontent.py`: the term (brief field `ai_content`, default "Allowed if labelled"; optional mandate condition
+  `ai_content` with rule not_allowed | labelled; max mandate conditions now 5); `decide()` (code); `record_draft`
+  (event `draft.ai_checked`); `post_gap` (gap `ai_label`, mandate only); `verdict_check` (AI read / Creator declared /
+  Code decided).
+- `web/static/c2pa-read.js`: @contentauth/c2pa-web 0.15.4 (16 Oct, pinned; loaded via jsdelivr `+esm` because the
+  package imports bare module names). Only generative types count as AI (trainedAlgorithmicMedia,
+  compositeWithTrainedAlgorithmicMedia; "algorithmicMedia" doesn't). A file with no manifest → "none found".
+- Draft upload now requires `ai_declared`. A not-allowed draft: the creator sees the flag; the brand's Approve says
+  "Approve anyway" and needs `accept_ai_conflict` (event `draft.ai_conflict_accepted`); silent approval skips it.
+- After posting: `igpost.read` asks `/{media}?fields=is_ai_generated` for the connected account only; a re-check
+  re-reads it and closes the gap.
+- **Tests: 799 passed, 3 skipped.** New `test_aicontent.py` (16): each term, credential present/absent, declaration
+  mismatch, the required declaration, the brand's confirm, silent approval, label off after posting (gap + fail),
+  advisory without the mandate, Business Discovery "can't be read", mandate validation. Browser `ai_flow.py`: the real
+  library in Chromium reads a public C2PA test file (c2pa-rs fixtures, downloaded at run time, not committed) as
+  "found, make_test_images, not AI" and a plain JPEG as "none found"; the flag and the brand's conflict. Problems none.
+
+### Open questions
+- Is a wrong declaration a money matter? Today it's a mismatch shown to the brand, not a gap.
+- Instagram may not allow switching the AI label on after publishing (a third-party claim, not confirmed in Meta's
+  reference); the gap card says to re-post if so.

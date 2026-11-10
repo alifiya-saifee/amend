@@ -1644,6 +1644,7 @@ def _work(deal_id: str) -> dict:
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
+            "ai_rule": __import__("amend.aicontent", fromlist=["rule"]).rule(d, deal),
             "ig": {"on": iglookup_enabled(), "handle": (d.one("select ig_handle from creators where id = :c",
                                                               {"c": deal["creator_id"]}) or {}).get("ig_handle"),
                    "demo": bool((d.one("select is_demo from creators where id = :c", {"c": deal["creator_id"]}) or {}).get("is_demo"))}}
@@ -1930,9 +1931,19 @@ class FrameIn(BaseModel):
     t: float = 0
 
 
+class C2paIn(BaseModel):
+    read: str = Field("error", pattern="^(ok|error|too_large|unsupported)$")
+    found: bool = False
+    generator: str | None = Field(None, max_length=80)
+    ai: bool = False
+    ai_kind: str | None = Field(None, max_length=60)
+
+
 class DraftIn(BaseModel):
     frames: list[FrameIn] = Field(min_length=1, max_length=8)
     caption: str = Field("", max_length=2200)
+    ai_declared: str = Field(pattern="^(none|edited|generated)$")  # required: "AI used: none / edited / generated"
+    c2pa: C2paIn | None = None  # read in her browser from the file itself
 
 
 @app.post("/api/deals/{deal_id}/draft")
@@ -1950,15 +1961,27 @@ async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_c
     except (ai.ProviderError, ai.DraftRejected):
         checks = [{"check": "AI check", "ok": False, "frame": None, "time": None, "note": "Couldn't check the frames right now; the brand reviews by eye."}]
     delivery.set_draft_result(get_db(), dv["id"], checks)
+    from amend import aicontent
+    aicontent.record_draft(get_db(), deal, dv["id"], pid, body.ai_declared, body.c2pa.model_dump() if body.c2pa else None)
     changes.post_message(get_db(), deal_id, pid, f"Draft uploaded ({len(frames)} frames). Please review.", kind="text")
     return _work(deal_id)
 
 
+class DraftApproveIn(BaseModel):
+    accept_ai_conflict: bool = False
+
+
 @app.post("/api/d/{token}/draft/approve")
-def brand_draft_approve(token: str):
+def brand_draft_approve(token: str, body: DraftApproveIn | None = None):
+    from amend import aicontent
     deal, pid = _brand_ctx(token)
     if pid != deal["brand_party_id"]:
         raise HTTPException(400, "Only the brand's main contact approves drafts.")
+    a = aicontent.draft_decision(get_db(), deal["id"]) or {}
+    if a.get("decision") == "not_allowed":
+        if not (body and body.accept_ai_conflict):
+            raise HTTPException(409, "This draft breaks the deal's AI content rule. Confirm to approve it anyway.")
+        get_db().log_event("draft.ai_conflict_accepted", actor=pid, deal_id=deal["id"], payload={"reason": a.get("reason")})
     try:
         delivery.approve_draft(get_db(), deal, pid)
     except delivery.DeliveryError as e:

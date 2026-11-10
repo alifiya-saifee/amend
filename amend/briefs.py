@@ -41,6 +41,7 @@ FIELDS: dict[str, tuple[str, bool, str | None]] = {
     "revision_rounds": ("Revision rounds included", True, None),  # default from the creator's list
     "usage_rights": ("Usage rights", True, "Organic repost only, 30 days"),
     "exclusivity": ("Exclusivity", True, "None"),
+    "ai_content": ("AI content (not allowed / allowed if labelled / allowed)", True, "Allowed if labelled"),
     "assets": ("Assets (logo, brand guide links)", False, None),
     "budget": ("Budget", False, None),
     "silent_approval_days": ("Silent approval: a draft not reviewed in N days counts as approved", True, "3"),
