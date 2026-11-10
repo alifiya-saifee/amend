@@ -12,6 +12,8 @@ import secrets
 
 from amend.paypal import PayPalClient
 
+_BATCHES: dict[str, list] = {}  # local fake only: what each Payouts batch carried
+
 
 def enabled() -> bool:
     from amend.config import get_settings
@@ -53,7 +55,11 @@ class FakePayPal(PayPalClient):
         if path.endswith("/refund"):
             return {"id": "REF" + secrets.token_hex(4).upper(), "status": "COMPLETED"}
         if path == "/v1/payments/payouts":
-            return {"batch_header": {"payout_batch_id": "PB" + secrets.token_hex(4).upper(), "batch_status": "PENDING"}}
+            bid = "PB" + secrets.token_hex(4).upper()
+            _BATCHES[bid] = [{"payout_item": {"sender_item_id": i.get("sender_item_id")},  # every item succeeds, unless its
+                              "transaction_status": "FAILED" if "fail" in (i.get("receiver") or "") else "SUCCESS"}  # email says "fail"
+                             for i in (body or {}).get("items") or []]
+            return {"batch_header": {"payout_batch_id": bid, "batch_status": "PENDING"}}
         return {}
 
     async def _get(self, path):
@@ -62,6 +68,9 @@ class FakePayPal(PayPalClient):
             return {"id": aid, "status": "CREATED", "create_time": "2026-11-07T12:00:00Z", "expiration_time": "2026-12-06T12:00:00Z"}
         if "/v2/checkout/orders/" in path:
             return {"id": path.rsplit("/", 1)[1], "status": "APPROVED"}
+        if path.startswith("/v1/payments/payouts/"):
+            bid = path.rsplit("/", 1)[1]
+            return {"batch_header": {"payout_batch_id": bid, "batch_status": "SUCCESS"}, "items": _BATCHES.get(bid, [])}
         return {}
 
 

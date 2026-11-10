@@ -99,6 +99,13 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **Team splits in one Payouts batch.** The creator adds up to 4 people (role, PayPal email, share % of her payout,
+  at most 50% in all) and picks the refund rule upfront: "I cover refunds" (default) or "shared by share". At release,
+  one PayPal Payouts batch pays her and the team, with a `sender_item_id` per person (in the receipt chain). Each item
+  is "sent" until PayPal reports it (webhook `PAYMENT.PAYOUTS-ITEM.*`, or the tick GETs the batch), then paid or
+  failed. A failed person is retried alone with a new stored `PayPal-Request-Id`. Each person gets a receipt link
+  with no login ("Paid $95.40 for National Day · Editor"). With "shared by share", a refund after payout is split by
+  the shares (code, never AI) and comes off each person's future Amend payouts.
 - **A performance bonus held by PayPal, released from Instagram insights.** The brand offers it before the post
   ("+$150 if the post reaches 40,000 views, read on day 7 after posting"); the creator confirms; the brand holds the
   bonus with PayPal as its **own hold** (base hold + bonus hold). On day D, Amend reads the views from the post's
@@ -232,13 +239,19 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 
 ## Next
 
-- Retainers with a monthly PayPal hold.
-- Usage-rights and Partnership Ads clock with paid extensions collected automatically.
-- AI use and likeness as priced deal terms.
-- Barter deals with an optional cash top-up.
-- A reference Reel → a shot list checked at delivery.
-- Multi-creator campaigns and quote requests.
-- Results reports at 7 and 30 days.
+Not in yet, and why:
+- **Team splits beyond the basics:** a team member's own Amend account and payout history, and splitting the
+  holdback too. *Today the team is paid from the main payment only, and a member sees their receipt link, not an
+  account.*
+- **Tax and VAT documents** (UAE VAT invoices, the creator's tax details on statements). *They need rules per country
+  and a reviewed invoice format; a wrong tax document is worse than none.*
+- **Collecting usage extensions:** charging the brand when content is used past the usage-rights end. *Amend sees the
+  end date and opens an extension card, but proving use (ads libraries, reposts) isn't reliable yet, and AI must never
+  set the price.*
+- **Multi-platform tracking** (TikTok, YouTube, Snapchat). *Each needs its own app review and API; Instagram first.*
+- Retainers with a monthly PayPal hold. *PayPal holds last 29 days, so a retainer needs a new hold each month.*
+- Results reports at 7 and 30 days for creators who aren't connected. *Insights need the creator's own Instagram
+  connection (Meta app review).*
 
 ## Run it locally
 

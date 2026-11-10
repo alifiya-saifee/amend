@@ -680,3 +680,9 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 .m-tiers { margin: 4px 0 0 28px; }
 .m-tier, .m-tier-head { display: grid; grid-template-columns: 52px minmax(0, 1fr) minmax(0, 96px); gap: 6px; align-items: center; margin-top: 4px; }
 .m-tier input { width: 100%; min-width: 0; }
+/* team splits */
+.team-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 64px; gap: 6px; margin-top: 6px; }
+.team-row input { min-width: 0; width: 100%; }
+@media (max-width: 520px) { .team-row { grid-template-columns: minmax(0, 1fr) 64px; } .team-row .t-email { grid-column: 1 / -1; grid-row: 2; } }
+.receipt-dl { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 12px 0 0; }
+.receipt-dl dt { margin-top: 8px; } .receipt-dl dd { margin: 0; overflow-wrap: anywhere; }

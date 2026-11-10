@@ -244,6 +244,14 @@ class PayPalClient:
                            "sender_item_id": (sender_item_id or batch_id)[:63]}]}
         return await self._write("POST", "/v1/payments/payouts", body, request_id=request_id, approval=approval)
 
+    async def payout_batch(self, rows: list[dict], *, batch_id: str, request_id: str | None, approval: dict | None) -> dict:
+        """One Payouts batch, one item per person, each with its own sender_item_id."""
+        body = {"sender_batch_header": {"sender_batch_id": batch_id[:127], "email_subject": "You've been paid (Amend sandbox)"},
+                "items": [{"recipient_type": "EMAIL", "receiver": r["email"], "note": r["note"][:200],
+                           "amount": {"currency": "USD", "value": dollars(r["amount_cents"])},
+                           "sender_item_id": r["sender_item_id"][:63]} for r in rows]}
+        return await self._write("POST", "/v1/payments/payouts", body, request_id=request_id, approval=approval)
+
     async def get_payout(self, batch_id: str) -> dict:
         return await self._get(f"/v1/payments/payouts/{batch_id}")
 

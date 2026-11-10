@@ -235,7 +235,11 @@ def _paypal_calls(db: Database, deal: dict, n: dict) -> list[dict]:
         back = f" · PayPal releases {money.fmt_usd(c['back'])} back to {brand}" if c["back"] else ""
         calls.append({"call": f"POST /v2/payments/authorizations/{c['auth']}/capture", "cents": c["take"],
                       "what": f"collect {money.fmt_usd(c['take'])} (final_capture){back}"})
-    if n["creator_net"] > 0:
+    if n.get("team"):
+        tot = n["creator_net"] + sum(t["cents"] - t["owed"] for t in n["team"])
+        who = ", ".join([creator] + [f"{t['role']} {money.fmt_usd(t['cents'] - t['owed'])}" for t in n["team"]])
+        calls.append({"call": "POST /v1/payments/payouts", "cents": tot, "what": f"one batch: {who}"})
+    elif n["creator_net"] > 0:
         calls.append({"call": "POST /v1/payments/payouts", "cents": n["creator_net"], "what": f"pay {creator}"})
     if n["editor_cents"]:
         calls.append({"call": "POST /v1/payments/payouts", "cents": n["editor_cents"], "what": "pay the editor"})
@@ -248,7 +252,8 @@ def _paypal_calls(db: Database, deal: dict, n: dict) -> list[dict]:
 
 def _proposal(n: dict) -> dict:
     return {"capture_cents": sum(c["take"] for c in n["captures"]), "creator_cents": n["creator_net"],
-            "owed_deducted_cents": n["owed"], "editor_cents": n["editor_cents"], "holdback_cents": n["holdback"],
+            "owed_deducted_cents": n["owed"], "editor_cents": n["editor_cents"] + sum(t["cents"] - t["owed"] for t in n.get("team") or []),
+            "holdback_cents": n["holdback"],
             "released_back_cents": n["released_back"], "total_cents": n["total"]}
 
 

@@ -597,3 +597,23 @@ before this and goes live with the next deploy.
   06 to 09 in `docs/screenshots/bonus/`.
 - Choice: hold = base hold + a separate top-tier hold (two PayPal approvals) rather than one bigger hold, so the base
   release's final_capture can't release the bonus part early.
+
+## Instagram in Settings + team splits (10 Nov)
+- **Test creator:** Settings → "Instagram account (professional)" sets `creators.ig_handle`, and says whether it's
+  the connected account (insights) or public only. Sara can set @clinicrobotest once instead of on each post.
+- **Team splits** (`amend/team.py`, tables `payees` and `payee_owed`, `deals.team_refund_rule`):
+  - Up to 4 members, shares 1 to 50% each, ≤ 50% in all, of her payout (the deal minus the holdback). Saving a team
+    replaces the old editor share on that deal. Locked once the release is planned.
+  - Release: one Payouts batch (her item first, then the team in order; the batch's request ID is her item's).
+    Items stay "sent" until PayPal reports them (webhook by sender_item_id, or the tick's GET of the batch).
+  - Retry: a failed item only, with a new request ID (`-r1`, `-r2`) stored on the item first.
+  - Receipt `/p/<token>` (no login, noindex).
+  - Refunds: "shared" splits what the holdback didn't cover by the shares into `payee_owed` (taken off that email's
+    future team payouts at the next release planning); "creator" is as before.
+  - The verdict lists the batch ("one batch: Sara, Editor $95.40, Photographer $47.70").
+- **README "Next"** rewritten: what's not in yet, one line each on why.
+- **Tests: 761 passed, 3 skipped.** New `test_team.py` (7): rules, 2 members, 4 members (to the cent), a failed item
+  retried alone, shared refund, creator covers, locked after release; plus the settings test. Browser `team_flow.py`
+  (1440 + 390): problems none; shots in `docs/screenshots/team/`.
+- Note: in a team deal, her own payout item is also "sent" until PayPal reports the batch (it used to show "paid"
+  at once for single payouts; single payouts are unchanged).

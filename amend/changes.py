@@ -280,8 +280,8 @@ def money_line(it: dict | None, to: str, sys_text: dict, *, is_creator: bool, fi
         if kind == "capture":
             return f"{amt} collected", "wallet"
         if kind == "payout":
-            if note.startswith(("release:editor", "cancel:editor")):
-                return (f"Editor paid {amt}", "send") if is_creator else None
+            if note.startswith(("release:editor", "cancel:editor", "release:team ")):
+                return (f"Team payout {amt}", "send") if is_creator else None
             hold = note.startswith("holdback:")
             if is_creator:
                 return (f"Holdback paid to you {amt}" if hold else f"Paid to you {amt}"), "send"
@@ -797,6 +797,10 @@ def _fund_refund(db: Database, deal: dict, refund: dict, party_id: str) -> dict:
             money.approve(db, new["id"], party_id)
         db.log_event("holdback.used_for_refund", actor=party_id, deal_id=deal["id"],
                      payload={"refund": refund["id"], "amount_cents": fund["holdback_cents"], "left_cents": rest})
+    from amend import team
+    creator_part = team.split_refund(db, deal, refund, fund["owed_cents"])  # "shared by share": the team's parts first
+    fund["team_cents"] = fund["owed_cents"] - creator_part
+    fund["owed_cents"] = creator_part
     if fund["owed_cents"]:
         ow = money.plan_item(db, deal["id"], "owed_by_creator", fund["owed_cents"], json.loads(refund["depends_on_fact_ids"]), actor=party_id)
         db.update("money_items", "id", ow["id"], {"note": f"owed:refund {refund['id']}"})

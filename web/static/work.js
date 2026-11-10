@@ -90,11 +90,7 @@ const Work = (() => {
         ${main && w.holdback_release_at && !w.post_removed_at ? `<button class="btn small danger" id="w-removed">Report the post removed</button>` : ""}
         ${!ctx.IS_BRAND && w.post_removed_at ? `<button class="btn small primary" id="w-restored">It's live again</button>` : ""}</div>`);
     }
-    if (!ctx.IS_BRAND && w.status === "in_progress") parts.push(`<details class="card"><summary>Editor's share (optional)</summary>
-      <p class="small muted">Paid by PayPal Payouts from your payment at release.</p>
-   <div class="row" style="gap:8px"><input id="w-ed-email" placeholder="editor's PayPal email" class="grow" value="${esc((w.editor || {}).email || "")}">
-        <input id="w-ed-pct" type="number" min="1" max="50" value="${(w.editor || {}).pct || 15}" style="max-width:80px"><span>%</span></div>
-      <button class="btn small" id="w-ed-save" style="margin-top:8px">Save</button></details>`);
+    if (!ctx.IS_BRAND && w.team) parts.push(teamHtml(w.team, w));
     if (w.status === "completed") {
       parts.push(w.review ? `<div class="card"><h3>Review</h3><p>${"<i data-lucide='star' aria-hidden='true'></i>".repeat(w.review.rating)}${"<i data-lucide='star' aria-hidden='true'></i>".repeat(5 - w.review.rating)} ${esc(w.review.text || "")}</p></div>`
     : main ? `<div class="card"><h3>How did it go?</h3><div class="stars" id="w-stars">${[1, 2, 3, 4, 5].map(n => `<button data-star="${n}" aria-label="${n} stars"><i data-lucide='star' aria-hidden='true'></i></button>`).join("")}</div>
@@ -133,6 +129,31 @@ const Work = (() => {
             <p class="hint">Your tap approves exactly these calls. ${other ? `${esc(otherName)} already confirmed, so PayPal runs them now.` : `PayPal runs them once ${esc(otherName)} confirms too.`}</p>`
           : meTapped ? `<p class="small">${icon("circle-check")} You confirmed${other ? "" : `. Waiting for ${esc(otherName)}.`}</p>` : ""}</div></div>`
       : `<p class="small" style="margin-top:8px">${icon("lock")} No money moves on a failed verdict. Resolve what it flags and a new verdict is signed.</p>`}</div>`;
+  }
+  // Team splits: up to 4 people, shares of her payout (≤ 50%), one Payouts batch, a receipt link each, the refund rule.
+  function teamHtml(t, w) {
+    const m = t.members || [];
+    const pill = p => !p ? "" : p.status === "paid" ? '<span class="pill collected">Paid</span>' : p.status === "failed" ? '<span class="pill failed">Failed</span>'
+      : p.status === "sent" ? '<span class="pill held">Sent to PayPal</span>' : moneyPill(p.status);
+    const list = m.length ? `<div class="list">${m.map(x => `<div class="line"><div class="grow"><b>${esc(x.role)}</b> · ${x.pct}%
+        <div class="tiny muted">${esc(x.email)} · <a href="${esc(x.receipt)}" target="_blank" rel="noopener">receipt link</a></div></div>
+        ${x.payout ? `<div class="amt">${usd(x.payout.amount_cents)}</div>${pill(x.payout)}${x.payout.status === "failed" ? `<button class="btn small" data-retry="${esc(x.payout.id)}">Retry</button>` : ""}` : ""}</div>`).join("")}</div>`
+      : `<p class="small muted">No team on this deal. Add an editor, a photographer or anyone else you pay from this deal.</p>`;
+    const rule = t.refund_rule === "shared" ? "Refunds after payout are shared by share (each person's future Amend payouts)" : "You cover refunds after payout (as today)";
+    if (t.locked || !["accepted", "in_progress", "delivered"].includes(w.status)) return `<div class="card"><h3>${icon("users")} Team</h3>${list}
+      <p class="tiny muted" style="margin:6px 0 0">${esc(rule)}. Paid with you in one PayPal Payouts batch.</p></div>`;
+    const row = (x, i) => `<div class="team-row"><input class="t-role" placeholder="Role, e.g. Editor" value="${esc((x || {}).role || "")}" aria-label="Role ${i + 1}">
+      <input class="t-email" type="email" placeholder="PayPal email" value="${esc((x || {}).email || "")}" aria-label="PayPal email ${i + 1}">
+      <input class="t-pct" type="number" min="1" max="50" placeholder="%" value="${(x || {}).pct || ""}" aria-label="Share ${i + 1}"></div>`;
+    return `<details class="card" ${m.length ? "open" : ""}><summary><b>${icon("users")} Team</b> <span class="small muted">(optional · up to 4 people)</span></summary>
+      ${list}
+      <p class="small muted" style="margin:8px 0 4px">Shares are a % of your payout (the deal minus the holdback), ${t.total_pct ? `now ${t.total_pct}% in all, ` : ""}up to 50% in all.
+        Everyone is paid with you in one PayPal Payouts batch, and each person gets a receipt link (no login).</p>
+      <div id="w-team">${[0, 1, 2, 3].map(i => row(m[i], i)).join("")}</div>
+      <label style="margin-top:8px">If the brand gets a refund after you're paid</label>
+      <select id="w-team-rule"><option value="creator" ${t.refund_rule !== "shared" ? "selected" : ""}>I cover refunds (default)</option>
+        <option value="shared" ${t.refund_rule === "shared" ? "selected" : ""}>Shared by share: each person's future payouts are reduced by their share</option></select>
+      <button class="btn small primary" id="w-team-save" style="margin-top:8px">Save team</button></details>`;
   }
   // Performance bonus: held by PayPal, read from Instagram insights on day D, decided by code, both tap.
   function bonusHtml(b, w, main) {
@@ -266,6 +287,10 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-team-save", b => go(b, () => api(ctx.url("/team"), { method: "PUT", body: { refund_rule: $("#w-team-rule", el).value,
+      members: $$("#w-team .team-row", el).map(r => ({ role: r.querySelector(".t-role").value.trim(), email: r.querySelector(".t-email").value.trim(),
+        pct: Math.round(+r.querySelector(".t-pct").value) })).filter(x => x.role || x.email || x.pct) } }), "Team saved"));
+    $$("[data-retry]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/payouts/${b.dataset.retry}/retry`), { method: "POST" }), "Sent to PayPal again"));
     on("w-bn-offer", b => go(b, () => api(ctx.url("/bonus"), { body: { threshold: +$("#w-bn-t", el).value, amount_cents: Math.round(+$("#w-bn-a", el).value * 100), read_day: +$("#w-bn-d", el).value } }), "Bonus offered"));
     on("w-bn-confirm", b => go(b, () => api(ctx.url("/bonus/confirm"), { method: "POST" }), "Bonus confirmed"));
     on("w-bn-read", b => go(b, () => api(ctx.url("/bonus/read"), { method: "POST" }), "Read from Instagram"));

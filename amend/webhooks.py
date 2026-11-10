@@ -90,6 +90,11 @@ def apply(db: Database, event: dict) -> str:
         return "partial refund noted"
     if t == "PAYMENT.CAPTURE.DENIED":
         return _move(db, _find(db, paypal_id=r.get("id")), "failed", eid)
+    sid = (r.get("payout_item") or {}).get("sender_item_id")
+    if t.startswith("PAYMENT.PAYOUTS-ITEM.") and sid and db.one("select id from money_items where custom_id = :s and kind = 'payout' "
+                                                               "and status = 'sent'", {"s": sid}):
+        from amend import team
+        return team.item_status(db, sid, r.get("transaction_status") or t.rsplit(".", 1)[-1], eid)
     if t in ("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", "PAYMENT.PAYOUTSBATCH.SUCCESS"):
         batch = r.get("payout_batch_id") or (r.get("batch_header") or {}).get("payout_batch_id")
         return _move(db, _find(db, paypal_id=batch), "paid", eid) if batch else "no batch id"

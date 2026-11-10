@@ -423,12 +423,17 @@ def release_numbers(db: Database, deal: dict) -> dict:
                          "back": max(0, unused - take)})
         left -= take
     holdback = total * (deal.get("holdback_pct") or HOLDBACK_PCT) // 100
-    editor = json.loads(deal.get("editor_json") or "null")
+    from amend import team as T
+    people = T.members(db, deal["id"])
+    editor = None if people else json.loads(deal.get("editor_json") or "null")  # the team replaces the old editor share
     editor_cents = total * int(editor["pct"]) // 100 if editor else 0
-    gross = total - holdback - editor_cents
+    base = total - holdback - editor_cents  # her payout before the team's shares
+    team = [{"payee": m["id"], "role": m["role"], "email": m["email"], "pct": m["pct"], "cents": base * m["pct"] // 100,
+             "owed": min(T.owed_by_email(db, m["email"]), base * m["pct"] // 100)} for m in people]
+    gross = base - sum(t["cents"] for t in team)
     owed = min(money.owed_balance(db, deal["creator_id"]), max(gross, 0))  # S98: what she owes comes off this payout first
     return {"total": total, "captures": captures, "voids": voids, "holdback": holdback, "editor": editor,
-            "editor_cents": editor_cents, "creator_gross": gross, "owed": owed, "creator_net": gross - owed,
+            "editor_cents": editor_cents, "creator_gross": gross, "owed": owed, "creator_net": gross - owed, "team": team,
             "released_back": sum(c["back"] for c in captures) + sum(v["cents"] for v in voids)}
 
 
@@ -463,6 +468,13 @@ def plan_release(db: Database, deal: dict) -> dict:
     if creator_cents > 0:
         po = money.plan_item(db, deal["id"], "payout", creator_cents, facts, actor="system")
         db.update("money_items", "id", po["id"], {"note": "release:creator payout", "payee_email": (party or {}).get("paypal_email")})
+    from amend import team as T
+    for t in n["team"]:  # one item each; any earlier shared refund they owe comes off first
+        net = T.deduct_owed(db, t["email"], t["cents"], deal_id=deal["id"])
+        if net > 0:
+            pt = money.plan_item(db, deal["id"], "payout", net, facts, actor="system")
+            db.update("money_items", "id", pt["id"], {"note": f"release:team {t['payee']}", "payee_email": t["email"]})
+            db.update("payees", "id", t["payee"], {"money_item_id": pt["id"]})
     if editor_cents:
         pe = money.plan_item(db, deal["id"], "payout", editor_cents, facts, actor="system")
         db.update("money_items", "id", pe["id"], {"note": f"release:editor {editor['pct']}%", "payee_email": editor["email"]})
@@ -521,6 +533,9 @@ def release_label(db: Database, deal: dict, it: dict, first: str) -> str:
         return f"Holdback {amt} · paid on {engine.day_label(d)} if the post is still live" if d else f"Holdback {amt} · paid if the post stays live"
     if note.startswith("release:editor"):
         return f"Editor's share ({note.split('release:editor', 1)[1].strip()})"
+    if note.startswith("release:team "):
+        m = db.one("select role, pct from payees where id = :i", {"i": note.split(" ", 1)[1]}) or {}
+        return f"{m.get('role', 'Team')}'s share ({m.get('pct', '?')}%)"
     if note.startswith("release:creator payout"):
         return f"Paid to {first}"
     return amt
@@ -616,7 +631,13 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
                          payload={"hold": hold["id"] if hold else None, "amount": released, "how": "final_capture"})
     for it in [i for i in items if i["kind"] == "release" and i["status"] in ("approved", "failed")]:
         await _void_unused(db, pp, it, deal, actor)
-    for it in [i for i in items if i["kind"] == "payout" and i["status"] in ("approved", "failed")]:
+    from amend import team as T
+    payouts = [i for i in items if i["kind"] == "payout" and i["status"] in ("approved", "failed")]
+    batch = [i for i in payouts if T.is_batch_item(i) and i["status"] == "approved"]
+    if T.members(db, deal["id"]) and batch:  # her payout and the team's: one Payouts batch
+        await T.pay_batch(db, pp, deal, batch, actor)
+        payouts = [i for i in payouts if i not in batch]
+    for it in payouts:
         await _payout(db, pp, it, deal, actor)
     deal = get_deal(db, deal["id"])
     hb = db.one("select * from money_items where deal_id = :d and note like 'holdback:%' and status = 'approved'", {"d": deal["id"]})

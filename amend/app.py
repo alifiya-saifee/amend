@@ -1432,7 +1432,18 @@ def my_settings(request: Request, c: dict = Depends(require_creator)):
     party = get_db().one("select paypal_email, phone from parties where id = :p", {"p": c["party_id"]}) or {}
     return {"account": {"name": a["name"], "email": a["email"], "demo": a["password_hash"] is None},
             "paypal_email": party.get("paypal_email"), "phone": party.get("phone"), "permit": deals.permit_check(c["permit_no"], c["permit_expiry"]),
-            **business.settings(get_db(), a)}
+            "instagram": _ig_setting(c), **business.settings(get_db(), a)}
+
+
+def _ig_setting(c: dict) -> dict:
+    """Her Instagram account for post checks, and whether it's the one connected to Amend (insights) or public only."""
+    from amend import igdata, igpost
+    h = (get_db().one("select ig_handle from creators where id = :c", {"c": c["id"]}) or {}).get("ig_handle")
+    try:
+        conn = bool(h) and igdata.connected(get_db(), h)
+    except igdata.Unavailable:
+        conn = False
+    return {"handle": h, "on": igpost.enabled(), "connected": conn}
 
 
 class SettingsIn(BaseModel):
@@ -1442,6 +1453,7 @@ class SettingsIn(BaseModel):
     language: str | None = None
     theme: str | None = None
     notify: dict = Field(default_factory=dict)
+    ig_handle: str | None = Field(None, max_length=40)
 
 
 @app.put("/api/studio/settings")
@@ -1458,6 +1470,12 @@ def save_my_settings(body: SettingsIn, request: Request, c: dict = Depends(requi
             d.update("parties", "id", c["party_id"], {"phone": notify.clean_phone(body.phone)})
         except ValueError as e:
             raise HTTPException(400, str(e))
+    if body.ig_handle is not None:
+        from amend import igpost
+        h = igpost.clean_handle(body.ig_handle)
+        if body.ig_handle.strip() and not h:
+            raise HTTPException(400, "That doesn't look like an Instagram handle.")
+        d.update("creators", "id", c["id"], {"ig_handle": h})
     business.save_settings(d, d.one("select * from accounts where id = :i", {"i": a["id"]}), body.model_dump())
     return my_settings(request, c)
 
@@ -1613,6 +1631,7 @@ def _work(deal_id: str) -> dict:
             "results": _ig_safe(lambda: igdata.results(d, deal)) if post else None,
             "competitor": _ig_safe(lambda: igdata.competitor_flags(d, deal)),
             "bonus": __import__("amend.bonus", fromlist=["view"]).view(d, deal_id),
+            "team": __import__("amend.team", fromlist=["view"]).view(d, deal, get_settings().base_url.rstrip("/")),
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
@@ -1736,6 +1755,60 @@ async def creator_bonus_tap(deal_id: str, body: BonusTapIn, c: dict = Depends(re
 @app.post("/api/d/{token}/bonus/approve")
 async def brand_bonus_tap(token: str, body: BonusTapIn):
     return await _bonus_tap(*_brand_ctx(token), body.decision_hash)
+
+
+class TeamMemberIn(BaseModel):
+    role: str = Field(max_length=30)
+    email: str = Field(max_length=120)
+    pct: int
+
+
+class TeamIn(BaseModel):
+    members: list[TeamMemberIn] = Field(default_factory=list, max_length=4)
+    refund_rule: str = Field("creator", pattern="^(creator|shared)$")
+
+
+@app.put("/api/deals/{deal_id}/team")
+def creator_team(deal_id: str, body: TeamIn, c: dict = Depends(require_creator)):
+    from amend import team
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        team.set_team(get_db(), deal, pid, [m.model_dump() for m in body.members], body.refund_rule)
+    except team.TeamError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    return _work(deal_id)
+
+
+@app.post("/api/deals/{deal_id}/payouts/{item_id}/retry")
+async def creator_payout_retry(deal_id: str, item_id: str, c: dict = Depends(require_creator)):
+    from amend import team
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        await team.retry(get_db(), rail().pp, deal, item_id, pid)
+    except team.TeamError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    return _work(deal_id)
+
+
+@app.get("/p/{token}")
+def payee_receipt(token: str):
+    """A team member's receipt, no login: what they were paid for which deal, and in what role."""
+    import html
+    from amend import team
+    r = team.receipt(get_db(), token)
+    if not r:
+        raise HTTPException(404, "No receipt here.")
+    e = html.escape
+    state = {"paid": f"Paid {money.fmt_usd(r['amount_cents'])}", "sent": f"{money.fmt_usd(r['amount_cents'])} sent to PayPal",
+             "failed": "PayPal couldn't pay this: the creator can retry it"}.get(r["status"], "Not paid yet")
+    body = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment receipt · Amend</title><link rel="stylesheet" href="/static/app.css"></head><body><main style="max-width:560px;margin:0 auto;padding:24px 16px">
+<p class="small muted">Amend · PayPal sandbox, no real money</p><div class="card"><h1 style="font-size:24px">{e(state)}</h1>
+<p><b>for {e(r['deal'])} · {e(r['role'])}</b></p><p class="small">{e(str(r['pct']))}% of {e(r['creator'] or 'the creator')}'s payout for {e(r['brand'] or 'the brand')}.</p>
+<dl class="small receipt-dl"><dt class="muted">PayPal batch</dt><dd><code>{e(r['batch'] or '–')}</code></dd><dt class="muted">Your item (sender_item_id)</dt><dd><code>{e(r['sender_item_id'] or '–')}</code></dd>
+<dt class="muted">Refund rule</dt><dd>{'Shared by share: a refund after payout comes off your future Amend payouts, by your share' if r['refund_rule'] == 'shared' else 'The creator covers refunds'}</dd>
+{f"<dt class='muted'>Owed from an earlier refund</dt><dd>{e(money.fmt_usd(r['owed_cents']))} (comes off your next payout)</dd>" if r['owed_cents'] else ''}</dl></div></main></body></html>"""
+    return HTMLResponse(body, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
 class CompetitorsIn(BaseModel):
@@ -2176,6 +2249,9 @@ def _ledger_label(it: dict) -> str:
         return "Paid to you (Payouts)"
     if n.startswith("release:editor"):
         return "Editor's share " + n.split("editor", 1)[1].strip()
+    if n.startswith("release:team "):
+        m = get_db().one("select role, pct from payees where id = :i", {"i": n.split(" ", 1)[1]}) or {}
+        return f"Team: {m.get('role', 'member')}'s share ({m.get('pct', '?')}%)"
     if n.startswith("holdback:creator"):
         if it.get("status") == "paid":
             return "Holdback paid (the post stayed live)"
@@ -2784,8 +2860,15 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     for extra in TICK_TASKS:  # shipping nudges, silent approval, call nudges
         result.update(extra(d))
     result.update(await delivery.tick_holdback(d, rail()))
-    from amend import igdata
+    from amend import igdata, team as _team
     result.update(await igdata.tick(d))  # Instagram refresh policy: only what's due
+    synced = 0
+    for row in d.all("select distinct deal_id from money_items where kind = 'payout' and status = 'sent' and note like 'release:%'"):
+        try:
+            synced += await _team.sync_batch(d, rail().pp, row["deal_id"])
+        except PayPalError:
+            pass
+    result["payout_items_synced"] = synced
     d.log_event("tick.ran", actor="system", payload=result)
     return {"ok": True, **result}
 

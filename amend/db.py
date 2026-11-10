@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate", "team.set", "team.owed_settled", "team.refund_shared", "payout.item",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -153,6 +153,12 @@ create table if not exists notifications (
 create table if not exists jobs (
   id text primary key, kind text not null, status text not null, attempts integer not null default 0,
   input_json text, result_json text, error text, created_at text not null, updated_at text not null);
+create table if not exists payees (
+  id text primary key, deal_id text not null references deals(id), role text not null, email text not null, pct integer not null,
+  token text unique not null, money_item_id text, pos integer not null default 0, created_at text not null, removed_at text);
+create table if not exists payee_owed (
+  id text primary key, email text not null, cents integer not null, left_cents integer not null, deal_id text,
+  refund_item_id text, role text, created_at text not null);
 create table if not exists bonuses (
   id text primary key, deal_id text not null references deals(id), metric text not null, threshold integer not null,
   amount_cents integer not null, read_day integer not null, status text not null, offered_by text, confirmed_brand_at text,
@@ -248,7 +254,8 @@ COLUMNS = {
               "usage_start": "text", "usage_end": "text", "usage_months": "integer",  # lifecycle 2: usage-rights clock
               "usage_reminded_at": "text", "usage_extension_at": "text",  # a PayPal dispute is open: the holdback is frozen  # our own live test runs: kept, but out of Earnings/Ledger/Inbox
               "is_demo": "integer not null default 0",
-              "competitors_json": "text not null default '[]'"},  # names the exclusivity covers (for the competitor check)
+              "competitors_json": "text not null default '[]'",
+              "team_refund_rule": "text"},  # creator (default) | shared: chosen when the team is set  # names the exclusivity covers (for the competitor check)
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
                 "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
