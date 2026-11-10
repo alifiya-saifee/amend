@@ -193,7 +193,7 @@ function bindBrief() {
 function extrasHtml() {
   const d = V.deal; let h = "";
   if (d.deadline) h += `<p class="small"><i data-lucide='calendar' aria-hidden='true'></i> Post: <b>${esc(fmtDate(d.deadline))}</b></p>`;
-  if (d.done_means && d.done_means.length) h += `<p class="small muted" style="margin-bottom:4px">What done means</p><ul class="small" style="margin-top:0">${d.done_means.map(x => `<li>${esc(x.value)}</li>`).join("")}</ul>`;
+  if (d.done_means && d.done_means.length) h += `<p class="small muted" style="margin-bottom:4px">What done means</p><ul class="small" style="margin-top:0">${d.done_means.map(x => `<li>${esc(humanDates(x.value))}</li>`).join("")}</ul>`;
   if (d.not_on_list && d.not_on_list.length) h += `<div class="banner wait small" style="margin-top:8px"><b>Not on ${esc(V.creator.name.split(" ")[0])}'s price list</b> (not priced):
     ${d.not_on_list.map(x => `<div>• ${esc(x.what)} <span class="muted">“${esc(x.quote)}”</span></div>`).join("")}</div>`;
   return h;
@@ -344,7 +344,7 @@ function checklistHtml(d) {
   const items = lines.concat(when, d.done_means || []);
   const done = ["delivered", "completed"].includes(d.status);
   return `<div class="card"><h3>Delivery checklist</h3>
-    ${items.length ? `<ul class="checklist">${items.map(x => `<li class="${done ? "done" : ""}">${icon(done ? "circle-check" : "circle")}<span class="grow">${esc(x.value)}</span></li>`).join("")}</ul>
+    ${items.length ? `<ul class="checklist">${items.map(x => `<li class="${done ? "done" : ""}">${icon(done ? "circle-check" : "circle")}<span class="grow">${esc(humanDates(x.value))}</span></li>`).join("")}</ul>
       <p class="tiny muted">The delivery check compares the post with these and with the latest confirmed deal. No money is released until they match.</p>`
       : `<p class="small muted">Nothing listed yet. "What done means" from the brief shows here.</p>`}</div>`;
 }

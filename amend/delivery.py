@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from amend import ai, briefs, engine, money
@@ -81,6 +82,19 @@ def draft_requirements(deal: dict) -> list[str]:
     return [r for r in requirements(deal) if not r.lower().startswith(POST_ONLY)]
 
 
+_ISO_DAY = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+
+def human_dates(text: str) -> str:
+    """ISO dates in a sentence → "Tue 10 Nov" (one date shape everywhere people read). Not a date → left alone."""
+    def one(m):
+        try:
+            return engine.day_label(date(int(m[1]), int(m[2]), int(m[3])))
+        except ValueError:
+            return m[0]
+    return _ISO_DAY.sub(one, text or "")
+
+
 def requirements(deal: dict) -> list[str]:
     reqs = [d["value"] for d in (deal.get("done_means") or [])]
     b = briefs.load(deal)
@@ -88,7 +102,23 @@ def requirements(deal: dict) -> list[str]:
         v = (b["fields"].get(k) or {}).get("value")
         if v:
             reqs.append(f"{briefs.FIELDS[k][0]}: {v}")
-    return reqs or ["Product clearly visible", "Disclosure: #ad"]
+    return [human_dates(r) for r in reqs] or ["Product clearly visible", "Disclosure: #ad"]
+
+
+_HANDLE = re.compile(r"(?<![\w@])@[A-Za-z0-9._]{2,30}")
+
+
+def caption_suggestion(deal: dict) -> str:
+    """A starting caption, built by code from the brief (no AI): "#ad" first, then the brief's must-include items and any
+    @handle the brief names. The creator edits it; the page never overwrites what she typed."""
+    mi = ((briefs.load(deal)["fields"].get("must_include") or {}).get("value") or "").strip()
+    mi = re.sub(r"(?i)(^|\s)#ad\b[,;]?", " ", mi).strip(" ,;")
+    parts = ["#ad"] + ([mi] if mi else [])
+    for h in _HANDLE.findall(deal.get("brief") or ""):
+        h = h.rstrip(".")
+        if h.lower() not in " ".join(parts).lower():
+            parts.append(h)
+    return " ".join(parts)
 
 
 def save_draft(db: Database, deal: dict, creator_party: str, *, frames: list[dict], caption: str) -> dict:

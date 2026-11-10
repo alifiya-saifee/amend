@@ -40,5 +40,16 @@
       return { read: big ? "too_large" : "error", found: false, generator: null, ai: false, ai_kind: null };
     }
   }
-  window.C2PARead = { read, summarise, VERSION: V };
+  // what the page says and pre-selects once the file is read (pure: tested on its own). Only a credential that says AI
+  // pre-selects an answer; she confirms or changes it. No credential → no answer, she tells us.
+  const LABEL = { none: "No AI used", edited: "Edited with AI", generated: "Generated with AI" };
+  function suggest(c) {
+    c = c || {};
+    if (c.read !== "ok") return { declared: null, text: "Couldn't read the file's Content Credentials in this browser, so please tell us." };
+    if (!c.found) return { declared: null, text: "No proof in the file, so please tell us." };
+    if (!c.ai) return { declared: null, text: `Content Credentials from ${c.generator || "a tool"}, with no AI recorded. That doesn't prove it either way, so please tell us.` };
+    const declared = String(c.ai_kind || "").startsWith("composite") ? "edited" : "generated";
+    return { declared, text: `Detected from the file: ${c.generator || "a tool"} → ${LABEL[declared]}. Correct?` };
+  }
+  window.C2PARead = { read, summarise, suggest, VERSION: V };
 })();

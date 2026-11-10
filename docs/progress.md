@@ -830,3 +830,29 @@ question wasn't answered, so the recommended option was taken.
   both accounts see it in studio deals/earnings/ledger/inbox and brand deals/payments/inbox, plus the PayPal map; DEMO
   label. **Tests: 833 passed, 3 skipped.**
 - Next: Manual Deploy, then sign in as judge.sara / judge.brand on the live site to confirm.
+
+## Live test walk, sections 1–2 (10 Nov, live site, visible browser)
+- Section 1: 1.1 ✅ (5.1 s on a cold start, 0.5–3 s warm) · 1.2 ✅ · 1.3 ✅ · 1.5 ✅ when signed in as a brand (logged out
+  shows "isn't on Amend yet" + Invite, no Instagram lookup) · 1.6 ✅ · 1.7 ✅.
+  **1.4 ❌ (open question):** @clinicrobotest is on Amend (Maya), so the Instagram lookup refuses it; her Amend card shows
+  "0 followers" and dashes, not her real Instagram numbers.
+- Section 2 on the live site with the real PayPal sandbox buyer: 2.1–2.10 all ✅ ($70 held, +$20 card, v2 $90, second
+  hold, draft with AI read / Creator declared / Code decided, approve, posted today with no date card, signed verdict
+  Pass, $90 collected, $81 paid, $9 holdback, "$70 held = $70 collected", "$20 held = $20 collected"). No JS errors.
+  **2.11 partly:** map shows the real IDs and CSV downloads, but the deal page's Table has no "Why" column (the studio
+  Ledger has one).
+- /try accepted the demo password on live, so either JUDGE_PASSWORD isn't set on Render or Render was on an older commit.
+
+## Draft step polish (10 Nov)
+- Caption starts from the brief (code, no AI): "#ad" first, then the brief's must-include, then any @handle in the brief
+  (no repeats, never two #ad, emails aren't handles). What she types is kept per deal in her browser and never overwritten.
+- Content Credentials are read as soon as the file is chosen. A credential that says AI pre-selects the answer: "Detected
+  from the file: <tool> → Generated with AI. Correct?". If she changes it, the page says so and the server records a
+  mismatch (on the draft, in the reason both sides see, and in the receipt chain). **Money unchanged:** only the existing
+  rule (credential says AI, she says none) opens a gap. No credential: no answer pre-selected, "No proof in the file, so
+  please tell us". Upload is a separate "Upload and check" button (disabled until a file is chosen).
+- Dates people read: "Tue 10 Nov", never ISO, in requirements, draft checks, "What done means" and the delivery checklist.
+  The signed verdict text is left as signed.
+- Tests: `tests/test_draft_polish.py` (17, incl. the page's suggest() run in Node). Browser: `tests/browser/draft_polish.py`
+  (390 + 1440, real library on a real WebM for "no credential", reader stubbed to an Adobe Firefly credential for
+  "detected"): problems none, no JS errors. Shots in `docs/screenshots/draft/`. **Tests: 855 passed, 3 skipped.**

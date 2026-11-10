@@ -57,6 +57,8 @@ function fmtDate(v) {
   if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
   return d.toLocaleDateString("en-GB", o).replace(",", "");
 }
+// ISO dates inside a sentence ("Posted on Instagram on 2026-11-10") → "Tue 10 Nov"
+function humanDates(s) { return String(s == null ? "" : s).replace(/\b\d{4}-\d{2}-\d{2}\b/g, m => fmtDate(m)); }
 function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""; }
 function dateStr(iso) { return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""; }
 

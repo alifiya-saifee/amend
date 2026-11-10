@@ -82,18 +82,36 @@ def ai_read_text(cred: dict | None) -> str:
     return f"Content Credentials: {c.get('generator') or 'a tool'}" + (", says AI generated it" if c.get("ai") else "")
 
 
-def record_draft(db: Database, deal: dict, draft_id: str, actor: str, declared: str, cred: dict | None) -> dict:
-    """Store the declaration, the credential and the code's decision on the draft; log it in the receipt chain."""
+def detected_answer(cred: dict | None) -> str | None:
+    """The answer a credential suggests (pre-selected on the page): generative AI → generated, AI composite → edited."""
+    c = cred or {}
+    if not (c.get("found") and c.get("ai")):
+        return None
+    return "edited" if str(c.get("ai_kind") or "").startswith("composite") else "generated"
+
+
+def record_draft(db: Database, deal: dict, draft_id: str, actor: str, declared: str, cred: dict | None,
+                 detected: str | None = None) -> dict:
+    """Store the declaration, the credential and the code's decision on the draft; log it in the receipt chain.
+    `detected` is the answer the page pre-selected from the file's credential: if she changed it, that is recorded as a
+    mismatch (shown to both sides, in the receipt chain). Money: only the existing rule (credential says AI, she says
+    none) opens a gap; a changed answer on its own moves nothing."""
     if declared not in DECLARED:
         raise ValueError("declare whether AI was used: none, edited with AI or generated with AI")
     cred = {k: (cred or {}).get(k) for k in ("read", "found", "generator", "ai", "ai_kind")}
+    detected = detected_answer(cred) if detected not in DECLARED else detected
     r = rule(db, deal)
     out = {"term": r, "declared": declared, "declared_text": DECLARED[declared], "credential": cred,
            "credential_text": ai_read_text(cred), **decide(r["rule"], declared, cred), "checked_at": now()}
+    cred_mismatch = out["mismatch"]
+    if detected and detected != declared:
+        out["changed_from_detected"] = {"detected": detected, "detected_text": DECLARED[detected]}
+        out["mismatch"] = True
+        out["reason"] += f". The file's credential suggests \"{DECLARED[detected]}\"; the creator answered \"{DECLARED[declared]}\""
     row = db.one("select result_json from deliveries where id = :i", {"i": draft_id})
     res = json.loads(row["result_json"] or "{}")
     res["ai"] = out
-    if out["mismatch"] and r["money"]:
+    if cred_mismatch and r["money"]:
         from amend.db import new_id
         res.setdefault("gaps", []).append({
             "id": new_id("gp"), "kind": "ai_declaration", "status": "open",
@@ -102,7 +120,8 @@ def record_draft(db: Database, deal: dict, draft_id: str, actor: str, declared: 
     db.update("deliveries", "id", draft_id, {"result_json": json.dumps(res)})
     db.log_event("draft.ai_checked", actor=actor, deal_id=deal["id"],
                  payload={"draft": draft_id, "declared": declared, "credential": cred, "decision": out["decision"],
-                          "term": r["rule"], "source": r["source"]})
+                          "term": r["rule"], "source": r["source"], "detected": detected,
+                          "changed_from_detected": bool(out.get("changed_from_detected"))})
     return out
 
 

@@ -21,6 +21,14 @@ const Work = (() => {
     bind(el, w);
   }
   const first = () => ctx.V.creator.name.split(" ")[0];
+  // the caption she typed is kept per deal (this browser) and never overwritten; else the last draft's, else the brief's start
+  const capKey = () => "amend-caption:" + ctx.V.deal.id;
+  function captionValue(w) {
+    let mine = null;
+    try { mine = localStorage.getItem(capKey()); } catch (e) { /* private window: fine */ }
+    if (mine != null) return mine;
+    return (w.draft && w.draft.result && w.draft.result.caption) || w.caption_suggestion || "#ad ";
+  }
 
   function render(w) {
     const parts = [];
@@ -30,8 +38,8 @@ const Work = (() => {
       let h = `<div class="card"><div class="row between"><h3 style="margin:0">Draft</h3>${d ? draftPill(d) : ""}</div>`;
       if (d) {
         h += `<div class="frames">${d.frames.map(f => `<figure><img src="${ctx.IS_BRAND ? f.url + "?t=" + encodeURIComponent(location.pathname.split("/")[2]) : f.url}" alt="frame at ${f.t.toFixed(1)} s"><figcaption>${f.t.toFixed(1)} s</figcaption></figure>`).join("")}</div>
-          <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "<i data-lucide='circle-check' aria-hidden='true'></i>" : "<i data-lucide='triangle-alert' aria-hidden='true'></i>"}</span><div class="grow">${esc(c.check)}
-            <div class="tiny muted">${esc(c.note || "")}${c.time != null ? ` · frame at ${c.time.toFixed(1)} s` : ""}</div></div></div>`).join("")}</div>
+          <div class="list">${(d.result.checks || []).map(c => `<div class="line"><span>${c.ok ? "<i data-lucide='circle-check' aria-hidden='true'></i>" : "<i data-lucide='triangle-alert' aria-hidden='true'></i>"}</span><div class="grow">${esc(humanDates(c.check))}
+            <div class="tiny muted">${esc(humanDates(c.note || ""))}${c.time != null ? ` · frame at ${c.time.toFixed(1)} s` : ""}</div></div></div>`).join("")}</div>
           ${d.result.caption ? `<p class="small muted">Caption: ${esc(d.result.caption)}</p>` : ""}
           ${aiDraftHtml(d.result.ai && { ...d.result.ai, gaps: d.result.gaps || [] }, brand)}`;
         const aiBad = d.result.ai && d.result.ai.decision === "not_allowed";
@@ -40,12 +48,16 @@ const Work = (() => {
           ${w.silent_approval_days ? `<p class="hint">If you don't review within ${w.silent_approval_days} days, the draft counts as approved (agreed at acceptance).</p>` : ""}`;
       } else if (!brand) h += `<p class="small muted">Upload the draft video: Amend takes 6–8 still frames in your browser and checks them against the brief.</p>`;
       else h += `<p class="small muted">Waiting for ${esc(first())}'s draft.</p>`;
-   if (!brand && w.status === "in_progress") h += `<div class="stack" style="margin-top:8px"><textarea id="w-caption" placeholder="Caption (include #ad)" style="min-height:60px"></textarea>
+   if (!brand && w.status === "in_progress") h += `<div class="stack" style="margin-top:8px">
+          <label for="w-caption">Caption <span class="muted">(started from the brief: edit it freely)</span></label>
+          <textarea id="w-caption" placeholder="Caption (start with #ad)" style="min-height:60px">${esc(captionValue(w))}</textarea>
+          <button class="btn ${d ? "" : "primary"} block" id="w-choose">${icon("film")} ${d ? "Choose a new draft video" : "Choose the draft video"}</button><input type="file" id="w-file" accept="video/*" hidden>
+          <div class="small" id="w-chosen" hidden></div>
           <label for="w-aidecl">AI used in this draft? <span class="muted">(required · the deal says: ${esc((w.ai_rule || {}).label || "allowed if labelled")})</span></label>
           <select id="w-aidecl"><option value="">Choose…</option><option value="none">No AI used</option><option value="edited">Edited with AI</option><option value="generated">Generated with AI</option></select>
-          <div class="hint">Amend also reads the file's Content Credentials in your browser (nothing else is uploaded). No credential doesn't prove a file is real; your answer counts.</div>
-          <button class="btn ${d ? "" : "primary"} block" id="w-upload">${d ? "Upload a new draft" : "Upload draft video"}</button><input type="file" id="w-file" accept="video/*" hidden>
-          <div class="hint">Requirements: ${w.requirements.map(esc).join(" · ")}</div></div>`;
+          <div class="hint" id="w-cred-note">Amend reads the file's Content Credentials in your browser as soon as you choose it (nothing else is uploaded). No credential doesn't prove a file is real; your answer counts.</div>
+          <button class="btn primary block" id="w-upload" disabled>${d ? "Upload and check the new draft" : "Upload and check"}</button>
+          <div class="hint">Requirements: ${w.requirements.map(r => esc(humanDates(r))).join(" · ")}</div></div>`;
       parts.push(h + `</div>`);
     }
     // posting
@@ -339,22 +351,41 @@ const Work = (() => {
       go(b, () => api(ctx.url("/draft/approve"), b.dataset.aiConflict ? { body: { accept_ai_conflict: true } } : { method: "POST" }), "Draft approved");
     });
   on("w-feedback", () => { const i = $("#chat-in"); if (i) { i.focus(); i.placeholder = "What should change? e.g. “Brighter colours” or “Can you also show the kitchen?”"; } });
-    on("w-upload", () => $("#w-file", el).click());
-    const f = $("#w-file", el);
+    const cap = $("#w-caption", el);
+    if (cap) cap.oninput = () => { try { localStorage.setItem(capKey(), cap.value); } catch (e) { /* not kept: fine */ } };
+    // choose → read the Content Credentials at once → pre-select only when a credential says AI → she confirms or changes
+    let chosen = null, cred = null, detected = null;
+    on("w-choose", () => $("#w-file", el).click());
+    const f = $("#w-file", el), sel = $("#w-aidecl", el), note = $("#w-cred-note", el), up = $("#w-upload", el);
+    const LBL = { none: "No AI used", edited: "Edited with AI", generated: "Generated with AI" };
+    if (sel) sel.onchange = () => {
+      if (detected && sel.value && sel.value !== detected)
+        note.innerHTML = `${icon("triangle-alert")} You changed the file's answer (${esc(LBL[detected])} → ${esc(LBL[sel.value])}). That's fine if you know better: it is recorded as a mismatch, and both of you see it.`;
+      else if (detected) note.textContent = window.C2PARead.suggest(cred).text;
+    };
     if (f) f.onchange = async () => {
       const file = f.files[0]; f.value = ""; if (!file) return;
-      const b = $("#w-upload", el);
-      await busy(b, async () => {
-        try {
-          const decl = $("#w-aidecl", el).value;
-          if (!decl) throw new Error("Say whether AI was used in this draft first.");
-          const c2pa = window.C2PARead ? await window.C2PARead.read(file) : { read: "unsupported" };
-          const frames = await extractFrames(file, 7);
-          await api(ctx.url("/draft"), { body: { frames, caption: $("#w-caption", el).value, ai_declared: decl, c2pa } });
-     toast("Draft uploaded and checked"); ctx.reload();
-    } catch (e) { toast(e.message || "Couldn't read that video", "bad"); }
-      });
+      chosen = file; cred = null; detected = null; up.disabled = true;
+      const ch = $("#w-chosen", el); ch.hidden = false; ch.textContent = `Chosen: ${file.name}. Reading its Content Credentials…`;
+      cred = window.C2PARead ? await window.C2PARead.read(file) : { read: "unsupported" };
+      const sg = window.C2PARead ? window.C2PARead.suggest(cred) : { declared: null, text: "Couldn't read the file's Content Credentials in this browser, so please tell us." };
+      detected = sg.declared;
+      if (detected) sel.value = detected;
+      note.innerHTML = `${detected ? icon("scan-search") + " " : ""}${esc(sg.text)}`;
+      ch.textContent = `Chosen: ${file.name}`;
+      up.disabled = false;
     };
+    if (up) up.onclick = () => busy(up, async () => {
+      try {
+        if (!chosen) throw new Error("Choose the draft video first.");
+        const decl = sel.value;
+        if (!decl) throw new Error("Say whether AI was used in this draft first.");
+        const frames = await extractFrames(chosen, 7);
+        await api(ctx.url("/draft"), { body: { frames, caption: cap.value, ai_declared: decl, c2pa: cred || { read: "unsupported" },
+          ...(detected ? { ai_detected: detected } : {}) } });
+        toast("Draft uploaded and checked"); ctx.reload();
+      } catch (e) { toast(e.message || "Couldn't read that video", "bad"); }
+    });
     on("w-post", b => go(b, () => api(ctx.url("/post"), { body: { post_url: $("#w-url", el).value, posted_on: $("#w-date", el).value, caption: $("#w-pcap", el).value,
       ...($("#w-ig", el) ? { ig_handle: $("#w-ig", el).value } : {}),
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));

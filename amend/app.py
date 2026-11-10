@@ -1659,6 +1659,7 @@ def _work(deal_id: str) -> dict:
     review = d.one("select rating, text, at from reviews where deal_id = :d", {"d": deal_id})
     return {"status": deal["status"], "draft": draft, "post": post, "gaps_open": len(delivery.open_gaps(d, deal_id)),
             "release": delivery.release_view(d, deal_id), "requirements": delivery.requirements(deal),
+            "caption_suggestion": delivery.caption_suggestion(deal),
             "verdict": _verdict_out(verdict.issue(d, deal_id)),
             "results": _ig_safe(lambda: igdata.results(d, deal)) if post else None,
             "competitor": _ig_safe(lambda: igdata.competitor_flags(d, deal)),
@@ -1991,6 +1992,7 @@ class DraftIn(BaseModel):
     caption: str = Field("", max_length=2200)
     ai_declared: str = Field(pattern="^(none|edited|generated)$")  # required: "AI used: none / edited / generated"
     c2pa: C2paIn | None = None  # read in her browser from the file itself
+    ai_detected: str | None = Field(None, pattern="^(none|edited|generated)$")  # the answer pre-selected from the credential
 
 
 @app.post("/api/deals/{deal_id}/draft")
@@ -2009,7 +2011,8 @@ async def creator_draft(deal_id: str, body: DraftIn, c: dict = Depends(require_c
         checks = [{"check": "AI check", "ok": False, "frame": None, "time": None, "note": "Couldn't check the frames right now; the brand reviews by eye."}]
     delivery.set_draft_result(get_db(), dv["id"], checks)
     from amend import aicontent
-    aicontent.record_draft(get_db(), deal, dv["id"], pid, body.ai_declared, body.c2pa.model_dump() if body.c2pa else None)
+    aicontent.record_draft(get_db(), deal, dv["id"], pid, body.ai_declared, body.c2pa.model_dump() if body.c2pa else None,
+                           detected=body.ai_detected)
     changes.post_message(get_db(), deal_id, pid, f"Draft uploaded ({len(frames)} frames). Please review.", kind="text")
     return _work(deal_id)
 

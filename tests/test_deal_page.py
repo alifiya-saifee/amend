@@ -93,7 +93,7 @@ def test_history_names_money_events(history):
 
 needs_node = pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
 STUBS = """const esc = s => String(s); const usd = c => "$" + c / 100; const icon = n => n; const dateStr = s => s.slice(0, 10);
-const fmtDate = s => s.slice(0, 10);"""
+const fmtDate = s => s.slice(0, 10); const humanDates = s => s;"""
 
 
 def js(names, setup, expr):
