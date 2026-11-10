@@ -659,3 +659,21 @@ Alifiya deployed 95546b3. Tiers (cc3567b), team splits (aece432) and settle (0c8
   honour period ended and 23 release tests failed (the code correctly re-authorises). b7e0172 was pushed in that
   window because the check piped into `tail`; the app code was unchanged and the run before it passed. Tests and the
   local fake now use a hold authorised an hour ago; pushes now check the result first. 772 passed.
+
+## Settlement team split, stuck revision, usage extensions (10 Nov)
+Alifiya deployed 0c83a2d. The test creator (item 1) was already in 1a34161 (start-up clears @clinicrobotest on Sara).
+- **Settlement:** `team.plan_payouts` (shared with the release) pays her part + team shares in one batch; receipts
+  and the refund rule as at release; no holdback. "Stuck revision" = the draft isn't approved and the deal's included
+  revision rounds (from her price list rules) are used up (`settle.included_revisions`).
+- **Usage extension** (`usage.offer` / `usage.confirm`, table `usage_extensions`): from 7 days before the end, the brand
+  taps "Extend 30 days" → price = the deal's usage rate per month (code) → a fact (the brand's tap, quoted) + a hold
+  (`usage:hold`, the extra-hold banner "The usage extension needs $150 held") → the creator confirms → live GET →
+  capture (final_capture) → her + team payouts (one batch when there's a team; no holdback) → usage_end + 30 days.
+  The brand's approval for the capture is its own tap and PayPal hold (`approval.via_extend` in the chain). The old
+  end-date change card is gone; at the end with no extension, "Usage ended <date>: stop running ads." (chat + both
+  sides' alerts + a banner). "Still being used after <date>" asks the brand to extend.
+- **Tests: 776 passed, 3 skipped.** test_settle (+2), test_usage rewritten (6). Browser `usage_flow.py`: problems
+  none; shots in `docs/screenshots/usage/`.
+- Not started: sales commission and the passkey mandate (both waited on a clean real run): README "Next".
+- AI content check: not started; see the questions in the report (C2PA needs the original file, which never reaches
+  the server today; and whether Instagram's API exposes the AI label needs checking).

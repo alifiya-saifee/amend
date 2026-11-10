@@ -99,12 +99,18 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **Usage-rights extensions, end to end.** 7 days before the usage rights end, both are told. The brand taps
+  "Extend 30 days": the price is the creator's usage rate from the deal (code). The brand holds it with PayPal, the
+  creator confirms, and PayPal collects it (`final_capture`) and pays her and her team (the deal's team split, one
+  Payouts batch). The end date moves 30 days, all in the receipt chain. Not extended: both see "Usage ended <date>:
+  stop running ads."
 - **Settle before a dispute.** On a deal with an open delivery gap or a stuck revision, either side can propose a
   settlement instead of going to PayPal. The AI summarises each side's position, quoting only that side's own words
   (anything else is dropped); it sets no money. Code proposes the split from what was delivered against the latest
   confirmed version (e.g. Reel delivered $450 to the creator, Story set not delivered $80 back). Both tap Confirm on
   that exact proposal; it never executes on silence. Then PayPal collects the creator's part with `final_capture`
-  (the rest goes back), voids any hold not needed, and pays the creator.
+  (the rest goes back), voids any hold not needed, and pays the creator and her team (the deal's team split). A
+  "stuck revision" means the deal's included revision rounds are used up.
 - **Team splits in one Payouts batch.** The creator adds up to 4 people (role, PayPal email, share % of her payout,
   at most 50% in all) and picks the refund rule upfront: "I cover refunds" (default) or "shared by share". At release,
   one PayPal Payouts batch pays her and the team, with a `sender_item_id` per person (in the receipt chain). Each item
@@ -161,7 +167,7 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   logged, no secret printed), and the fingerprint above won't match. Make a key with `python -m scripts.verdict_key`:
   it writes the seed to a private file and prints only the public key and fingerprint.
 - Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
-- A settlement pays the creator her delivered part directly: no holdback and no team split on that money.
+- A settlement and a usage extension keep no holdback (a holdback protects "the post stays live"; neither is a post).
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without
   pre-approvals and confirm each change live.
@@ -268,9 +274,12 @@ Not in yet, and why:
   account.*
 - **Tax and VAT documents** (UAE VAT invoices, the creator's tax details on statements). *They need rules per country
   and a reviewed invoice format; a wrong tax document is worse than none.*
-- **Collecting usage extensions:** charging the brand when content is used past the usage-rights end. *Amend sees the
-  end date and opens an extension card, but proving use (ads libraries, reposts) isn't reliable yet, and AI must never
-  set the price.*
+- **Proving use after the usage rights end** (ads libraries, reposts). *Extensions are built, but only when the brand
+  asks or the creator flags it; detecting use automatically isn't reliable yet.*
+- **Sales commission verified by PayPal** (a creator paid a % of sales from her link or code). *It needs the brand's
+  sales data from PayPal or the shop, and a real sandbox run with the brand side; not started before the freeze.*
+- **A passkey-signed mandate** (WebAuthn, Face ID / Touch ID, challenge = the mandate hash). *The Ed25519 device key
+  signs it today; the passkey version waits for a clean real run first.*
 - **Multi-platform tracking** (TikTok, YouTube, Snapchat). *Each needs its own app review and API; Instagram first.*
 - Retainers with a monthly PayPal hold. *PayPal holds last 29 days, so a retainer needs a new hold each month.*
 - Results reports at 7 and 30 days for creators who aren't connected. *Insights need the creator's own Instagram

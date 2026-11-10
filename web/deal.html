@@ -226,7 +226,10 @@ function render() {
   };
   // bound after panel(): the desktop copy of the usage line lives in the side panel, drawn after the room
   $$("[data-usage-extend]").forEach(b => b.onclick = () => busy(b, async () => {
-    try { V = await api(url("/usage/extend"), { body: {} }); render(); toast("Extension card sent to the brand"); } catch (er) { toast(friendlyError(er), "bad"); } }));
+    try { const r = await api(url("/usage/extend"), { body: {} }); V = r && r.deal ? r : await api(url()); render();
+      toast(IS_BRAND ? "Extension asked: hold it with PayPal next" : "Asked the brand to extend"); } catch (er) { toast(friendlyError(er), "bad"); } }));
+  $$("[data-usage-confirm]").forEach(b => b.onclick = () => busy(b, async () => {
+    try { await api(url("/usage/confirm"), { body: {} }); V = await api(url()); render(); toast("Extended: PayPal collected and paid"); } catch (er) { toast(friendlyError(er), "bad"); } }));
   $$("[data-refund]").forEach(b => b.onclick = () => busy(b, async () => {
     try { V = await api(url(`/refunds/${b.dataset.refund}/approve`), { body: {} }); render(); toast("Refund sent through PayPal"); }
     catch (e) { toast(e.message, "bad"); }
@@ -263,7 +266,7 @@ function activeRoom(d) {
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${disputeBanner()}${banner}
     ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">${holdNote()} Nothing is collected until the delivery matches the deal.</p>` : ""}
-    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">${pendingHolds.every(h => String(h.change || "").startsWith("bonus:")) ? `The agreed performance bonus needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : `A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.`}
+    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">${pendingHolds.every(h => String(h.change || "").startsWith("usage:")) ? `The usage extension needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : pendingHolds.every(h => String(h.change || "").startsWith("bonus:")) ? `The agreed performance bonus needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : `A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.`}
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     ${nextStepHtml(d, pendingHolds)}
     <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
@@ -669,9 +672,15 @@ function spineHtml(S) {
 function usageHtml() {
   const u = V.usage;
   if (!u || !u.end) return u ? `<p class="small muted" style="margin-top:8px">${icon("clock")} Usage rights: ${u.months} month${u.months === 1 ? "" : "s"}, counted from the post date.</p>` : "";
+  const x = u.extension, waiting = x && ["offered", "held"].includes(x.status), held = waiting && x.hold && x.hold.status === "authorized";
   return `<div class="usage-line small" style="margin-top:8px">${icon("clock")} <span>Usage rights ${u.ended ? "ended" : "end"} <b>${esc(u.end_label)}</b> (${u.months} month${u.months === 1 ? "" : "s"} from the post)</span>
-    ${!IS_BRAND && u.ended && !u.extension_open ? `<button class="btn small" data-usage-extend>Still being used after ${esc(u.end_label)}</button>` : ""}
-    ${u.extension_open ? `<span class="pill waiting">Extension card open</span>` : ""}</div>`;
+    ${IS_BRAND && V.me.role === "brand_main" && u.can_extend && !waiting && u.rate_cents ? `<button class="btn small primary" data-usage-extend>Extend ${u.extend_days} days for ${usd(u.rate_cents)}</button>` : ""}
+    ${!IS_BRAND && u.ended && !waiting ? `<button class="btn small" data-usage-extend>Still being used after ${esc(u.end_label)}</button>` : ""}
+    ${!IS_BRAND && held ? `<button class="btn small primary" data-usage-confirm>Confirm the extension (+${x.days} days, ${usd(x.cents)})</button>` : ""}
+    ${waiting && !held ? `<span class="pill waiting">Extension: waiting for the brand's PayPal hold</span>` : ""}
+    ${IS_BRAND && held ? `<span class="pill held">Extension held · waiting for ${esc(V.creator.name.split(" ")[0])} to confirm</span>` : ""}
+    ${x && x.status === "paid" && !u.ended ? `<span class="pill collected">Extended ${x.days} days</span>` : ""}</div>
+    ${u.stop_ads && !waiting ? `<div class="banner bad small" style="margin-top:6px">${icon("octagon-x")} <b>${esc(u.stop_ads)}</b></div>` : ""}`;
 }
 // Lifecycle 1: a PayPal dispute is shown to both sides with PayPal's reason; the creator can send the proof (once).
 function disputeBanner() {

@@ -2197,6 +2197,32 @@ def creator_resume(deal_id: str, c: dict = Depends(require_creator)):
     return studio_deal(deal_id, c)
 
 
+@app.post("/api/d/{token}/usage/extend")
+def brand_usage_extend(token: str, request: Request):
+    """The brand taps "Extend 30 days": priced from her usage rate; then the brand holds it with PayPal."""
+    from amend import usage
+    deal, pid = _brand_ctx(token)
+    try:
+        usage.offer(get_db(), deal, pid)
+    except usage.UsageError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    return brand_deal(token, request)
+
+
+@app.post("/api/deals/{deal_id}/usage/confirm")
+async def creator_usage_confirm(deal_id: str, c: dict = Depends(require_creator)):
+    """The creator confirms the extension: PayPal collects the hold and pays her and her team."""
+    from amend import usage
+    deal, pid = _creator_ctx(deal_id, c)
+    try:
+        await usage.confirm(get_db(), rail(), deal, pid)
+    except usage.UsageError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    except (money.ApprovalError, PayPalError) as e:
+        raise HTTPException(400, "PayPal couldn't finish the extension right now. Nothing was taken twice; try again.") from e
+    return studio_deal(deal_id, c)
+
+
 @app.post("/api/deals/{deal_id}/usage/extend")
 def creator_usage_extend(deal_id: str, c: dict = Depends(require_creator)):
     """Lifecycle 2: "Still being used after <date>" → the same Extend usage card, priced from her list."""
