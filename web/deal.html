@@ -268,7 +268,7 @@ function activeRoom(d) {
     ${nextStepHtml(d, pendingHolds)}
     <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
     <div class="rt" data-tab="terms"><div class="card hide-desktop" style="margin-top:12px"><h2>The deal · Version ${d.version}</h2>${linesHtml()}${extrasHtml()}</div></div>
-    <div class="rt" data-tab="money"><div class="hide-desktop" style="margin-top:12px">${moneyCardHtml()}</div></div>
+    <div class="rt" data-tab="money"><div class="hide-desktop" style="margin-top:12px">${moneyCardHtml()}<div class="spine-slot" style="margin-top:12px"></div></div></div>
     <div class="rt" data-tab="delivery">${shipHtml()}<div class="hide-desktop" style="margin-top:12px">${checklistHtml(d)}</div><div id="work" style="margin-top:12px"></div></div>
     <div class="rt" data-tab="chat"><div id="chat" style="margin-top:12px"></div><div id="cancelbox"></div></div>
     <div class="rt" data-tab="history"><div class="hide-desktop" style="margin-top:12px">${historyHtml()}${IS_BRAND ? alertsHtml() : ""}</div></div>
@@ -476,12 +476,51 @@ function panel() {
     <div class="card"><div class="row between"><h3>The deal</h3>${dealPill(V.deal.status)}</div>
       ${V.terms.length ? linesHtml() + extrasHtml() : `<p class="muted small">No lines yet. They appear when the brief is priced.</p>`}</div>
     <div style="margin-top:14px">${moneyCardHtml()}</div>
+    <div class="spine-slot" style="margin-top:14px"></div>
     ${["accepted", "in_progress", "delivered", "completed", "paused"].includes(V.deal.status) ? `<div style="margin-top:14px">${checklistHtml(V.deal)}</div>` : ""}
     <div class="card" style="margin-top:14px"><h3>History</h3>
       <ul class="events">${ev.map(e => `<li><span class="grow">${esc(e.text || EVENT_TEXT[e.type])}</span><span class="tiny muted">${ago(e.at)}</span></li>`).join("") || '<li class="muted">Nothing yet.</li>'}</ul></div>
     ${IS_BRAND ? alertsHtml() : ""}`;
   bindQuotes($("#panel"));
   bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
+  loadSpine();
+}
+/* ---------- PayPal spine: the PayPal objects behind each version, the hold clock, the headroom meter ---------- */
+let SPINE = null;
+async function loadSpine(refresh = false) {
+  const slots = $$(".spine-slot");
+  if (!slots.length || !(V.money || []).length) { slots.forEach(s => s.innerHTML = ""); return; }
+  try { SPINE = await api(url(refresh ? "/spine/refresh" : "/spine"), refresh ? { method: "POST" } : undefined); }
+  catch (e) { if (refresh) toast(friendlyError(e), "bad"); if (!SPINE) return; }
+  $$(".spine-slot").forEach(s => { s.innerHTML = spineHtml(SPINE); });
+  $$("[data-spine-refresh]").forEach(b => b.onclick = () => busy(b, () => loadSpine(true)));
+}
+function spineHtml(S) {
+  const ago2 = t => t ? ago(t) : "";
+  const obj = o => `<div class="sp-obj"><span class="sp-type">${esc(o.type)}</span> <code>${esc(o.id)}</code>
+    ${o.seen ? `<span class="pill ${/COMPLETED|CAPTURED|SUCCESS|CREATED|RESOLVED/.test(o.seen.status || "") ? "collected" : "held"}">${esc(o.seen.status || "?")}</span>
+      <span class="tiny muted">${o.seen.source === "webhook" ? "PayPal webhook" : o.seen.source === "get" ? "checked at PayPal" : "PayPal response"} · ${ago2(o.seen.at)}</span>`
+      : String(o.id).startsWith("DEMO") ? '<span class="tiny muted">demo history</span>' : '<span class="tiny muted">not checked yet</span>'}</div>`;
+  const C = S.clock, H = S.headroom, M = S.mandate;
+  const pct = (a, b) => Math.max(0, Math.min(100, Math.round(100 * a / Math.max(b, 1))));
+  return `<div class="card spine"><div class="row between"><h3>${icon("route")} PayPal spine</h3>
+      <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div>
+    <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
+      <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>
+    ${C ? `<div class="sp-clock"><b>Hold day ${C.day} of ${C.of}</b> · ${C.in_honour ? `PayPal honour period until ${esc(fmtDate(C.honour_until))}`
+      : "honour period over: Amend re-authorises once, automatically, before collecting"} · expires ${esc(fmtDate(C.expires_at))}
+      <div class="meter" aria-hidden="true"><span style="width:${pct(C.day, C.of)}%"></span></div></div>` : ""}
+    ${H ? `<div class="sp-head"><b>Headroom</b> · held ${usd(H.held_cents)} for a ${usd(H.deal_total_cents)} deal${H.spare_cents ? ` (${usd(H.spare_cents)} spare)` : ""}
+      · PayPal headroom on the ${usd(H.hold_cents)} hold: +${usd(H.headroom_cents).slice(1)} (115% or +$75, whichever is less), so up to ${usd(H.ceiling_cents)} in all
+      <div class="meter two" aria-hidden="true"><span style="width:${pct(H.deal_total_cents, H.ceiling_cents)}%"></span><i style="left:${pct(H.held_cents, H.ceiling_cents)}%"></i></div>
+      <div class="tiny muted">${H.overcapture_on ? "A change inside the headroom comes out of this hold." : "Amend uses only what is held: a change beyond it needs a new PayPal approval from the brand."}</div></div>` : ""}
+    ${M ? `<div class="sp-mandate"><b>${icon("pen-line")} Brand mandate</b> <code>${esc(M.hash.slice(0, 12))}…</code> · cap ${usd(M.cap_cents)} · until ${esc(fmtDate(M.expires_at))} · ${esc(M.status)}
+      <ul class="tiny">${(M.conditions || []).map(c => `<li>${esc(c.label || c.type)}</li>`).join("")}</ul></div>` : ""}
+    ${S.versions.map(v => `<div class="sp-ver"><div class="tiny muted">Version ${v.version}</div>${v.lines.map(l => `
+      <div class="sp-line"><div class="row between"><span>${esc(l.step)}</span><b>${usd(l.amount_cents)}</b></div>
+        ${l.objects.map(obj).join("")}${l.custom_id ? `<div class="tiny muted">custom_id <code>${esc(l.custom_id)}</code></div>` : ""}</div>`).join("")}</div>`).join("")}
+    ${S.dispute ? `<div class="sp-ver"><div class="tiny muted">PayPal dispute</div>${obj({ type: "Dispute", id: S.dispute.paypal_dispute_id, seen: S.dispute.seen || { status: S.dispute.status, source: "webhook" } })}
+      ${S.dispute.outcome ? `<div class="small">Outcome: <b>${esc(S.dispute.outcome)}</b></div>` : ""}</div>` : ""}</div>`;
 }
 // Lifecycle 2: the usage-rights clock (from the post date, for the months agreed)
 function usageHtml() {

@@ -156,6 +156,12 @@ create table if not exists ig_lookups (
   handle text primary key, json text not null, fetched_at text not null);
 create table if not exists ig_lookup_calls (
   id text primary key, account_id text not null, handle text not null, at text not null);
+create table if not exists paypal_seen (
+  paypal_id text primary key, item_id text, deal_id text, kind text not null, status text, source text not null, at text not null);
+create table if not exists mandates (
+  id text primary key, deal_id text not null references deals(id), hold_item_id text, body text not null, hash text not null,
+  sig text not null, pub text not null, cap_cents integer not null, expires_at text not null, status text not null,
+  created_at text not null);
 create table if not exists price_offers (
   id text primary key, deal_id text not null references deals(id), term_id text not null, side text not null,
   party_id text not null, unit_cents integer not null, note text, status text not null, counter_of text,
@@ -230,8 +236,10 @@ COLUMNS = {
               "is_demo": "integer not null default 0"},
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
-                "delta_cents": "integer not null default 0"},
-    "money_items": {"payee_email": "text", "change_id": "text", "note": "text"},
+                "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
+    "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
+                    "deal_version": "integer", "custom_id": "text", "invoice_id": "text"},  # PayPal spine: version + refs sent
+    "events": {"prev_hash": "text", "hash": "text"},  # receipt chain: each deal event carries the previous one's hash
     "accounts": {"settings_json": "text not null default '{}'"},
     "team_members": {"can_confirm": "integer not null default 0"},
     "messages": {"meta_json": "text not null default '{}'"},

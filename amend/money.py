@@ -149,9 +149,10 @@ def plan_item(db: Database, deal_id: str, kind: str, amount_cents: int, fact_ids
     if unconfirmed:
         raise ApprovalError("only confirmed parties' words can create money (rule 6)")
     item_id = new_id("mi")
+    ver = (db.one("select version from deals where id = :d", {"d": deal_id}) or {}).get("version")
     row = {"id": item_id, "deal_id": deal_id, "kind": str(kind), "status": "planned", "amount_cents": amount_cents,
            "request_id": f"amend-{item_id}", "depends_on_fact_ids": json.dumps(fact_ids),
-           "paypal_parent_id": parent_id, "created_at": now(), "updated_at": now()}
+           "paypal_parent_id": parent_id, "deal_version": ver, "created_at": now(), "updated_at": now()}
     db.insert("money_items", row)
     db.log_event("money.planned", actor=actor, deal_id=deal_id,
                  payload={"item": item_id, "kind": str(kind), "amount_cents": amount_cents, "facts": fact_ids})
@@ -227,10 +228,13 @@ class PlatformRail:
     def __init__(self, client: PayPalClient):
         self.pp = client
 
-    async def start_hold(self, item: dict, approval: dict, *, return_url: str, cancel_url: str, description: str) -> dict:
+    async def start_hold(self, item: dict, approval: dict, *, return_url: str, cancel_url: str, description: str,
+                         refs: dict | None = None) -> dict:
+        refs = refs or {}
         order = await self.pp.create_order(amount_cents=item["amount_cents"], deal_id=item["deal_id"],
                                            return_url=return_url, cancel_url=cancel_url, description=description,
-                                           request_id=item["request_id"], approval=approval)
+                                           request_id=item["request_id"], approval=approval,
+                                           custom_id=refs.get("custom_id"), invoice_id=refs.get("invoice_id"))
         return {"paypal_id": order["id"], "approve_url": approve_link(order), "status": order.get("status")}
 
     async def finish_hold(self, item: dict, approval: dict) -> dict:
@@ -270,8 +274,14 @@ async def start_hold(db: Database, rail: PlatformRail, item_id: str, *, return_u
     approval = approval_record(db, item)
     if not approval:
         raise ApprovalError("no approved approval record for this item")
+    from amend import spine
+    ref = spine.refs(db, item)  # deal, version and receipt hash travel with the PayPal order
+    if not item.get("custom_id"):
+        db.update("money_items", "id", item_id, {"custom_id": ref["custom_id"], "invoice_id": ref["invoice_id"]})
+        item = get_item(db, item_id)
     try:
-        r = await rail.start_hold(item, approval, return_url=return_url, cancel_url=cancel_url, description=description)
+        r = await rail.start_hold(item, approval, return_url=return_url, cancel_url=cancel_url, description=description,
+                                  refs={"custom_id": item["custom_id"], "invoice_id": item["invoice_id"]})
     except PayPalError as e:
         db.log_event("paypal.error", actor=actor, deal_id=item["deal_id"],
                      payload={"item": item_id, "call": "create_order", "error": str(e)})
@@ -312,6 +322,9 @@ async def finish_hold(db: Database, rail: PlatformRail, item_id: str, order_id: 
         if item["status"] == "sent":
             item = _set_status(db, item, "authorized", actor, paypal_parent_id=r["auth_id"],
                                expires_at=r["expires_at"], honor_until=honour_until(r["created_at"]))
+        from amend import spine
+        spine.record_seen(db, r["auth_id"], kind="authorization", status=r["status"], source="response", item_id=item_id,
+                          deal_id=item["deal_id"])
         db.log_event("paypal.called", actor=actor, deal_id=item["deal_id"],
                      payload={"item": item_id, "call": "authorize_order", "authorization": r["auth_id"],
                               "expires_at": r["expires_at"], "request_id": f"{item['request_id']}-auth"},

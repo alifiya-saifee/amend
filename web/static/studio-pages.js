@@ -208,7 +208,7 @@ async function earningsTab(ledgerView = false) {
     <section style="margin-top:16px"><h2>Payout history</h2>
       ${e.rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Brand</th><th>What</th><th class="n">Gross</th><th class="n" title="Paid by Amend, not deducted from you">PayPal fee (Amend pays)</th><th class="n">Editor</th><th class="n">Net to you</th><th>PayPal ID</th><th>Status</th><th></th></tr></thead>
         <tbody>${e.rows.map(r => `<tr><td>${esc(fmtDate(r.date))}</td><td><a href="/studio/deals/${r.deal}">${esc(r.brand)}</a></td><td>${esc(r.part)}</td><td class="n">${dash(r.gross_cents)}</td><td class="n">${dash(r.fee_cents)}</td>
-          <td class="n">${dash(r.editor_cents)}</td><td class="n"><b>${usd(r.net_cents)}</b></td><td class="tiny">${esc(r.paypal_id || "–")}</td>
+          <td class="n">${dash(r.editor_cents)}</td><td class="n"><b>${usd(r.net_cents)}</b></td><td class="tiny">${esc(r.paypal_id || "–")}<div class="muted">${esc(r.step || "")}</div></td>
           <td>${r.status === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${esc(r.status.charAt(0).toUpperCase() + r.status.slice(1))}</span>`}</td>
           <td><a class="btn small ghost" href="/api/deals/${r.deal}/receipt.pdf" aria-label="Receipt PDF">${I("receipt")}</a></td></tr>`).join("")}</tbody></table></div>`
         : emptyState("wallet", "No payouts yet", "When a deal is released, PayPal pays you and it shows up here.")}</section>

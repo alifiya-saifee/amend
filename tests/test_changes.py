@@ -52,7 +52,7 @@ def test_s15_change_card_priced_with_untouched(client, mocks, held):
     assert [l["label"] for l in c["lines"]][0] == "+ 1 Story set (3 frames)"
     assert any("→ Mon 14 Dec" in l["label"] and l["amount_cents"] == 0 for l in c["lines"])
     assert c["untouched"] == 2  # the Reel line and the $530 hold are not touched (the Story line is)
-    assert c["money"] == ["+$80 new hold via PayPal"]
+    assert c["money"] == ["+$80 needs a new PayPal approval from the brand"]
     assert c["brand_ok"] and not c["creator_ok"] and c["conflicts"] == []
 
 

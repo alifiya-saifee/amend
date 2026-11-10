@@ -126,10 +126,12 @@ class PayPalClient:
     # ---- orders ----
     async def create_order(self, *, amount_cents: int, deal_id: str, intent: str = "AUTHORIZE",
                            return_url: str, cancel_url: str, description: str, request_id: str | None,
-                           approval: dict | None) -> dict:
-        body = {"intent": intent, "purchase_units": [{
-                    "amount": {"currency_code": "USD", "value": dollars(amount_cents)},
-                    "custom_id": deal_id, "description": description[:127]}],
+                           approval: dict | None, custom_id: str | None = None, invoice_id: str | None = None) -> dict:
+        unit = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)},
+                "custom_id": (custom_id or deal_id)[:127], "description": description[:127]}
+        if invoice_id:
+            unit["invoice_id"] = invoice_id[:127]
+        body = {"intent": intent, "purchase_units": [unit],
                 "payment_source": {"paypal": {"experience_context": {
                     "brand_name": "Amend (sandbox)", "user_action": "CONTINUE", "shipping_preference": "NO_SHIPPING",
                     "return_url": return_url, "cancel_url": cancel_url}}}}
@@ -215,11 +217,11 @@ class PayPalClient:
 
     # ---- payouts ----
     async def payout(self, *, email: str, amount_cents: int, batch_id: str, note: str, request_id: str | None,
-                     approval: dict | None) -> dict:
+                     approval: dict | None, sender_item_id: str | None = None) -> dict:
         body = {"sender_batch_header": {"sender_batch_id": batch_id[:127], "email_subject": "You've been paid (Amend sandbox)"},
                 "items": [{"recipient_type": "EMAIL", "receiver": email, "note": note[:200],
                            "amount": {"currency": "USD", "value": dollars(amount_cents)},
-                           "sender_item_id": batch_id[:63]}]}
+                           "sender_item_id": (sender_item_id or batch_id)[:63]}]}
         return await self._write("POST", "/v1/payments/payouts", body, request_id=request_id, approval=approval)
 
     async def get_payout(self, batch_id: str) -> dict:

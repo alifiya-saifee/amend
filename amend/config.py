@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     meta_ig_token: SecretStr = SecretStr("")
     meta_ig_user_id: str = ""
     ig_lookup_enabled: bool = False
+    # PayPal lets a seller capture up to 115% of an authorisation or +$75, whichever is less, when the account allows it.
+    # Off until a sandbox probe confirms it for Amend's account: then a change inside that headroom comes out of the
+    # existing hold. If PayPal refuses an over-capture anyway, the extra falls back to a new hold.
+    paypal_overcapture: bool = False
     meta_graph_version: str = "v23.0"
     whatsapp_token: SecretStr = SecretStr("")
     whatsapp_phone_id: str = ""

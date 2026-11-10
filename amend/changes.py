@@ -458,10 +458,13 @@ def card(db: Database, c: dict) -> dict:
     # a hold already made for this change (its own PayPal hold) is named as such, never "no money changes"
     held = sum(h["amount_cents"] for h in db.all("select amount_cents from money_items where change_id = :c and kind = 'hold' "
                                                   "and status in ('authorized', 'paid')", {"c": c["id"]}))
+    from_hold = sum(a["amount_cents"] for a in rip.get("affected", []) if a["action"] == "from_hold")
+    if from_hold:
+        money_line.append(f"+{money.fmt_usd(from_hold)} comes out of the existing PayPal hold")
     if held:
         money_line.append(f"+{money.fmt_usd(held)} · held separately")
     elif new_hold:
-        money_line.append(f"+{money.fmt_usd(new_hold)} new hold via PayPal")
+        money_line.append(f"+{money.fmt_usd(new_hold)} needs a new PayPal approval from the brand")
     for a in less:
         money_line.append("release the hold" if a["action"] == "release" else f"collect {money.fmt_usd(c['delta_cents'] * -1)} less at delivery")
     for a in refunds:

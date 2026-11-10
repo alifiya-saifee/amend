@@ -68,6 +68,10 @@ with sync_playwright() as p:
             check("Money status changed" not in t, f"{where}: 'Money status changed'")
             check("held separately" in t, f"{where}: change card doesn't say held separately")
             check("no money changes" not in t, f"{where}: 'no money changes'")
+            pg.wait_for_function("document.querySelectorAll('.spine').length > 0", timeout=10000)
+            sp = pg.evaluate("[...document.querySelectorAll('.spine')].map(e => e.textContent).join(' ')")
+            check("PayPal spine" in sp and "Hold day" in sp and "Headroom" in sp and "Version 2" in sp, f"{where}: spine panel incomplete")
+            check("PayPal Orders · authorized (held)" in sp, f"{where}: spine step label missing")
             check(pg.evaluate("document.documentElement.scrollWidth") <= w, f"{where}: sideways scroll")
             pg.screenshot(path=str(OUT / f"{role}-{w}.png"), full_page=True)
             if w == 390:  # each mobile tab

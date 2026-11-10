@@ -94,7 +94,9 @@ def test_s1_happy_path(client, mocks):
     assert p.status_code == 200, p.text
     assert p.json()["approve_url"].startswith("https://www.sandbox.paypal.com/")
     req = mocks.order.calls.last.request
-    assert json.loads(req.content)["purchase_units"][0]["custom_id"] == deal
+    unit = json.loads(req.content)["purchase_units"][0]
+    assert re.fullmatch(rf"amend:{deal}:v1:[0-9a-f]{{16}}", unit["custom_id"]) and len(unit["custom_id"]) <= 127
+    assert unit["invoice_id"].startswith(f"AMEND-{deal}-v1-") and len(unit["invoice_id"]) <= 127
     assert req.headers["PayPal-Request-Id"].startswith("amend-mi_")
     back = client.get(f"/paypal/return?t={tok}&token=ORDER1", follow_redirects=False)
     assert back.status_code == 303 and back.headers["location"].endswith("?held=1")

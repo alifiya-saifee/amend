@@ -275,13 +275,19 @@ def plan_release(db: Database, deal: dict) -> dict:
     deal = get_deal(db, deal["id"])
     total = deal["total_cents"]
     holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
-    held = sum(h["amount_cents"] - h["captured_cents"] for h in holds)
+    room = {h["id"]: h["amount_cents"] - h["captured_cents"] for h in holds}
+    from amend import spine
+    from amend.config import get_settings
+    main = next((h for h in holds if not h.get("change_id")), holds[0] if holds else None)
+    if main and get_settings().paypal_overcapture and sum(room.values()) < total:  # PayPal headroom on the main hold
+        room[main["id"]] += min(spine.headroom_cents(main["amount_cents"]), total - sum(room.values()))
+    held = sum(room.values())
     if held < total:
         raise DeliveryError(f"only {money.fmt_usd(held)} is held but the deal is {money.fmt_usd(total)}: the brand needs to hold the rest")
     facts = list({f for h in holds for f in json.loads(h["depends_on_fact_ids"])})
     left = total
     for h in holds:
-        take = min(h["amount_cents"] - h["captured_cents"], left)
+        take = min(room[h["id"]], left)
         if take <= 0:
             continue
         it = money.plan_item(db, deal["id"], "capture", take, facts, actor="system", parent_id=h["paypal_parent_id"])
@@ -420,6 +426,9 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
             money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
             db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "capture", "error": str(e)[:200]})
             raise
+        from amend import spine
+        spine.record_seen(db, cap.get("id"), kind="capture", status=cap.get("status"), source="response", item_id=it["id"],
+                          deal_id=deal["id"])
         fee = ((cap.get("seller_receivable_breakdown") or {}).get("paypal_fee") or {}).get("value")
         money._set_status(db, money.get_item(db, it["id"]), "paid", actor, paypal_id=cap.get("id"), fee_cents=to_cents(fee) if fee else 0)
         if hold:
@@ -454,15 +463,21 @@ async def _payout(db: Database, pp, it: dict, deal: dict, actor: str) -> None:
         email = get_settings().sandbox_creator_email
     if it["status"] == "approved":
         money._set_status(db, it, "sent", actor)
+    from amend import spine
+    ref = spine.refs(db, it)  # deal + version in the payout item, so PayPal's record leads back to the deal
+    if not it.get("custom_id"):
+        db.update("money_items", "id", it["id"], {"custom_id": ref["sender_item_id"]})
     try:
-        r = await pp.payout(email=email, amount_cents=it["amount_cents"], batch_id=it["request_id"], note=f"Amend deal {deal['id']}",
-                            request_id=it["request_id"], approval=approval)
+        r = await pp.payout(email=email, amount_cents=it["amount_cents"], batch_id=it["request_id"], note=f"Amend deal {deal['id']} v{ref['version']}",
+                            request_id=it["request_id"], approval=approval, sender_item_id=ref["sender_item_id"])
     except PayPalError as e:
         money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
         db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "payout", "error": str(e)[:200]})
         raise
     batch = (r.get("batch_header") or {}).get("payout_batch_id")
     money._set_status(db, money.get_item(db, it["id"]), "paid", actor, paypal_id=batch)
+    spine.record_seen(db, batch, kind="payout", status=(r.get("batch_header") or {}).get("batch_status"), source="response",
+                      item_id=it["id"], deal_id=deal["id"])
     db.log_event("paypal.called", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "payout", "batch": batch})
 
 

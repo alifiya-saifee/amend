@@ -117,7 +117,7 @@ def price(item: dict, qty: int = 1, *, notice_hours: float | None = None, revisi
 class RippleLine:
     money_item: str
     status: str
-    action: str          # update | collect_less | release | new_hold | refund_proposal | wait | none
+    action: str          # update | collect_less | release | new_hold | from_hold | refund_proposal | wait | none
     amount_cents: int = 0
     why: str = ""
 
@@ -185,7 +185,24 @@ def ripple(db: Database, deal_id: str, changes: list[dict]) -> Ripple:
             decrease = 0  # the decrease is applied once, to the first open item
 
     if increase:
-        out.new_holds.append(RippleLine("", "planned", "new_hold", increase, "more money: a new hold for the difference"))
+        # PayPal spine: money already held beyond the deal total covers the increase first ("comes out of the existing
+        # hold"); with over-capture switched on, PayPal's headroom on the main hold (115% or +$75) covers more. Anything
+        # left needs a new PayPal approval from the brand.
+        from amend import spine
+        from amend.config import get_settings
+        deal_total = (db.one("select total_cents from deals where id = :d", {"d": deal_id}) or {}).get("total_cents") or 0
+        live = [i for i in items if i["status"] == "authorized"]
+        held = sum(i["amount_cents"] - i["captured_cents"] for i in live)
+        room = max(0, held - deal_total)
+        main = next((i for i in live if not i.get("change_id")), live[0] if live else None)
+        if main and get_settings().paypal_overcapture:
+            room += spine.headroom_cents(main["amount_cents"])
+        covered = min(room, increase)
+        if covered and main:
+            out.affected.append(RippleLine(main["id"], "authorized", "from_hold", covered, "comes out of the existing PayPal hold"))
+        if increase - covered > 0:
+            out.new_holds.append(RippleLine("", "planned", "new_hold", increase - covered,
+                                            "needs a new PayPal approval from the brand for the difference"))
 
     term_facts = changed_facts | {c["term_fact_id"] for c in changes if c.get("term_fact_id")}
     changed_terms = {t["id"] for t in terms if t.get("fact_id") in term_facts}

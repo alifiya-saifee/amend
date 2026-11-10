@@ -598,3 +598,19 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .offer { background: var(--gold-soft); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 .offer.ok { background: transparent; padding: 0; display: flex; align-items: center; gap: 6px; }
 .offer.ok svg { width: 16px; height: 16px; }
+
+/* PayPal spine panel */
+.spine h3 { display: flex; align-items: center; gap: 6px; }
+.spine h3 svg { width: 18px; height: 18px; color: var(--gold-ink); }
+.spine code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+.sp-clock, .sp-head, .sp-mandate { font-size: 13px; padding: 10px 0; border-top: 1px solid var(--border); }
+.sp-mandate ul { margin: 6px 0 0; padding-left: 18px; }
+.sp-mandate svg { width: 15px; height: 15px; vertical-align: -2px; }
+.meter { position: relative; height: 6px; border-radius: 6px; background: var(--surface-2); margin-top: 6px; overflow: visible; }
+.meter > span { display: block; height: 100%; border-radius: 6px; background: var(--gold); }
+.meter.two > i { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--text); opacity: .6; }
+.sp-ver { border-top: 1px solid var(--border); padding: 10px 0 4px; }
+.sp-line { padding: 6px 0; font-size: 13px; }
+.sp-line + .sp-line { border-top: 1px dashed var(--border); }
+.sp-obj { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; }
+.sp-type { color: var(--muted); }

@@ -183,7 +183,7 @@ def earnings(db: Database, creator_id: str) -> dict:
                          "gross_cents": gross - refunds if n == 0 else None, "fee_cents": fee if n == 0 else None,
                          "editor_cents": editor if n == 0 else None,
                          "net_cents": i["amount_cents"] if i["status"] == "paid" else 0, "amount_cents": i["amount_cents"],
-                         "paypal_id": i["paypal_id"], "status": i["status"]})
+                         "paypal_id": i["paypal_id"], "status": i["status"], "step": "PayPal Payouts"})
     rows.sort(key=lambda r: r["date"], reverse=True)
     holdbacks = [{"deal": i["deal_id"], "brand": deals[i["deal_id"]]["brand_org"], "amount_cents": i["amount_cents"],
                   "until": deals[i["deal_id"]].get("holdback_release_at"),

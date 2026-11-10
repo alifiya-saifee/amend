@@ -41,8 +41,26 @@ def _move(db: Database, item: dict | None, new: str, event_id: str, extra: dict 
     return f"{cur} → {new}"
 
 
+def _seen(db: Database, t: str, r: dict) -> None:
+    """The PayPal spine: remember what this verified webhook says about the object (source = webhook)."""
+    from amend import spine
+    if t.startswith("CUSTOMER.DISPUTE."):
+        spine.record_seen(db, r.get("dispute_id"), kind="dispute", status=r.get("status"), source="webhook")
+    elif t.startswith("PAYMENT.AUTHORIZATION."):
+        spine.record_seen(db, r.get("id"), kind="authorization", status=r.get("status"), source="webhook")
+    elif t.startswith("PAYMENT.CAPTURE."):
+        spine.record_seen(db, r.get("id"), kind="capture", status=r.get("status"), source="webhook")
+    elif t.startswith("PAYMENT.PAYOUTS"):
+        batch = r.get("payout_batch_id") or (r.get("batch_header") or {}).get("payout_batch_id")
+        st = r.get("transaction_status") or (r.get("batch_header") or {}).get("batch_status")
+        spine.record_seen(db, batch, kind="payout", status=st, source="webhook")
+    elif t.startswith("CHECKOUT.ORDER."):
+        spine.record_seen(db, r.get("id"), kind="order", status=r.get("status"), source="webhook")
+
+
 def apply(db: Database, event: dict) -> str:
     t, r, eid = event.get("event_type", ""), event.get("resource") or {}, event.get("id", "")
+    _seen(db, t, r)
     rel = _related(r)
     if t.startswith("CUSTOMER.DISPUTE."):  # lifecycle 1: the dispute shield
         from amend import disputes

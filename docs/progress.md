@@ -359,3 +359,19 @@ Next: Block 7.
 - Price offers before acceptance (built, since there was time before the freeze): on each line the brand's main contact can "Offer a different price" with a short note (140 characters at most). Sara sees "Nadia offers $X (your price $Y)" with Accept / Counter / Decline; a counter goes back to the brand (Accept / Decline / Offer again). Accepted → set_term_price with that amount. A price below her minimum is allowed only on this path, because she agreed; the `term.price_agreed` event records offered_by, accepted_by and below_her_min. Only while the deal is "offered", so nothing is held. One open offer per line (a new one replaces it). Her own manual edit still stays within her range.
 - Tests: 646 passed, 3 skipped. Browser tests/browser/offers_flow.py (brand 1440 + Sara 390): offer $300 → counter $400 → accept → "Agreed at $400", total $480, no money items.
 - Also fixed: the creator's "Ask for changes" button showed an old "chat opens on Sunday" message.
+
+## PayPal spine, part 1 (10 Nov)
+- Deal page "PayPal spine" panel (desktop side panel and the phone Money tab), for each deal version:
+  - the PayPal objects behind it (order, authorization, captures, payout batches, refunds, dispute), with the status last seen and where it came from: PayPal response, "Check PayPal now" (GETs only), or a verified webhook;
+  - the hold clock (day N of 29, the 3-day honour period);
+  - the headroom meter (115% or +$75, whichever is less);
+  - the receipt hash.
+- What Amend writes into PayPal:
+  - custom_id = amend:<deal>:v<version>:<receipt hash>;
+  - invoice_id = AMEND-<deal>-v<version>-<item>;
+  - payout sender_item_id = <deal>-v<version>-<item>.
+  - All are within PayPal's limits (127 / 127 / 63 characters).
+- Every Ledger row has a "PayPal step" column; Earnings shows the step under the PayPal ID.
+- Change cards say "+$X comes out of the existing PayPal hold" (spare held money) or "+$X needs a new PayPal approval from the brand".
+- Over-capture (using PayPal's headroom) is built but OFF (PAYPAL_OVERCAPTURE=false) until a sandbox probe confirms Amend's account allows it. When it is on, a change inside the headroom comes out of the existing hold.
+- Open question: may I run a sandbox over-capture probe? It needs one hold approved by you.

@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, offers, shipping, studio, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, offers, shipping, spine, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -605,6 +605,33 @@ def edit_term(deal_id: str, term_id: str, body: PriceEditIn, c: dict = Depends(r
     own_deal(deal_id, c)
     deals.set_term_price(get_db(), deal_id, term_id, body.unit_cents, creator_party=c["party_id"])
     return studio_deal(deal_id, c)
+
+
+# ---------- PayPal spine: the PayPal objects behind each deal version ----------
+
+@app.get("/api/deals/{deal_id}/spine")
+def creator_spine(deal_id: str, c: dict = Depends(require_creator)):
+    own_deal(deal_id, c)
+    return spine.view(get_db(), deal_id)
+
+
+@app.post("/api/deals/{deal_id}/spine/refresh")
+async def creator_spine_refresh(deal_id: str, c: dict = Depends(require_creator)):
+    own_deal(deal_id, c)
+    rate_limit(f"spine:{deal_id}", 6, 60)
+    return await spine.refresh(get_db(), rail().pp, deal_id)
+
+
+@app.get("/api/d/{token}/spine")
+def brand_spine(token: str):
+    return spine.view(get_db(), deals.open_link(get_db(), token)["deal"]["id"])
+
+
+@app.post("/api/d/{token}/spine/refresh")
+async def brand_spine_refresh(token: str):
+    deal_id = deals.open_link(get_db(), token)["deal"]["id"]
+    rate_limit(f"spine:{deal_id}", 6, 60)
+    return await spine.refresh(get_db(), rail().pp, deal_id)
 
 
 # ---------- price offers before acceptance (brand offers, creator accepts / counters / declines) ----------
@@ -1874,11 +1901,12 @@ def ledger(c: dict = Depends(require_creator)):
                      "kind": it["kind"], "amount_usd": it["amount_cents"] / 100, "aed": money.aed_cents(it["amount_cents"]) / 100,
                      "status": it["status"], "paypal_id": it["paypal_id"] or it["paypal_parent_id"], "quote": (q or {}).get("quote"),
                      "version": it["deal_version"], "fee_usd": (it["fee_cents"] or 0) / 100, "request_id": it["request_id"],
+                     "step": spine.step(it),
                      "updated": it["updated_at"]})
         if it["kind"] == "capture" and (it["fee_cents"] or 0) > 0:  # PayPal's fee is a platform cost: never taken from the creator
             rows.append({**rows[-1], "item": "Platform cost: PayPal fee (Amend pays, not you)", "kind": "platform_cost",
                          "amount_usd": it["fee_cents"] / 100, "aed": money.aed_cents(it["fee_cents"]) / 100, "status": "paid",
-                         "fee_usd": 0, "request_id": None})
+                         "fee_usd": 0, "request_id": None, "step": "PayPal fee on the capture"})
     return {"rows": rows, "fees_usd": sum(r["amount_usd"] for r in rows if r["kind"] == "platform_cost")}
 
 
