@@ -30,7 +30,7 @@ STEP = {  # (kind, status) → the PayPal step that moved it; status None = any
     ("hold", "paid"): "PayPal Payments · captured", ("hold", "voided"): "PayPal Payments · authorization voided",
     ("hold", "expired"): "PayPal Payments · authorization expired", ("hold", "failed"): "PayPal Orders · failed, nothing charged",
     ("capture", None): "PayPal Payments · capture", ("refund", None): "PayPal Payments · refund",
-    ("payout", None): "PayPal Payouts", ("invoice", None): "PayPal Invoicing",
+    ("payout", None): "PayPal Payouts", ("release", None): "PayPal Payments · void (unused hold back to the brand)", ("invoice", None): "PayPal Invoicing",
     ("owed_by_creator", None): "Amend balance (taken from the next PayPal payout)",
 }
 
@@ -152,9 +152,13 @@ def view(db: Database, deal_id: str) -> dict:
     for it in items:
         if it["kind"] == "owed_by_creator":
             continue
+        st = step(it)
+        if it["kind"] == "hold" and it.get("released_cents") and it["status"] == "paid":
+            st = (f"PayPal Payments · captured {money.fmt_usd(it['captured_cents'])} (final_capture) · "
+                  f"{money.fmt_usd(it['released_cents'])} released back")
         line = {"item": it["id"], "kind": it["kind"], "status": it["status"], "amount_cents": it["amount_cents"],
-                "step": step(it), "note": it.get("note"), "request_id": it["request_id"], "custom_id": it.get("custom_id"),
-                "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it)}
+                "step": st, "note": it.get("note"), "request_id": it["request_id"], "custom_id": it.get("custom_id"),
+                "invoice_id": it.get("invoice_id"), "objects": objects_for(db, it), "released_cents": it.get("released_cents") or 0}
         versions.setdefault(_version_of(db, it), []).append(line)
     dispute = db.one("select paypal_dispute_id, status, outcome, reason, amount_cents, evidence_status from disputes "
                      "where deal_id = :d order by created_at desc limit 1", {"d": deal_id})
@@ -174,11 +178,15 @@ def view(db: Database, deal_id: str) -> dict:
     m = db.one("select id, hash, cap_cents, expires_at, status, body from mandates where deal_id = :d order by created_at desc limit 1",
                {"d": deal_id})
     from amend import chain
+    from amend.delivery import brand_first
     ch = chain.verify(db, deal_id)
+    back = sum(i.get("released_cents") or 0 for i in items if i["kind"] == "hold")
+    released = ({"cents": back, "to": brand_first(db, deal), "text": f"{money.fmt_usd(back)} released back to {brand_first(db, deal)}"}
+                if back else None)
     return {"deal": deal_id, "version": deal["version"], "receipt_hash": receipt_hash(db, deal_id),
             "chain": {"ok": ch["ok"], "events": ch["events"], "head": ch["head"]},
             "versions": [{"version": v, "lines": versions[v]} for v in sorted(versions)],
-            "clock": hold_clock(main) if main else None, "headroom": meter, "dispute": dispute,
+            "clock": hold_clock(main) if main else None, "headroom": meter, "dispute": dispute, "released_back": released,
             "mandate": ({"hash": m["hash"], "cap_cents": m["cap_cents"], "expires_at": m["expires_at"], "status": m["status"],
                          "conditions": json.loads(m["body"]).get("conditions", [])} if m else None)}
 

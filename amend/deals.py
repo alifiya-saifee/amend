@@ -446,7 +446,7 @@ def deal_view(db: Database, deal_id: str) -> dict:
                          "change": i["change_id"]} for i in extra_holds],
         "held_cents": sum(i["amount_cents"] - i["captured_cents"] for i in items if i["kind"] == "hold" and i["status"] == "authorized"),
         "money": [{"id": i["id"], "kind": i["kind"], "status": i["status"], "amount_cents": i["amount_cents"],
-                   "note": i.get("note"), "paypal_id": i["paypal_id"],
+                   "note": i.get("note"), "paypal_id": i["paypal_id"], "released_cents": i.get("released_cents") or 0,
                    **({"funding": {k: v for k, v in money.refund_funding(db, deal_id, i["amount_cents"]).items() if k != "holdback_item"}}
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"], "text": _event_text(e, items, c["display_name"])}
@@ -461,14 +461,18 @@ def deal_view(db: Database, deal_id: str) -> dict:
 def _event_text(e: dict, items: list[dict], creator_name: str) -> str | None:
     """History line for a money event, named from the money item it changed: "$530 held by PayPal", "$80 extra held".
     Other events keep the page's own wording (None)."""
+    p = e.get("payload") or {}
+    if e["type"] == "money.unused_released" and p.get("amount"):
+        return f"{money.fmt_usd(p['amount'])} unused hold released back to the brand"
     if e["type"] != "money.status":
         return None
-    p = e.get("payload") or {}
     it = next((i for i in items if i["id"] == p.get("item")), None)
     if not it:
         return None
     amt, kind, to = money.fmt_usd(it["amount_cents"]), it["kind"], p.get("to")
     first = (creator_name or "the creator").split(" ")[0]
+    if kind == "release" and to == "paid":
+        return f"Unused {amt} hold voided at PayPal"
     if kind == "hold" and to in ("authorized", "paid", "voided", "expired", "failed"):
         return {"authorized": f"{amt} extra held by PayPal" if it.get("change_id") else f"{amt} held by PayPal",
                 "paid": f"{amt} hold collected", "voided": f"{amt} hold released back to the brand",

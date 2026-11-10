@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, mandates, money, notify, offers, shipping, spine, studio, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, mandates, money, notify, offers, shipping, spine, studio, verdict, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -1548,6 +1548,10 @@ def save_address(body: AddressIn, c: dict = Depends(require_creator)):
 
 # ---------- delivery, posting, money out (Phase 6) ----------
 
+def _verdict_out(v: dict | None) -> dict | None:
+    return {k: x for k, x in v.items() if k not in ("body", "sig")} | {"sig_short": v["sig"][:16]} if v else None
+
+
 def _work(deal_id: str) -> dict:
     d = get_db()
     deal = deals.get_deal(d, deal_id)
@@ -1565,6 +1569,7 @@ def _work(deal_id: str) -> dict:
     review = d.one("select rating, text, at from reviews where deal_id = :d", {"d": deal_id})
     return {"status": deal["status"], "draft": draft, "post": post, "gaps_open": len(delivery.open_gaps(d, deal_id)),
             "release": delivery.release_view(d, deal_id), "requirements": delivery.requirements(deal),
+            "verdict": _verdict_out(verdict.issue(d, deal_id)),
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days")}
@@ -1662,27 +1667,59 @@ def creator_gap(deal_id: str, gid: str, body: GapIn, c: dict = Depends(require_c
     return _gap(*_creator_ctx(deal_id, c), gid, body.resolution)
 
 
-async def _release(deal: dict, pid: str) -> dict:
+class ReleaseIn(BaseModel):
+    verdict_hash: str | None = Field(default=None, max_length=64)
+
+
+async def _release(deal: dict, pid: str, verdict_hash: str | None = None) -> dict:
     d = get_db()
     try:
+        if deal["status"] == "delivered":  # the tap confirms this exact signed verdict, then approves the release it proposes
+            verdict.confirm(d, deals.get_deal(d, deal["id"]), pid, money._side(d, deal["id"], pid), verdict_hash)
         delivery.plan_release(d, deals.get_deal(d, deal["id"]))
         delivery.approve_release(d, deal, pid)
         items = delivery.release_view(d, deal["id"])["items"]
         if items and all(i["status"] != "planned" for i in items if not i["note"].startswith("holdback")):
             await delivery.execute_release(d, rail(), deals.get_deal(d, deal["id"]), actor=pid)
-    except (delivery.DeliveryError, money.ApprovalError) as e:
+    except (delivery.DeliveryError, money.ApprovalError, verdict.VerdictError) as e:
         raise HTTPException(400, str(e))
     return _work(deal["id"])
 
 
 @app.post("/api/d/{token}/release/approve")
-async def brand_release(token: str):
-    return await _release(*_brand_ctx(token))
+async def brand_release(token: str, body: ReleaseIn | None = None):
+    return await _release(*_brand_ctx(token), (body or ReleaseIn()).verdict_hash)
 
 
 @app.post("/api/deals/{deal_id}/release/approve")
-async def creator_release(deal_id: str, c: dict = Depends(require_creator)):
-    return await _release(*_creator_ctx(deal_id, c))
+async def creator_release(deal_id: str, body: ReleaseIn | None = None, c: dict = Depends(require_creator)):
+    return await _release(*_creator_ctx(deal_id, c), (body or ReleaseIn()).verdict_hash)
+
+
+@app.get("/api/verdict/key")
+def verdict_key():
+    """The public key that checks every delivery verdict's signature (Ed25519, raw, base64)."""
+    return {"alg": "Ed25519", "pub": verdict.public_key(), "key_id": verdict.key_id(),
+            "how": "Verify the signature over the verdict's body text exactly as given (canonical JSON)."}
+
+
+def _verdict_json(deal_id: str) -> dict:
+    v = verdict.latest(get_db(), deal_id)
+    if not v:
+        raise HTTPException(404, "no verdict yet")
+    return {"body": v["body"], "sig": v["sig"], "hash": v["hash"], "pub": verdict.public_key()}
+
+
+@app.get("/api/d/{token}/verdict.json")
+def brand_verdict_json(token: str):
+    deal, _ = _brand_ctx(token)
+    return _verdict_json(deal["id"])
+
+
+@app.get("/api/deals/{deal_id}/verdict.json")
+def creator_verdict_json(deal_id: str, c: dict = Depends(require_creator)):
+    _creator_ctx(deal_id, c)
+    return _verdict_json(deal_id)
 
 
 @app.post("/api/deals/{deal_id}/refunds/{item_id}/approve")

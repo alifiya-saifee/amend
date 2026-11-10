@@ -408,3 +408,37 @@ Next: Block 7.
 - .env.example: JUDGE_PASSWORD=, PAYPAL_OVERCAPTURE=false.
 - Part 4 (signed delivery verdict) not built yet. MCP server deferred until after the freeze.
 - Tests: 694 passed, 3 skipped. Browser checks: deal page, mandate flow and dashboards at 390/1440, no problems.
+
+## PayPal spine: Alifiya's answers + part 4, signed delivery verdict (10 Nov)
+Her answers: hold = cap (yes); dispute run on a NEW live deal, the video deal (no fake seed); over-capture probe skipped
+and off; part 4 now; old deals say "Created before receipts", never backfilled. She deployed 089341f and set
+JUDGE_PASSWORD and IG_LOOKUP_ENABLED=true.
+
+### Done
+- **Unused hold goes back, explicitly.** The hold step reads "$530 deal + up to $150 pre-approved extras = $680 held.
+  Anything unused goes back to you when the work is collected." Every collection capture is now `final_capture`
+  (PayPal releases the rest); a hold the final deal doesn't need gets a `release` item (both approve) and a void.
+  `money_items.released_cents`, event `money.unused_released`, spine "$70 released back to Nadia", money card
+  "Released back to you", History line. `delivery.release_numbers()` is the one place the release maths lives.
+- **README:** "We hold the pre-approved cap instead of relying on over-capture."
+- **"Created before receipts"** on the spine for deals with no chain.
+- **Part 4, signed delivery verdict** (`amend/verdict.py`, table `verdicts`):
+  - code, not AI: pass/fail per check, reason, the confirmed version's exact words (plus each confirmed change's quote),
+    post hash (link, date, caption, delivered);
+  - on pass: proposed capture / creator / owed / editor / holdback / released back, and the exact PayPal calls;
+  - signed Ed25519 (key derived from AMEND_SESSION_SECRET with HKDF; public key at `/api/verdict/key`; signed JSON at
+    `.../verdict.json`); one verdict per distinct content, older ones superseded, frozen once the release is planned;
+  - the Confirm tap is the release approval bound to the verdict hash (`verdict_hash`); both sides tap; events
+    `verdict.signed`, `verdict.confirmed` are in the receipt chain;
+  - #ad and draft approval are signed as **advisory**: they never hold money (money rules unchanged).
+- **Tests: 704 passed, 3 skipped.** New: `test_unused_release.py` (4), `test_verdict.py` (6).
+- **Browser:** `mandate_flow.py` now walks hold $680 → +Story inside the mandate → draft → post → verdict → both confirm
+  → $610 final capture → "$70 released back" (390 + 1440, problems: none). `deal_page.py`, `public_page.py`: none.
+
+### Next
+- Alifiya: Manual Deploy. Then the live video deal (steps in SANDBOX_TESTING.md, "The video deal"), then the buyer
+  opens "Report a problem", then `scripts/dispute_sandbox_run.py --run` on that dispute.
+
+### Open questions
+- The verdict key is derived from AMEND_SESSION_SECRET: if that secret ever changes, old verdicts need the old public
+  key to check. Fine for the hackathon; a dedicated key would be the production choice.

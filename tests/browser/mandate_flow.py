@@ -6,6 +6,8 @@
 Sara accepts the seeded "National Day" offer → the brand ticks "Extra Story set up to $150" → the browser signs on the
 device and pays (fake PayPal) → the hold is $680 = the cap → Sara adds one more Story set in chat → the card applies at
 once "inside the signed mandate", the $80 comes out of the existing PayPal hold, and the spine panel shows the mandate.
+Then: draft → brand approves → post → the signed delivery verdict (pass, quotes, PayPal calls by the Confirm button) →
+both confirm → PayPal collects $610 with final_capture → the spine says "$70 released back to Nadia".
 """
 from __future__ import annotations
 
@@ -24,6 +26,17 @@ OUT = ROOT / "docs" / "screenshots" / "mandate"
 OUT.mkdir(parents=True, exist_ok=True)
 PW = get_settings().amend_demo_password.get_secret_value()
 problems, errs = [], []
+FRAMES_JS = """async (url) => {
+  const frames = [];
+  for (let i = 0; i < 6; i++) {
+    const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d');
+    g.fillStyle = ['#e8c77a','#d9b25a','#c9a24a','#b88c28','#a77b1f','#966a16'][i]; g.fillRect(0, 0, 360, 640);
+    frames.push({ data_b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], t: i * 1.5 });
+  }
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ frames, caption: 'National Day cold brew #ad' }) });
+  return r.status;
+}"""
 
 
 def check(cond, what):
@@ -39,7 +52,10 @@ def q(sql, *a):
         con.close()
 
 
+BRAND = None
 deal_id, token = q("select d.id, l.token from deals d join deal_links l on l.deal_id = d.id where d.title = 'National Day'")
+
+BRAND = q("select p.name from deals d join parties p on p.id = d.brand_party_id where d.id = ?", deal_id)[0].split(" ")[0]
 
 with sync_playwright() as p:
     b = p.chromium.launch(args=["--enable-experimental-web-platform-features"])  # Ed25519 WebCrypto (on by default from Chrome 137)
@@ -60,7 +76,9 @@ with sync_playwright() as p:
     br.check("#m-x"); br.select_option("#m-item", "story_set"); br.fill("#m-max", "150"); br.dispatch_event("#m-max", "input")
     br.wait_for_timeout(300)
     check("hold $680" in br.inner_text("#pay"), f"pay button says {br.inner_text('#pay')!r}")
-    check("deal $530 + up to $150 pre-approved" in br.inner_text("#hold-h"), "heading doesn't show the cap")
+    check("Hold $680 with PayPal" in br.inner_text("#hold-h"), f"heading says {br.inner_text('#hold-h')!r}")
+    check("$530 deal + up to $150 pre-approved extras = $680 held. Anything unused goes back to you when the work is collected."
+          in br.inner_text("#hold-sum"), f"hold sum says {br.inner_text('#hold-sum')!r}")
     check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll")
     br.locator("#mbox").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "01-brand-mandate-390.png"))
     br.click("#pay"); br.wait_for_selector("#approve", timeout=20000)  # the fake PayPal approval page
@@ -92,5 +110,39 @@ with sync_playwright() as p:
     check("Brand mandate" in sp and m[0][:12] in sp, "spine doesn't show the mandate")
     total = q("select total_cents, version from deals where id = ?", deal_id)
     check(total == (61000, 2), f"deal {total}")
+
+    # draft → approve → post → signed verdict → both confirm → $70 back to Nadia
+    st = cr.evaluate(FRAMES_JS, f"/api/deals/{deal_id}/draft")
+    check(st == 200, f"draft upload {st}")
+    br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("#w-approve", timeout=20000); br.click("#w-approve"); br.wait_for_timeout(1500)
+    cr.goto(f"{BASE}/studio/deals/{deal_id}#delivery"); cr.reload(); cr.wait_for_selector("#w-post", timeout=20000)
+    cr.fill("#w-url", "https://www.instagram.com/p/demo610/")
+    dl = q("select deadline from deals where id = ?", deal_id)[0] or ""
+    if len(dl) >= 10 and dl[4] == "-":
+        cr.fill("#w-date", dl[:10])
+    cr.fill("[data-deliv=story_set]", "2"); cr.fill("#w-pcap", "National Day cold brew #ad")
+    cr.click("#w-post"); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
+    if "Fail" in cr.inner_text(".verdict .pill"):  # a post-date gap is the brand's call
+        br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("[data-res=accept]", timeout=20000)
+        br.click("[data-res=accept]"); br.wait_for_timeout(1500)
+        cr.reload(); cr.wait_for_selector(".verdict", timeout=20000); cr.wait_for_timeout(800)
+    vt = cr.inner_text(".verdict")
+    check("Pass" in vt and "Confirm verdict and release" in vt, "verdict didn't pass or no Confirm button")
+    check("/capture" in vt and "final_capture" in vt and f"PayPal releases $70 back to {BRAND}" in vt, "PayPal calls not listed by the button")
+    check("“I can add one more Story set for the launch”" in vt, "the Story line doesn't quote the confirmed change")
+    cr.locator(".verdict").scroll_into_view_if_needed(); cr.screenshot(path=str(OUT / "04-verdict-creator-1440.png"), full_page=True)
+    br.goto(f"{BASE}/d/{token}#delivery"); br.reload(); br.wait_for_selector("#w-verdict", timeout=20000); br.wait_for_timeout(800)
+    check(br.evaluate("document.documentElement.scrollWidth") <= 390, "390: sideways scroll on the verdict")
+    br.locator(".verdict").scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "05-verdict-brand-390.png"))
+    br.click("#w-verdict"); br.wait_for_timeout(2000)
+    cr.reload(); cr.wait_for_selector("#w-verdict", timeout=20000); cr.click("#w-verdict"); cr.wait_for_timeout(3500)
+    hold = q("select status, captured_cents, released_cents from money_items where deal_id = ? and kind = 'hold'", deal_id)
+    check(hold == ("paid", 61000, 7000), f"hold after release {hold}")
+    cr.goto(f"{BASE}/studio/deals/{deal_id}#money"); cr.reload(); cr.wait_for_selector(".sp-released:visible", timeout=20000)
+    check(f"$70 released back to {BRAND}" in cr.locator(".sp-released:visible").first.inner_text(), "spine doesn't say $70 released back to the brand")
+    cr.locator(".spine:visible").first.scroll_into_view_if_needed(); cr.screenshot(path=str(OUT / "06-spine-released-1440.png"), full_page=True)
+    br.goto(f"{BASE}/d/{token}#money"); br.reload(); br.wait_for_selector(".sp-released:visible", timeout=20000); br.wait_for_timeout(600)
+    br.locator(".sp-released:visible").first.scroll_into_view_if_needed(); br.screenshot(path=str(OUT / "07-spine-released-390.png"))
+    check("Released back to you" in br.inner_text("body"), "brand money card doesn't say 'Released back to you'")
     b.close()
 print("problems:", problems or "none"); print("JS errors:", errs[:5] or "none")

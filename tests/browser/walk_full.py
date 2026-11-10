@@ -134,8 +134,8 @@ def main() -> None:
         if n.query_selector("[data-res=accept]"):  # a posting-date gap is the brand's call
             shot(n, "phase6", "03b-brand-date-gap-S33")
             n.click("[data-res=accept]"); n.wait_for_timeout(800); n.reload()
-        n.wait_for_selector("#w-release:not([disabled])"); n.click("#w-release"); n.wait_for_timeout(800)
-        s.reload(); s.wait_for_selector("#w-release"); s.click("#w-release"); s.wait_for_selector("text=Holdback is paid", timeout=15000)
+        n.wait_for_selector("#w-verdict"); n.click("#w-verdict"); n.wait_for_timeout(800)
+        s.reload(); s.wait_for_selector("#w-verdict"); s.click("#w-verdict"); s.wait_for_selector("text=Holdback is paid", timeout=15000)
         shot(s, "phase6", "04-released-holdback-S34")
         s.goto(BASE + "/studio/ledger"); s.wait_for_selector(".ag-root", timeout=20000); shot(s, "phase6", "05-ledger-S38")
         s.goto(f"{BASE}/story/{deal_id}"); s.wait_for_selector("h1"); shot(s, "phase6", "06-money-story-S39")

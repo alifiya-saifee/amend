@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -163,6 +163,10 @@ create table if not exists mandates (
   id text primary key, deal_id text not null references deals(id), hold_item_id text, body text not null, hash text not null,
   sig text not null, pub text not null, cap_cents integer not null, expires_at text not null, status text not null,
   created_at text not null);
+create table if not exists verdicts (
+  id text primary key, deal_id text not null references deals(id), version integer not null, post_id text,
+  content_hash text not null, body text not null, hash text not null, sig text not null, result text not null,
+  status text not null, created_at text not null, confirmed_brand_at text, confirmed_creator_at text);
 create table if not exists price_offers (
   id text primary key, deal_id text not null references deals(id), term_id text not null, side text not null,
   party_id text not null, unit_cents integer not null, note text, status text not null, counter_of text,
@@ -239,7 +243,8 @@ COLUMNS = {
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
                 "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
-                    "deal_version": "integer", "custom_id": "text", "invoice_id": "text"},  # PayPal spine: version + refs sent
+                    "deal_version": "integer", "custom_id": "text", "invoice_id": "text",
+                    "released_cents": "integer not null default 0"},  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
     "events": {"prev_hash": "text", "hash": "text"},  # receipt chain: each deal event carries the previous one's hash
     "accounts": {"settings_json": "text not null default '{}'"},
     "team_members": {"can_confirm": "integer not null default 0"},

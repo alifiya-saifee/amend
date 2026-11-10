@@ -261,6 +261,41 @@ def _apply_gap_change(db: Database, deal: dict, party_id: str, g: dict, resoluti
 
 # ---------- release ----------
 
+def release_numbers(db: Database, deal: dict) -> dict:
+    """What release would do, worked out by code and nothing written: per hold, how much to collect and how much goes
+    back to the brand; holds not needed at all (voided); the creator's payout, the editor's share, the holdback.
+    Shared by plan_release and the signed delivery verdict, so the verdict proposes exactly what release does."""
+    total = deal["total_cents"]
+    holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
+    room = {h["id"]: h["amount_cents"] - h["captured_cents"] for h in holds}
+    from amend import spine
+    from amend.config import get_settings
+    main = next((h for h in holds if not h.get("change_id")), holds[0] if holds else None)
+    if main and get_settings().paypal_overcapture and sum(room.values()) < total:  # PayPal headroom on the main hold
+        room[main["id"]] += min(spine.headroom_cents(main["amount_cents"]), total - sum(room.values()))
+    held = sum(room.values())
+    if held < total:
+        raise DeliveryError(f"only {money.fmt_usd(held)} is held but the deal is {money.fmt_usd(total)}: the brand needs to hold the rest")
+    captures, voids, left = [], [], total
+    for h in holds:
+        take = min(room[h["id"]], left)
+        unused = h["amount_cents"] - h["captured_cents"]
+        if take <= 0:  # a hold the deal no longer needs (e.g. unused pre-approved extras on a separate hold): void it
+            voids.append({"hold": h["id"], "auth": h["paypal_parent_id"], "cents": unused})
+            continue
+        captures.append({"hold": h["id"], "auth": h["paypal_parent_id"], "take": take, "held": h["amount_cents"],
+                         "back": max(0, unused - take)})
+        left -= take
+    holdback = total * (deal.get("holdback_pct") or HOLDBACK_PCT) // 100
+    editor = json.loads(deal.get("editor_json") or "null")
+    editor_cents = total * int(editor["pct"]) // 100 if editor else 0
+    gross = total - holdback - editor_cents
+    owed = min(money.owed_balance(db, deal["creator_id"]), max(gross, 0))  # S98: what she owes comes off this payout first
+    return {"total": total, "captures": captures, "voids": voids, "holdback": holdback, "editor": editor,
+            "editor_cents": editor_cents, "creator_gross": gross, "owed": owed, "creator_net": gross - owed,
+            "released_back": sum(c["back"] for c in captures) + sum(v["cents"] for v in voids)}
+
+
 def plan_release(db: Database, deal: dict) -> dict:
     """Plan the captures and the payout(s). Nothing moves until both sides approve and every gap is resolved."""
     from amend.deals import get_deal
@@ -273,32 +308,19 @@ def plan_release(db: Database, deal: dict) -> dict:
     if existing:
         return release_view(db, deal["id"])
     deal = get_deal(db, deal["id"])
-    total = deal["total_cents"]
+    n = release_numbers(db, deal)
+    total = n["total"]
     holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
-    room = {h["id"]: h["amount_cents"] - h["captured_cents"] for h in holds}
-    from amend import spine
-    from amend.config import get_settings
-    main = next((h for h in holds if not h.get("change_id")), holds[0] if holds else None)
-    if main and get_settings().paypal_overcapture and sum(room.values()) < total:  # PayPal headroom on the main hold
-        room[main["id"]] += min(spine.headroom_cents(main["amount_cents"]), total - sum(room.values()))
-    held = sum(room.values())
-    if held < total:
-        raise DeliveryError(f"only {money.fmt_usd(held)} is held but the deal is {money.fmt_usd(total)}: the brand needs to hold the rest")
     facts = list({f for h in holds for f in json.loads(h["depends_on_fact_ids"])})
-    left = total
-    for h in holds:
-        take = min(room[h["id"]], left)
-        if take <= 0:
-            continue
-        it = money.plan_item(db, deal["id"], "capture", take, facts, actor="system", parent_id=h["paypal_parent_id"])
-        db.update("money_items", "id", it["id"], {"note": f"release:capture of {h['id']}"})
-        left -= take
-    holdback = total * (deal.get("holdback_pct") or HOLDBACK_PCT) // 100
-    editor = json.loads(deal.get("editor_json") or "null")
-    editor_cents = total * int(editor["pct"]) // 100 if editor else 0
-    creator_cents = total - holdback - editor_cents
+    for v in n["voids"]:
+        it = money.plan_item(db, deal["id"], "release", v["cents"], facts, actor="system", parent_id=v["auth"])
+        db.update("money_items", "id", it["id"], {"note": f"release:void unused {v['hold']}"})
+    for c in n["captures"]:
+        it = money.plan_item(db, deal["id"], "capture", c["take"], facts, actor="system", parent_id=c["auth"])
+        db.update("money_items", "id", it["id"], {"note": f"release:capture of {c['hold']}"})
+    holdback, editor, editor_cents = n["holdback"], n["editor"], n["editor_cents"]
     party = db.one("select paypal_email from parties where id = (select party_id from creators where id = :c)", {"c": deal["creator_id"]})
-    gross = creator_cents  # S98: anything the creator owes from a past refund comes off this payout first
+    gross = n["creator_gross"]
     creator_cents = money.deduct_owed(db, deal["creator_id"], gross, deal_id=deal["id"], actor="system")
     owed_cut = gross - creator_cents
     if creator_cents > 0:
@@ -309,15 +331,18 @@ def plan_release(db: Database, deal: dict) -> dict:
         db.update("money_items", "id", pe["id"], {"note": f"release:editor {editor['pct']}%", "payee_email": editor["email"]})
     if holdback:
         hb = money.plan_item(db, deal["id"], "payout", holdback, facts, actor="system")
-        try:
-            days = int(str((briefs.load(deal)["fields"].get("days_live") or {}).get("value") or "30").split()[0])
-        except ValueError:
-            days = 30
         db.update("money_items", "id", hb["id"], {"note": "holdback:creator payout on day N"})
-        db.update("deals", "id", deal["id"], {"holdback_pct": deal.get("holdback_pct") or HOLDBACK_PCT, "holdback_days": days})
+        db.update("deals", "id", deal["id"], {"holdback_pct": deal.get("holdback_pct") or HOLDBACK_PCT, "holdback_days": holdback_days(deal)})
     db.log_event("money.collect_planned", actor="system", deal_id=deal["id"],
                  payload={"total": total, "creator": creator_cents, "editor": editor_cents, "holdback": holdback, "owed_deducted": owed_cut})
     return release_view(db, deal["id"])
+
+
+def holdback_days(deal: dict) -> int:
+    try:
+        return int(str((briefs.load(deal)["fields"].get("days_live") or {}).get("value") or "30").split()[0])
+    except ValueError:
+        return 30
 
 
 def holdback_date(deal: dict) -> date | None:
@@ -330,6 +355,11 @@ def holdback_date(deal: dict) -> date | None:
         return None
 
 
+def brand_first(db: Database, deal: dict) -> str:
+    return ((db.one("select name from parties where id = :p", {"p": deal.get("brand_party_id")}) or {}).get("name")
+            or "the brand").split(" ")[0]
+
+
 def release_label(db: Database, deal: dict, it: dict, first: str) -> str:
     """Plain words for a release line. Internal note keys and item ids are never shown."""
     note, amt = it.get("note") or "", money.fmt_usd(it["amount_cents"])
@@ -337,8 +367,14 @@ def release_label(db: Database, deal: dict, it: dict, first: str) -> str:
         hid = note.split("release:capture of ", 1)[1] if note.startswith("release:capture of ") else None
         hold = db.one("select amount_cents, change_id from money_items where id = :i", {"i": hid}) if hid else None
         if hold:
+            back = hold["amount_cents"] - it["amount_cents"]
+            if back > 0:
+                return (f"Collect {amt} of the {money.fmt_usd(hold['amount_cents'])} hold · "
+                        f"{money.fmt_usd(back)} unused goes back to {brand_first(db, deal)}")
             return f"Collect the {'extra ' if hold['change_id'] else ''}{money.fmt_usd(hold['amount_cents'])} hold"
         return f"Collect {amt} from the hold"
+    if it["kind"] == "release" and note.startswith("release:void unused"):
+        return f"Release the unused {amt} hold back to {brand_first(db, deal)}"
     if note.startswith("holdback:"):
         if note.startswith("holdback:used for refund"):
             return f"Holdback {amt} · used for a refund"
@@ -419,8 +455,8 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
         if it["status"] == "approved":
             money._set_status(db, it, "sent", actor)
         remaining = (hold["amount_cents"] - hold["captured_cents"]) if hold else it["amount_cents"]
-        try:
-            cap = await pp.capture(auth_id, amount_cents=it["amount_cents"], final=it["amount_cents"] >= remaining,
+        try:  # always the last capture on this hold: final_capture releases whatever is left back to the brand
+            cap = await pp.capture(auth_id, amount_cents=it["amount_cents"], final=True,
                                    request_id=it["request_id"], approval=approval)
         except PayPalError as e:
             money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
@@ -431,15 +467,18 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
                           deal_id=deal["id"])
         fee = ((cap.get("seller_receivable_breakdown") or {}).get("paypal_fee") or {}).get("value")
         money._set_status(db, money.get_item(db, it["id"]), "paid", actor, paypal_id=cap.get("id"), fee_cents=to_cents(fee) if fee else 0)
+        released = max(0, remaining - it["amount_cents"])
         if hold:
             captured = hold["captured_cents"] + it["amount_cents"]
-            db.update("money_items", "id", hold["id"], {"captured_cents": captured})
-            if captured >= hold["amount_cents"]:
-                money._set_status(db, money.get_item(db, hold["id"]), "paid", actor)
-            else:  # final capture released the rest of this hold
-                money._set_status(db, money.get_item(db, hold["id"]), "paid", actor)
+            db.update("money_items", "id", hold["id"], {"captured_cents": captured, "released_cents": released})
+            money._set_status(db, money.get_item(db, hold["id"]), "paid", actor)  # final capture: nothing left held
         db.log_event("paypal.called", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "capture", "capture": cap.get("id"),
-                                                                               "request_id": it["request_id"]})
+                                                                               "request_id": it["request_id"], "final_capture": True})
+        if released:
+            db.log_event("money.unused_released", actor=actor, deal_id=deal["id"],
+                         payload={"hold": hold["id"] if hold else None, "amount": released, "how": "final_capture"})
+    for it in [i for i in items if i["kind"] == "release" and i["status"] in ("approved", "failed")]:
+        await _void_unused(db, pp, it, deal, actor)
     for it in [i for i in items if i["kind"] == "payout" and i["status"] in ("approved", "failed")]:
         await _payout(db, pp, it, deal, actor)
     deal = get_deal(db, deal["id"])
@@ -451,6 +490,37 @@ async def execute_release(db: Database, rail: money.PlatformRail, deal: dict, *,
         db.update("deals", "id", deal["id"], {"completed_at": now()})
         _move(db, deal, "completed", actor)
     return release_view(db, deal["id"])
+
+
+async def _void_unused(db: Database, pp, it: dict, deal: dict, actor: str) -> None:
+    """A hold the final deal doesn't need: void the authorisation, so all of it goes back to the brand."""
+    approval = money.approval_record(db, it)
+    if not approval:
+        raise ApprovalError("no approval for this release")
+    hid = (it.get("note") or "").split("release:void unused ", 1)[-1]
+    hold = money.get_item(db, hid)
+    live = await pp.get_authorization(it["paypal_parent_id"])  # rule 7: live status first
+    if it["status"] == "approved":
+        money._set_status(db, it, "sent", actor)
+    if live.get("status") in ("VOIDED", "EXPIRED"):  # already gone back to the brand: nothing to call
+        money._set_status(db, money.get_item(db, it["id"]), "paid", actor)
+        return
+    try:
+        await pp.void(it["paypal_parent_id"], request_id=it["request_id"], approval=approval)
+    except PayPalError as e:
+        money._set_status(db, money.get_item(db, it["id"]), "failed", actor)
+        db.log_event("paypal.error", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "void", "error": str(e)[:200]})
+        raise
+    money._set_status(db, money.get_item(db, it["id"]), "paid", actor)
+    db.update("money_items", "id", hold["id"], {"released_cents": it["amount_cents"]})
+    money._set_status(db, money.get_item(db, hold["id"]), "voided", actor)
+    from amend import spine
+    spine.record_seen(db, it["paypal_parent_id"], kind="authorization", status="VOIDED", source="response", item_id=hold["id"],
+                      deal_id=deal["id"])
+    db.log_event("paypal.called", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "void",
+                                                                           "authorization": it["paypal_parent_id"], "request_id": it["request_id"]})
+    db.log_event("money.unused_released", actor=actor, deal_id=deal["id"],
+                 payload={"hold": hold["id"], "amount": it["amount_cents"], "how": "void"})
 
 
 async def _payout(db: Database, pp, it: dict, deal: dict, actor: str) -> None:

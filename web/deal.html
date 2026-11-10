@@ -315,12 +315,12 @@ function sumMoney(kind, statuses, f = i => i.amount_cents) { return (V.money || 
 function moneyCardHtml() {
   const held = V.held_cents || 0, collected = sumMoney("capture", ["paid", "refunded"]), refunded = sumMoney("refund", ["paid", "refunded"]);
   const proposals = (V.money || []).filter(i => i.kind === "refund" && ["planned", "approved", "sent"].includes(i.status));
-  const released = sumMoney("hold", ["voided"]), paidOut = IS_BRAND ? 0 : sumMoney("payout", ["paid"]);
+  const released = (V.money || []).filter(i => i.kind === "hold").reduce((a, i) => a + (i.status === "voided" ? i.amount_cents : (i.released_cents || 0)), 0), paidOut = IS_BRAND ? 0 : sumMoney("payout", ["paid"]);
   const row = (ic, label, c, hint = "") => `<div class="line"><div class="grow">${icon(ic)} ${label}${hint ? `<div class="tiny muted">${hint}</div>` : ""}</div><div class="amt">${usd(c)}<div class="aed">${aed(c)}</div></div></div>`;
   const h = V.hold;
   return `<div class="card"><div class="row between"><h3>Money</h3>${h ? moneyPill(h.status) : ""}</div>
     ${(V.money || []).length ? `<div class="list">${row("lock", "Held by PayPal", held, h && h.expires_at && held ? "Hold expires " + dateStr(h.expires_at) : "")}
-      ${row("wallet", "Collected", collected, "Only after the delivery matches the deal")}${released ? row("undo-2", "Released back to the brand", released) : ""}
+      ${row("wallet", "Collected", collected, "Only after the delivery matches the deal")}${released ? row("undo-2", IS_BRAND ? "Released back to you" : "Released back to the brand", released, "The unused part of the hold") : ""}
       ${refunded ? row("rotate-ccw", "Refunded", refunded) : ""}${paidOut ? row("send", "Paid out to you", paidOut) : ""}</div>
       ${proposals.map(p => `<div class="banner wait small" style="margin-top:8px">${icon("rotate-ccw")}<div class="grow"><div>Refund proposal: <b>${usd(p.amount_cents)}</b> back to the brand (a refund, never a cancel).</div>
         ${IS_BRAND ? `Waiting for ${esc(V.creator.name.split(" ")[0])} to approve.` : `${p.funding ? `<div style="margin-top:6px">Paid by: <b>${[
@@ -489,6 +489,10 @@ function panel() {
    The key is made on this device with WebCrypto Ed25519 and kept in IndexedDB as a non-extractable key: Amend never sees
    the private key, only the public key and the signature. The PayPal hold becomes the cap (deal + allowed extras). */
 let MDRAFT = null;
+// "$530 deal + up to $150 pre-approved extras = $680 held": the hold is the signed cap; the unused part goes back at collection
+function holdSum(extra) {
+  return extra ? `<b>${usd(V.total_cents)} deal + up to ${usd(extra)} pre-approved extras = ${usd(V.total_cents + extra)} held.</b> Anything unused goes back to you when the work is collected.` : "";
+}
 function mandateHtml() {
   return `<details class="mandate-box" id="mbox"><summary><b>Pre-approve small changes</b> <span class="muted small">(optional · signed on this device)</span></summary>
     <p class="small muted">An AP2-style mandate: you sign up to 3 conditions now. A change inside them counts as your confirmation; ${esc(V.creator.name.split(" ")[0])} still confirms.
@@ -514,7 +518,9 @@ async function setupMandate() {
   const upd = () => {
     const extra = $("#m-x").checked ? Math.round(+$("#m-max").value * 100) || 0 : 0;
     $("#pay").textContent = `Pay with PayPal: hold ${usd(V.total_cents + extra)}`;
-    if ($("#hold-h")) $("#hold-h").textContent = extra ? `Hold ${usd(V.total_cents + extra)} with PayPal (deal ${usd(V.total_cents)} + up to ${usd(extra)} pre-approved)` : `Hold ${usd(V.total_cents)} with PayPal`;
+    if ($("#hold-h")) $("#hold-h").textContent = `Hold ${usd(V.total_cents + extra)} with PayPal`;
+    if ($("#hold-sum")) $("#hold-sum").innerHTML = holdSum(extra);
+    if ($("#pay")) $("#pay").textContent = `Pay with PayPal: hold ${usd(V.total_cents + extra)}`;
     $("#m-note").textContent = mandateConditions().length ? `You'll sign this on this device before PayPal. Cap ${usd(V.total_cents + extra)} = the PayPal hold.` : "";
   };
   $$("#mbox input, #mbox select").forEach(i => i.onchange = i.oninput = upd);
@@ -587,7 +593,9 @@ function spineHtml(S) {
     <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
       <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>
     ${S.chain && S.chain.events ? `<p class="tiny ${S.chain.ok ? "muted" : "err"}" style="margin:0 0 6px">${icon(S.chain.ok ? "link" : "unlink")}
-      Receipt chain: ${S.chain.events} events, each holding the previous one's hash · ${S.chain.ok ? "verified" : "BROKEN"} · head <code>${esc((S.chain.head || "").slice(0, 12))}…</code></p>` : ""}
+      Receipt chain: ${S.chain.events} events, each holding the previous one's hash · ${S.chain.ok ? "verified" : "BROKEN"} · head <code>${esc((S.chain.head || "").slice(0, 12))}…</code></p>`
+      : `<p class="tiny muted" style="margin:0 0 6px">${icon("link")} Created before receipts: this deal's history was recorded before the receipt chain existed, so it has no chain (none is added afterwards).</p>`}
+    ${S.released_back ? `<div class="sp-released">${icon("undo-2")} <b>${esc(S.released_back.text)}</b> <span class="tiny muted">(the unused part of the hold, released by PayPal at collection)</span></div>` : ""}
     ${C ? `<div class="sp-clock"><b>Hold day ${C.day} of ${C.of}</b> · ${C.in_honour ? `PayPal honour period until ${esc(fmtDate(C.honour_until))}`
       : "honour period over: Amend re-authorises once, automatically, before collecting"} · expires ${esc(fmtDate(C.expires_at))}
       <div class="meter" aria-hidden="true"><span style="width:${pct(C.day, C.of)}%"></span></div></div>` : ""}
@@ -718,10 +726,12 @@ function brand(d) {
     const h = V.hold;
     const expired = h && h.status === "expired";
     const waiting = h && h.status === "sent" && h.approve_url;
+    const heldAmt = waiting && h.amount_cents > V.total_cents ? h.amount_cents : V.total_cents;  // a signed cap already set the hold
     $("#view").innerHTML = `
       <div class="banner ok">${esc(first)} accepted <i data-lucide='circle-check' aria-hidden='true'></i> · Version ${d.version}</div>
       <div class="card gold" style="margin-top:12px">
-        <h2 id="hold-h">${expired ? "Hold expired, hold again" : `Hold ${usd(V.total_cents)} with PayPal`}</h2>
+        <h2 id="hold-h">${expired ? "Hold expired, hold again" : `Hold ${usd(heldAmt)} with PayPal`}</h2>
+        <p class="small" id="hold-sum">${heldAmt > V.total_cents ? holdSum(heldAmt - V.total_cents) : ""}</p>
         <p class="small">PayPal reserves the money. It is <b>not</b> taken now. It's collected only when the delivery matches this deal. If the deal is cancelled, the unused part is released.</p>
         <p class="small muted">A PayPal hold lasts up to 29 days (sandbox check, 7 Nov).</p>
         ${!waiting && V.me.role === "brand_main" ? mandateHtml() : ""}

@@ -60,6 +60,10 @@ const Work = (() => {
         ${w.gaps_open ? `<div class="banner bad small" style="margin-top:8px">No money is released until every gap is resolved.</div>` : ""}</div>`);
     }
     // release
+    const R0 = (w.release && w.release.items) || [], mine0 = ctx.IS_BRAND ? "brand" : "creator";
+    const canTap = w.status === "delivered" && (R0.length === 0 || R0.some(i => i.status === "planned" && i.needs.includes(mine0) && !i.approved_by.includes(mine0)))
+      && (!ctx.IS_BRAND || main);
+    if (w.verdict) parts.push(verdictHtml(w.verdict, canTap));
     if (w.status === "delivered" || w.status === "completed" || (w.release.items || []).length) {
       const R = w.release.items || [];
       const mine = ctx.IS_BRAND ? "brand" : "creator";
@@ -67,7 +71,7 @@ const Work = (() => {
       parts.push(`<div class="card"><h3>Release</h3>
         ${R.length ? `<div class="list">${R.map(i => `<div class="line"><div class="grow">${esc(i.label)}${i.approval ? `<div class="tiny muted">${esc(i.approval)}</div>` : ""}</div>
           <div class="amt">${usd(i.amount_cents)}</div>${releasePill(i)}</div>`).join("")}</div>` : `<p class="small muted">Both sides approve, then PayPal collects the held money and pays ${esc(first())} (minus a 10% holdback, paid ${w.release.holdback_date ? "on " + fmtDate(w.release.holdback_date) : "30 days after the post"} if the post is still live).</p>`}
-        ${(w.status === "delivered" && (R.length === 0 || waitingMe) && (!ctx.IS_BRAND || main)) ? `<button class="btn primary block" id="w-release" ${w.gaps_open ? "disabled" : ""}>Approve release</button>` : ""}
+        ${!w.verdict && (w.status === "delivered" && (R.length === 0 || waitingMe) && (!ctx.IS_BRAND || main)) ? `<button class="btn primary block" id="w-release" ${w.gaps_open ? "disabled" : ""}>Approve release</button>` : ""}
         ${w.post_removed_at ? `<p class="small"><b>Reported removed ${ago(w.post_removed_at)}: 48 hours to restore, or the holdback returns to the brand.</b></p>` : ""}
         ${main && w.holdback_release_at && !w.post_removed_at ? `<button class="btn small danger" id="w-removed">Report the post removed</button>` : ""}
         ${!ctx.IS_BRAND && w.post_removed_at ? `<button class="btn small primary" id="w-restored">It's live again</button>` : ""}</div>`);
@@ -85,6 +89,33 @@ const Work = (() => {
     }
     parts.push(`<p class="small"><a href="/story/${encodeURIComponent(location.pathname.split("/").pop())}${ctx.IS_BRAND ? "?b=1" : ""}">Open the money story →</a></p>`);
     return `<div class="stack">${parts.join("")}</div>`;
+  }
+  // Signed delivery verdict: pass/fail per check (reason + the confirmed deal's own words), the post hash, the proposed
+  // release, and the exact PayPal calls next to the Confirm button. Nothing moves until a person taps it.
+  function verdictHtml(v, canTap) {
+    const pass = v.result === "pass", P = v.proposal;
+    const meTapped = ctx.IS_BRAND ? v.confirmed_brand_at : v.confirmed_creator_at;
+    const other = ctx.IS_BRAND ? v.confirmed_creator_at : v.confirmed_brand_at;
+    const otherName = ctx.IS_BRAND ? first() : "the brand";
+    const row = (l, c) => c ? `<div class="line"><span class="grow">${l}</span><b class="amt">${usd(c)}</b></div>` : "";
+    return `<div class="card verdict ${pass ? "pass" : "fail"}"><div class="row between"><h3 style="margin:0">${icon(pass ? "badge-check" : "badge-x")} Delivery verdict</h3>
+        <span class="pill ${pass ? "collected" : "failed"}">${pass ? "Pass" : "Fail"}</span></div>
+      <p class="tiny muted" style="margin:4px 0 8px">Checked by code against the confirmed version ${v.version} · signed by Amend (Ed25519, key ${esc(v.key_id || "")}) ·
+        verdict <code>${esc(v.hash.slice(0, 12))}…</code> · post <code>${esc(v.post.hash.slice(0, 12))}…</code> ·
+        <a href="${ctx.url("/verdict.json")}" target="_blank" rel="noopener">signed JSON</a></p>
+      <div class="list">${v.checks.map(c => `<div class="line"><span>${icon(c.ok ? "circle-check" : c.advisory ? "info" : "triangle-alert")}</span><div class="grow">
+          <b>${esc(c.check)}</b>${c.advisory ? ' <span class="tiny muted">(advisory: doesn\'t hold money)</span>' : ""}<div class="small">${esc(c.reason)}</div>
+          ${(c.quotes && c.quotes.length ? c.quotes : c.quote ? [c.quote] : []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div></div>`).join("")}</div>
+      ${pass && P ? `<div class="verdict-go"><div class="verdict-prop"><div class="tiny muted">Proposed release</div>
+          ${row("PayPal collects", P.capture_cents)}${row(`Paid to ${esc(first())}`, P.creator_cents)}${row("Owed from a past refund", P.owed_deducted_cents)}
+          ${row("Editor's share", P.editor_cents)}${row("Holdback (paid later if the post stays live)", P.holdback_cents)}
+          ${row(ctx.IS_BRAND ? "Unused hold back to you" : "Unused hold back to the brand", P.released_back_cents)}</div>
+        <div class="verdict-calls"><div class="tiny muted">PayPal calls on Confirm</div><ol class="tiny">${v.paypal_calls.map(c =>
+          `<li><code>${esc(c.call)}</code> ${usd(c.cents)} · ${esc(c.what)}${c.later ? " <i>(later)</i>" : ""}</li>`).join("")}</ol>
+          ${canTap && !meTapped ? `<button class="btn primary block" id="w-verdict" data-hash="${esc(v.hash)}">Confirm verdict and release</button>
+            <p class="hint">Your tap approves exactly these calls. ${other ? `${esc(otherName)} already confirmed, so PayPal runs them now.` : `PayPal runs them once ${esc(otherName)} confirms too.`}</p>`
+          : meTapped ? `<p class="small">${icon("circle-check")} You confirmed${other ? "" : `. Waiting for ${esc(otherName)}.`}</p>` : ""}</div></div>`
+      : `<p class="small" style="margin-top:8px">${icon("lock")} No money moves on a failed verdict. Resolve what it flags and a new verdict is signed.</p>`}</div>`;
   }
   // a release line's chip in words for what it is: a collection, a payout, or a holdback still waiting for its day
   function releasePill(i) {
@@ -126,6 +157,7 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-verdict", b => go(b, () => api(ctx.url("/release/approve"), { body: { verdict_hash: b.dataset.hash } }), "Verdict confirmed"));
   on("w-removed", b => { if (confirm("Report the post as removed? The creator gets 48 hours to restore it.")) go(b, () => api(ctx.url("/removed"), { method: "POST" })); });
     on("w-restored", b => go(b, () => api(ctx.url("/restored"), { method: "POST" }), "Thanks"));
     on("w-ed-save", b => go(b, () => api(ctx.url("/editor"), { body: { email: $("#w-ed-email", el).value, pct: +$("#w-ed-pct", el).value } }), "Saved"));

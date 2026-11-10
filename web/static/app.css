@@ -603,9 +603,9 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .spine h3 { display: flex; align-items: center; gap: 6px; }
 .spine h3 svg { width: 18px; height: 18px; color: var(--gold-ink); }
 .spine code { font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
-.sp-clock, .sp-head, .sp-mandate { font-size: 13px; padding: 10px 0; border-top: 1px solid var(--border); }
+.sp-clock, .sp-head, .sp-mandate, .sp-released { font-size: 13px; padding: 10px 0; border-top: 1px solid var(--border); }
 .sp-mandate ul { margin: 6px 0 0; padding-left: 18px; }
-.sp-mandate svg { width: 15px; height: 15px; vertical-align: -2px; }
+.sp-released svg, .sp-mandate svg { width: 15px; height: 15px; vertical-align: -2px; }
 .meter { position: relative; height: 6px; border-radius: 6px; background: var(--surface-2); margin-top: 6px; overflow: visible; }
 .meter > span { display: block; height: 100%; border-radius: 6px; background: var(--gold); }
 .meter.two > i { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--text); opacity: .6; }
@@ -624,3 +624,14 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .mandate-box .chk input[type=date], .mandate-box select { padding: 4px 6px; width: auto; display: inline-block; max-width: 100%; }
 .mandate-box .chk input[type=checkbox] { width: auto; height: auto; }
 .mandate-box .chk > span { flex: 1; min-width: 0; }
+
+/* signed delivery verdict */
+.verdict.pass { border-color: rgba(120, 200, 140, .35); }
+.verdict.fail { border-color: rgba(230, 110, 110, .35); }
+.verdict h3 svg { width: 18px; height: 18px; vertical-align: -3px; }
+.verdict .quote { font-style: italic; margin-top: 2px; }
+.verdict-go { display: grid; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.verdict-calls ol { margin: 6px 0 10px; padding-left: 18px; }
+.verdict-calls li { margin-bottom: 4px; overflow-wrap: anywhere; }
+.verdict-calls code { font-size: 11px; }
+@media (min-width: 900px) { .verdict-go { grid-template-columns: 1fr 1fr; } }

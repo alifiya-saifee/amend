@@ -35,14 +35,30 @@ public, so it holds **placeholders only**: real passwords are never written into
    mandate", and says "+$80 comes out of the existing PayPal hold". No new PayPal approval is needed.
 5. **Ask for something outside the mandate,** e.g. "add a new scene". That card waits for the brand to confirm it live
    and says it needs a new PayPal approval.
-6. **Deliver and release:** upload the draft, submit the post link, and both approve. The spine shows the capture and the
-   Payouts batch, and the Ledger shows the PayPal step on every line.
+6. **Deliver and release:** upload the draft, submit the post link. The **signed delivery verdict** shows pass or fail
+   per check with the deal's own words, and the PayPal calls next to the button. Both tap **Confirm verdict and
+   release**. The spine shows the capture, the Payouts batch and what went back to the brand, and the Ledger shows the
+   PayPal step on every line.
 
-## A dispute won by the seller (team only)
+## The video deal: live, end to end, then a dispute won by the seller (team only)
 
-Needs a **captured** sandbox transaction.
-1. The sandbox buyer opens a dispute in the sandbox Resolution Center. The `CUSTOMER.DISPUTE.CREATED` webhook matches it
-   to the deal and freezes the holdback, and Amend builds the evidence pack.
+Nothing is seeded: every step is a real sandbox call on a new deal, so its receipt chain is complete.
+1. **Creator** (Sara) → Deals → New deal → brand "Dune Roast Coffee", contact "Nadia". Open the link in a private window.
+2. **Brand** writes the brief: "1 Reel and 1 Story set, post Friday, #ad". **Creator** accepts.
+3. **Brand** opens **Pre-approve small changes**, ticks "Extra Story set up to $150". The hold reads "$530 deal + up to
+   $150 pre-approved extras = $680 held". Pay with the sandbox buyer.
+4. **Creator** types in the chat: "I can add one more Story set for the launch". It applies inside the mandate:
+   "+$80 comes out of the existing PayPal hold". The deal is now $610.
+5. **Creator** uploads the draft; **brand** approves it. **Creator** marks it posted (the post date as agreed, 2 Story
+   sets, caption with #ad).
+6. **Delivery verdict**: Pass, signed. Both tap **Confirm verdict and release**. PayPal collects $610 (`final_capture`),
+   pays Sara by Payouts, and the spine shows "$70 released back to Nadia".
+7. The **sandbox buyer** logs in to the sandbox PayPal site → Activity → the $610 payment → **Report a problem**
+   (item not as described or not received). The `CUSTOMER.DISPUTE.CREATED` webhook matches it to the deal, freezes the
+   holdback and builds the evidence pack.
+
+Then win it:
+1. The buyer opens the dispute in the sandbox (step 7 above): it needs a **captured** transaction.
 2. Dry run first: `.venv/bin/python -m scripts.dispute_sandbox_run`. It shows the steps and calls nothing.
 3. Then `.venv/bin/python -m scripts.dispute_sandbox_run --run` (with the app's sandbox environment):
    require-evidence → provide-evidence (`PROOF_OF_FULFILLMENT`) → adjudicate `SELLER_FAVOR`. PayPal sends

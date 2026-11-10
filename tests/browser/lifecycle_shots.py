@@ -90,7 +90,7 @@ def main() -> None:
             brand.click("[data-res=accept]"); brand.wait_for_timeout(1200)
         for pg, path in ((brand, dpath), (sara, spath)):
             go(pg, BASE + path + "#delivery")
-            if pg.query_selector("#w-release:not([disabled])"): pg.click("#w-release"); pg.wait_for_timeout(3000)
+            if pg.query_selector("#w-verdict"): pg.click("#w-verdict"); pg.wait_for_timeout(3000)
         db = get_db()
         print("  usage:", dict(db.one("select usage_start, usage_end, usage_months from deals where id = :d", {"d": deal})), flush=True)
         snap("01-usage-clock-sara", "sara", spath + "#terms", ".usage-line:visible")

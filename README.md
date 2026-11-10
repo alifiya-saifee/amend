@@ -58,7 +58,7 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
 |---|---|---|
 | Version accepted, money held | Orders v2 order → Payments v2 **authorization** | `custom_id` = `amend:<deal>:v<version>:<receipt hash>`, `invoice_id` = `AMEND-<deal>-v<version>-<item>` |
 | Change confirmed (+$) | comes out of the existing hold, or a **new order + authorization** | the new version's receipt hash |
-| Delivery matches, both approve | **captures** (partial, `final_capture`) | `PayPal-Request-Id` per capture |
+| Delivery matches: a **signed delivery verdict**, both confirm it | **captures** (`final_capture`: the unused part of the hold goes back to the brand) or a **void** of a hold no longer needed | `PayPal-Request-Id` per capture |
 | Creator (and editor) paid | **Payouts** batch + item | `sender_item_id` = `<deal>-v<version>-<item>` |
 | Price lowered after payment | **refund** of the capture (never a cancel) | `PayPal-Request-Id` |
 | Brand disputes | **dispute** → evidence `PROOF_OF_FULFILLMENT` | the deal record PDF |
@@ -74,6 +74,14 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   Amend verifies the exact text. The PayPal hold becomes the cap (deal + allowed extras), and the mandate's hash is in
   the receipt carried by the PayPal order. A change inside the mandate counts as the brand's confirmation, signed in
   advance; the creator still confirms, and the money comes out of the existing hold with no new PayPal step.
+- **The hold is the cap, and the unused part goes back.** "$530 deal + up to $150 pre-approved extras = $680 held."
+  At collection every capture is `final_capture`, so PayPal releases what wasn't used; a hold the final deal doesn't
+  need is voided. The panel says "$70 released back to Nadia".
+- **A signed delivery verdict.** When the post is in, code (not AI) checks it against the confirmed version: pass or
+  fail per check, the reason, the confirmed deal's exact words, and the post's hash. On a pass it proposes the release
+  (what PayPal collects, the creator's payout, the editor's share, the holdback, what goes back to the brand) and lists
+  the exact PayPal calls next to the Confirm button. Amend signs it with Ed25519 (public key at `/api/verdict/key`).
+  Nothing moves until both people tap Confirm on that exact verdict (bound by its hash).
 - **A receipt chain.** Every deal event (mandate, change card, each confirmation, each PayPal request ID and response ID,
   webhook, evidence) stores the hash of the previous one. The panel shows it verified; one changed byte breaks it.
 - **Disputes answered from the record.** On `CUSTOMER.DISPUTE.CREATED`, Amend builds the evidence pack at once (mandate,
@@ -82,9 +90,13 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   require-evidence → provide-evidence → adjudicate `SELLER_FAVOR` → `RESOLVED` on the panel.
 
 **Honest limits of this part:**
-- Capturing into PayPal's headroom (over-capture) is built but **off** (`PAYPAL_OVERCAPTURE=false`) until a sandbox
-  probe confirms the account allows it. Until then the meter is informational, and a change beyond what's held needs a
-  new PayPal approval.
+- We hold the pre-approved cap instead of relying on over-capture. Capturing into PayPal's headroom is built but
+  **off** (`PAYPAL_OVERCAPTURE=false`): the meter is informational, and a change beyond what's held needs a new PayPal
+  approval.
+- The verdict's signature proves Amend's code produced exactly that verdict; it is not a person's approval (the
+  Confirm taps are). The disclosure (#ad) and draft-approval checks are shown and signed but are advisory: as before,
+  money waits only on the deliverables and the post date.
+- Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without
   pre-approvals and confirm each change live.

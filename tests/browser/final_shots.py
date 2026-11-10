@@ -116,7 +116,7 @@ def main() -> None:
             brand.click("[data-res=accept]"); brand.wait_for_timeout(1500)
         for pg, path in ((brand, dpath), (sara, spath)):
             pg.goto("about:blank"); pg.goto(BASE + path + "#delivery"); pg.wait_for_timeout(2500)
-            if pg.query_selector("#w-release:not([disabled])"): pg.click("#w-release"); pg.wait_for_timeout(3000)
+            if pg.query_selector("#w-verdict"): pg.click("#w-verdict"); pg.wait_for_timeout(3000)
         snap("06-released-sara", "sara", spath + "#money")
         snap("07-earnings", "sara", "/studio/earnings")
         snap("07b-ledger", "sara", "/studio/ledger")
