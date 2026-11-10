@@ -70,3 +70,12 @@ def test_the_keep_alive_tick_reads_and_writes_the_database(client):
     r = client.post("/internal/tick", headers={"x-amend-tick": "test-tick-secret"})
     assert r.status_code == 200 and r.json()["ok"]
     assert get_db().one("select count(*) as n from events where type = 'tick.ran'")["n"] == before + 1
+
+
+def test_seeded_demo_rows_say_demo_not_checked_at_paypal(client, mocks, held):
+    from amend.db import new_id, now
+    d = get_db()
+    it = {"id": new_id("mi"), "deal_id": held[0], "kind": "payout", "status": "paid", "amount_cents": 100,
+          "request_id": "rq-demo", "paypal_id": "DEMOPB123", "depends_on_fact_ids": "[]", "created_at": now(), "updated_at": now()}
+    assert spine.row_facts(d, it)["source"] == "Demo · not checked at PayPal"
+    assert spine.row_facts(d, {**it, "paypal_id": "5RT123"})["source"] is None

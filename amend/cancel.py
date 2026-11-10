@@ -138,12 +138,13 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
         return p
     s = p["split"]
     holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
+    holds.sort(key=lambda h: (h.get("note") or "").startswith("bonus:"))  # the bonus hold last: always voided back
     brand_party, creator_party = deal["brand_party_id"], db.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
     pp = rail.pp
     left = s["creator_cents"]
     for h in holds:
         facts = json.loads(h["depends_on_fact_ids"])
-        take = min(h["amount_cents"] - h["captured_cents"], left)
+        take = 0 if (h.get("note") or "").startswith("bonus:") else min(h["amount_cents"] - h["captured_cents"], left)
         if take > 0:
             cap = money.plan_item(db, deal["id"], "capture", take, facts, actor="system", parent_id=h["paypal_parent_id"])
             db.update("money_items", "id", cap["id"], {"note": "cancel:creator share"})
@@ -172,7 +173,7 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
             money._set_status(db, money.get_item(db, h["id"]), "voided", by_party)
     net = money.deduct_owed(db, deal["creator_id"], s["creator_cents"], deal_id=deal["id"], actor="system") if s["creator_cents"] > 0 and holds else 0
     if net > 0 and holds:
-        facts = json.loads(holds[0]["depends_on_fact_ids"])
+        facts = json.loads(holds[0]["depends_on_fact_ids"])  # holds[0] is a base hold (bonus holds sort last)
         po = money.plan_item(db, deal["id"], "payout", net, facts, actor="system")
         party = db.one("select paypal_email from parties where id = :p", {"p": creator_party})
         db.update("money_items", "id", po["id"], {"note": "cancel:creator payout", "payee_email": (party or {}).get("paypal_email")})

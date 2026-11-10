@@ -402,7 +402,7 @@ async def paypal_return(db: Database, rail: money.PlatformRail, token: str, orde
                  key=f"paypal.returned:{order_id}")
     item = await money.finish_hold(db, rail, item["id"], order_id, actor=ctx["party"]["id"])
     deal = get_deal(db, deal["id"])
-    if deal["status"] == "accepted" and item["status"] == "authorized":
+    if deal["status"] == "accepted" and item["status"] == "authorized" and not (item.get("note") or "").startswith("bonus:"):
         _move(db, deal, "in_progress", "system", money_held=True)
     return item
 

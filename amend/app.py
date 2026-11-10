@@ -1612,6 +1612,7 @@ def _work(deal_id: str) -> dict:
             "verdict": _verdict_out(verdict.issue(d, deal_id)),
             "results": _ig_safe(lambda: igdata.results(d, deal)) if post else None,
             "competitor": _ig_safe(lambda: igdata.competitor_flags(d, deal)),
+            "bonus": __import__("amend.bonus", fromlist=["view"]).view(d, deal_id),
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
@@ -1661,6 +1662,80 @@ def creator_results_csv(deal_id: str, c: dict = Depends(require_creator)):
 @app.get("/api/d/{token}/results.csv")
 def brand_results_csv(token: str):
     return _results_csv(_brand_ctx(token)[0])
+
+
+class BonusIn(BaseModel):
+    threshold: int = Field(ge=1000, le=100_000_000)
+    amount_cents: int = Field(ge=1000, le=1_000_000)
+    read_day: int = Field(ge=1, le=21)
+
+
+class BonusTapIn(BaseModel):
+    decision_hash: str = Field(min_length=64, max_length=64)
+
+
+def _bonus_call(fn):
+    from amend import bonus
+    try:
+        return fn()
+    except bonus.BonusError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+
+
+@app.post("/api/d/{token}/bonus")
+def brand_bonus_offer(token: str, body: BonusIn):
+    from amend import bonus
+    deal, pid = _brand_ctx(token)
+    _bonus_call(lambda: bonus.offer(get_db(), deal, pid, **body.model_dump()))
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/bonus/confirm")
+def creator_bonus_confirm(deal_id: str, c: dict = Depends(require_creator)):
+    from amend import bonus
+    deal, pid = _creator_ctx(deal_id, c)
+    _bonus_call(lambda: bonus.confirm(get_db(), deal, pid))
+    return _work(deal_id)
+
+
+async def _bonus_read(deal: dict) -> dict:
+    from amend import bonus
+    try:
+        await asyncio.to_thread(bonus.read, get_db(), deal, force=True)
+    except bonus.BonusError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/bonus/read")
+async def creator_bonus_read(deal_id: str, c: dict = Depends(require_creator)):
+    return await _bonus_read(_creator_ctx(deal_id, c)[0])
+
+
+@app.post("/api/d/{token}/bonus/read")
+async def brand_bonus_read(token: str):
+    return await _bonus_read(_brand_ctx(token)[0])
+
+
+async def _bonus_tap(deal: dict, pid: str, h: str) -> dict:
+    from amend import bonus
+    try:
+        await bonus.approve(get_db(), rail(), deal, pid, h)
+    except bonus.BonusError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    except (money.ApprovalError, PayPalError) as e:
+        raise HTTPException(400, "PayPal couldn't finish the bonus step right now. Nothing was taken twice; try again.") from e
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/bonus/approve")
+async def creator_bonus_tap(deal_id: str, body: BonusTapIn, c: dict = Depends(require_creator)):
+    return await _bonus_tap(*_creator_ctx(deal_id, c), body.decision_hash)
+
+
+@app.post("/api/d/{token}/bonus/approve")
+async def brand_bonus_tap(token: str, body: BonusTapIn):
+    return await _bonus_tap(*_brand_ctx(token), body.decision_hash)
 
 
 class CompetitorsIn(BaseModel):
@@ -2717,7 +2792,9 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
 
 from amend import usage as _usage  # noqa: E402
 
-TICK_TASKS: list = [shipping.tick, delivery.tick_silent, calls.tick_nudges, _usage.tick]
+from amend import bonus as _bonus  # noqa: E402
+
+TICK_TASKS: list = [shipping.tick, delivery.tick_silent, calls.tick_nudges, _usage.tick, _bonus.tick]
 
 
 @app.post("/api/paypal/webhook")

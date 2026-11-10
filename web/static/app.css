@@ -675,3 +675,4 @@ dialog.grid-detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 /* dark theme: the page behind the app is dark too (seen below short pages and on overscroll) */
 @media (prefers-color-scheme: dark) { html:not(.theme-light):has(body:not(.marketing)) { background: #0E1013; } }
 html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
+.src-chip.src-demo { white-space: nowrap; font-weight: 500; }

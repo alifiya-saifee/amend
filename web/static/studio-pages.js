@@ -232,7 +232,7 @@ async function earningsTab(ledgerView = false) {
       { field: "paypal_id", headerName: "PayPal ID", width: 165 },
       { field: "net_cents", headerName: "Net to you", width: 120, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 105, cellRenderer: p => p.value === "paid" ? '<span class="pill collected">Paid</span>' : `<span class="pill held">${AGrid.E(p.value.charAt(0).toUpperCase() + p.value.slice(1))}</span>` },
-      { field: "source", width: 100, cellRenderer: AGrid.source },
+      { field: "source", width: 200, cellRenderer: AGrid.source },
       { field: "part", headerName: "What", width: 140 },
       { field: "gross_cents", headerName: "Gross", width: 105, valueFormatter: p => p.value == null ? "–" : usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "fee_cents", headerName: "PayPal fee (Amend pays)", width: 130, valueFormatter: p => p.value == null ? "–" : usd(p.value), type: "rightAligned" },

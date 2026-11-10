@@ -145,6 +145,7 @@ def _version_of(db: Database, item: dict) -> int:
 
 
 SOURCE_LABEL = {"response": "reply", "get": "GET", "webhook": "webhook"}
+DEMO_SOURCE = "Demo · not checked at PayPal"
 
 
 def row_facts(db: Database, item: dict, cache: dict | None = None) -> dict:
@@ -157,7 +158,10 @@ def row_facts(db: Database, item: dict, cache: dict | None = None) -> dict:
         cache[key] = receipt_hash(db, item["deal_id"], v)
     seen = [o["seen"] for o in objects_for(db, item) if o.get("seen")]
     last = max(seen, key=lambda x: x.get("at") or "") if seen else None
-    return {"version": v, "receipt_hash": cache[key], "source": SOURCE_LABEL.get((last or {}).get("source"), None),
+    src = SOURCE_LABEL.get((last or {}).get("source"), None)
+    if not src and str(item.get("paypal_id") or item.get("paypal_parent_id") or "").startswith("DEMO"):
+        src = DEMO_SOURCE  # seeded history: these PayPal objects were never real, so they were never checked
+    return {"version": v, "receipt_hash": cache[key], "source": src,
             "seen_at": (last or {}).get("at"), "seen_status": (last or {}).get("status")}
 
 

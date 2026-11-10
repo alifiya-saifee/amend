@@ -263,7 +263,7 @@ function activeRoom(d) {
     : `<div class="banner ok"><i data-lucide='wallet' aria-hidden='true'></i> ${usd(held)} held by PayPal · ${IS_BRAND ? esc(first) + " can start work" : "start work"}</div>`;
   $("#view").innerHTML = `${disputeBanner()}${banner}
     ${V.hold && V.hold.expires_at && held ? `<p class="small muted" style="margin-top:8px">${holdNote()} Nothing is collected until the delivery matches the deal.</p>` : ""}
-    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.
+    ${IS_BRAND && pendingHolds.length ? `<div class="banner gold" style="margin-top:10px">${pendingHolds.every(h => String(h.change || "").startsWith("bonus:")) ? `The agreed performance bonus needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} held by PayPal.` : `A confirmed change needs ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more held.`}
       <button class="btn primary small" style="margin-left:8px" id="pay-extra">Pay with PayPal</button></div>` : ""}
     ${nextStepHtml(d, pendingHolds)}
     <div class="seg room-tabs hide-desktop" role="tablist" aria-label="Deal sections">${ROOM_TABS.map(([k, l, ic]) => `<button role="tab" data-rt="${k}" aria-selected="${k === ROOM_TAB}" class="${k === ROOM_TAB ? "on" : ""}">${icon(ic)}<span>${l}</span></button>`).join("")}</div>
@@ -611,7 +611,7 @@ async function spineTable() {
       { field: "paypal_id", headerName: "PayPal ID", width: 170 },
       { field: "amount_cents", headerName: "Amount", width: 110, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 120, cellRenderer: p => moneyPill(p.value) },
-      { field: "source", width: 105, cellRenderer: AGrid.source },
+      { field: "source", width: 200, cellRenderer: AGrid.source },
       { field: "receipt_hash", headerName: "Receipt hash", hide: true }, { field: "request_id", headerName: "Request ID", hide: true },
       { field: "custom_id", hide: true }] });
 }

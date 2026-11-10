@@ -557,3 +557,30 @@ She deployed with VERDICT_SIGNING_KEY. Asked: read the post from Instagram, the 
   a media type, the card says Instagram didn't share it. To confirm on the live test Reel.
 - The seeded Sara profile shows demo metrics (85K) next to the connected test account's real numbers (12,480): each
   is labelled with its source.
+
+## Seeded "Source" label + performance bonus (10 Nov)
+Alifiya deployed 11a3953 (it includes the Instagram post reading, 60ab811). The brand data work (e8f4e0f) was pushed
+before this and goes live with the next deploy.
+
+### Done
+- **Source on seeded deals** now says "Demo · not checked at PayPal" (seeded PayPal IDs start with DEMO); real
+  unchecked rows stay "–".
+- **Performance bonus** (`amend/bonus.py`, table `bonuses`), a Could item, built as asked:
+  - The brand offers it (views target, amount, day D from 1 to 21) before the post; the creator confirms. The terms
+    become a confirmed fact, and a separate hold (`bonus:hold`, change_id `bonus:<id>`) is planned.
+  - The brand pays it through the existing "Pay with PayPal" extra-hold banner, worded "The agreed performance bonus
+    needs $150 held". Paying the bonus hold first never starts the work.
+  - Day D (the tick, or "Read from Instagram now" from day D): views from `/{media-id}/insights` on the connected
+    account; code decides met or missed. No reading by D + 2 → unproven → goes back. No screenshots.
+  - Both tap the exact decision (hash-bound). Met → capture (final_capture, live GET first) + Payouts; missed or
+    unproven → void.
+  - The bonus hold is excluded from `release_numbers` / `plan_release` (never collected or voided by the base
+    release) and from the cancellation split (cancel voids it).
+- **Tests: 747 passed, 3 skipped.** New `test_bonus.py` (7): offer/confirm/hold, base release leaves it alone, met →
+  collect + pay, missed → void, unproven after D + 2 via the tick, cancel voids it, offer only before the post.
+- **Browser:** `bonus_flow.py` (fake PayPal + fake Instagram, 390 + 1440): offer → confirm → bonus hold → post →
+  day 7 → Met → both confirm → paid. Problems: none. Shots in `docs/screenshots/bonus/`. Other walks: none.
+
+### Open questions
+- Day D must fall inside the 29-day PayPal hold. The card warns if the hold expires first; the brand would then need
+  to hold the bonus again (not automated).

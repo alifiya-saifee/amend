@@ -27,7 +27,9 @@
   }
   const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SOURCE_TEXT = { reply: "PayPal's reply to Amend's call", GET: "a GET Amend made to PayPal", webhook: "a verified PayPal webhook" };
-  const source = p => p.value ? `<span class="src-chip src-${E(p.value).toLowerCase()}" title="${E(SOURCE_TEXT[p.value] || "")}">${E(p.value)}</span>` : `<span class="muted">–</span>`;
+  const source = p => !p.value ? `<span class="muted">–</span>`
+    : /^Demo/.test(p.value) ? `<span class="src-chip src-demo" title="Seeded demo history: never sent to PayPal">${E(p.value)}</span>`
+    : `<span class="src-chip src-${E(p.value).toLowerCase()}" title="${E(SOURCE_TEXT[p.value] || "")}">${E(p.value)}</span>`;
   const usdCell = p => p.value == null ? "" : "$" + Number(p.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // The details sheet for one row: the receipt hash first (what was written into PayPal), then the ids.

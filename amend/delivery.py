@@ -401,7 +401,8 @@ def release_numbers(db: Database, deal: dict) -> dict:
     back to the brand; holds not needed at all (voided); the creator's payout, the editor's share, the holdback.
     Shared by plan_release and the signed delivery verdict, so the verdict proposes exactly what release does."""
     total = deal["total_cents"]
-    holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
+    holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"
+             and not (h.get("note") or "").startswith("bonus:")]  # the bonus hold has its own day-D decision
     room = {h["id"]: h["amount_cents"] - h["captured_cents"] for h in holds}
     from amend import spine
     from amend.config import get_settings
@@ -445,7 +446,8 @@ def plan_release(db: Database, deal: dict) -> dict:
     deal = get_deal(db, deal["id"])
     n = release_numbers(db, deal)
     total = n["total"]
-    holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"]
+    holds = [h for h in money.items_for(db, deal["id"]) if h["kind"] == "hold" and h["status"] == "authorized"
+             and not (h.get("note") or "").startswith("bonus:")]
     facts = list({f for h in holds for f in json.loads(h["depends_on_fact_ids"])})
     for v in n["voids"]:
         it = money.plan_item(db, deal["id"], "release", v["cents"], facts, actor="system", parent_id=v["auth"])
@@ -632,7 +634,7 @@ async def _void_unused(db: Database, pp, it: dict, deal: dict, actor: str) -> No
     approval = money.approval_record(db, it)
     if not approval:
         raise ApprovalError("no approval for this release")
-    hid = (it.get("note") or "").split("release:void unused ", 1)[-1]
+    hid = (it.get("note") or "").split("void unused ", 1)[-1]  # release:void unused <hold> | bonus:void unused <hold>
     hold = money.get_item(db, hid)
     live = await pp.get_authorization(it["paypal_parent_id"])  # rule 7: live status first
     if it["status"] == "approved":

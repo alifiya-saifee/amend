@@ -99,6 +99,14 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **A performance bonus held by PayPal, released from Instagram insights.** The brand offers it before the post
+  ("+$150 if the post reaches 40,000 views, read on day 7 after posting"); the creator confirms; the brand holds the
+  bonus with PayPal as its **own hold** (base hold + bonus hold). On day D, Amend reads the views from the post's
+  insights and **code decides** met or missed. Both tap Confirm on that exact decision (bound by its hash): met →
+  PayPal collects the bonus hold (`final_capture`) and pays the creator by Payouts; missed → the bonus hold is voided
+  and all of it goes back. **No screenshots as proof:** if Instagram can't be read by day D + 2, the bonus goes back to
+  the brand. The bonus hold is never part of the base release or a cancellation split (cancelling voids it). PayPal
+  holds last 29 days, so day D is 1 to 21 days after posting.
 - **Brand data from Instagram, every number with its source and "updated X ago"** (stale after 7 days):
   - **Results report** per deal: views, reach, saves and shares from the post's insights, and **cost per 1,000 views =
     paid ÷ views × 1,000**, worked out by code. Refresh button (rate limited) and CSV download.

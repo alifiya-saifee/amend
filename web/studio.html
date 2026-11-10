@@ -78,7 +78,7 @@ async function ledger() {
       { field: "paypal_id", headerName: "PayPal ID", width: 170 },
       { field: "amount_usd", headerName: "Amount", width: 115, valueFormatter: AGrid.usdCell, filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 130, cellRenderer: p => ledgerPill(p.data) },
-      { field: "source", width: 105, cellRenderer: AGrid.source },
+      { field: "source", width: 200, cellRenderer: AGrid.source },
       { field: "item", headerName: "What", flex: 2, minWidth: 240, tooltipField: "item" },
       { field: "aed", headerName: "AED", width: 95, type: "rightAligned" },
       { field: "kind", width: 120, valueFormatter: p => KIND_LABEL[p.value] || p.value },

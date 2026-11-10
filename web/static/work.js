@@ -73,6 +73,8 @@ const Work = (() => {
     const R0 = (w.release && w.release.items) || [], mine0 = ctx.IS_BRAND ? "brand" : "creator";
     const canTap = w.status === "delivered" && (R0.length === 0 || R0.some(i => i.status === "planned" && i.needs.includes(mine0) && !i.approved_by.includes(mine0)))
       && (!ctx.IS_BRAND || main);
+    const bh = bonusHtml(w.bonus, w, main);
+    if (bh) parts.unshift(bh);
     if (w.verdict) parts.push(verdictHtml(w.verdict, canTap));
     if (w.results) parts.push(resultsHtml(w.results));
     if (w.competitor && w.competitor.state !== "no_exclusivity") parts.push(competitorHtml(w.competitor));
@@ -131,6 +133,53 @@ const Work = (() => {
             <p class="hint">Your tap approves exactly these calls. ${other ? `${esc(otherName)} already confirmed, so PayPal runs them now.` : `PayPal runs them once ${esc(otherName)} confirms too.`}</p>`
           : meTapped ? `<p class="small">${icon("circle-check")} You confirmed${other ? "" : `. Waiting for ${esc(otherName)}.`}</p>` : ""}</div></div>`
       : `<p class="small" style="margin-top:8px">${icon("lock")} No money moves on a failed verdict. Resolve what it flags and a new verdict is signed.</p>`}</div>`;
+  }
+  // Performance bonus: held by PayPal, read from Instagram insights on day D, decided by code, both tap.
+  function bonusHtml(b, w, main) {
+    const canOffer = ctx.IS_BRAND && main && ["accepted", "in_progress"].includes(ctx.V.deal.status) && !ctx.V.deal.posted_at;
+    const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
+    const rules = `<p class="tiny muted" style="margin:6px 0 0">Held by PayPal as its own hold. On day D after the post, Amend reads the views from Instagram insights and code decides. No screenshots as proof: if Instagram can't be read, the bonus goes back to the brand. Both of you confirm before PayPal moves it.</p>`;
+    if (!b || b.status === "withdrawn") {
+      if (!canOffer) return "";
+      return `<details class="card"><summary><b>${icon("trophy")} Add a performance bonus</b> <span class="small muted">(optional)</span></summary>
+        <div class="grid3" style="gap:8px;margin-top:8px">
+          <label>Views target<input id="w-bn-t" type="number" min="1000" step="1000" value="50000"></label>
+          <label>Bonus (USD)<input id="w-bn-a" type="number" min="10" step="10" value="150"></label>
+          <label>Read on day<input id="w-bn-d" type="number" min="1" max="21" value="7"></label></div>
+        ${rules}<button class="btn primary block" id="w-bn-offer" style="margin-top:8px">Offer the bonus to ${esc(first())}</button></details>`;
+    }
+    const head = `<div class="row between"><h3 style="margin:0">${icon("trophy")} Performance bonus</h3>${bonusPill(b)}</div>
+      <p class="small" style="margin:6px 0 0"><b>${esc(b.terms)}</b></p>`;
+    let body = "";
+    if (b.status === "offered") body = ctx.IS_BRAND ? `<p class="small muted">Waiting for ${esc(first())} to confirm.</p>`
+      : `<button class="btn primary block" id="w-bn-confirm" style="margin-top:8px">Confirm the bonus</button><p class="hint">Then ${esc(b.brand)} holds ${usd(b.amount_cents)} with PayPal.</p>`;
+    else if (b.status === "agreed") {
+      const held = b.hold && b.hold.status === "authorized";
+      body = `<p class="small" style="margin-top:6px">${held ? `${icon("lock")} ${usd(b.amount_cents)} held by PayPal` : `Waiting for ${esc(b.brand)} to hold ${usd(b.amount_cents)} with PayPal`}
+        ${b.due ? ` · read on <b>${esc(fmtDate(b.due))}</b>` : " · read on day " + b.read_day + " after the post"}</p>
+        ${b.hold_too_short ? `<div class="banner bad small">The PayPal hold expires before day ${b.read_day}: PayPal holds last 29 days.</div>` : ""}
+        ${b.last_try ? `<p class="tiny muted">Last try: ${esc(b.last_try.why || "")}. Amend tries again; after day ${b.read_day} + 2 with no reading, the bonus goes back to the brand.</p>` : ""}
+        ${held && b.due && new Date(b.due) <= new Date() ? `<button class="btn small" id="w-bn-read" style="margin-top:6px">${icon("refresh-cw")} Read from Instagram now</button>` : ""}`;
+    } else {
+      const r = b.reading || {};
+      const met = b.status === "met" || b.status === "paid", decided = ["met", "missed", "unproven"].includes(b.status);
+      const meTapped = ctx.IS_BRAND ? b.confirmed_brand_at : b.confirmed_creator_at;
+      body = `<div class="vlab" style="margin-top:8px"><span class="vtag ai">Instagram read</span><span class="small">${r.views != null ? `${n(r.views)} views` : esc(r.why || "no reading")}
+          ${r.fetched_at ? ` <span class="tiny muted">· ${esc(r.source || "Instagram insights")} · ${esc(ago(r.fetched_at))}</span>` : ""}</span></div>
+        <div class="vlab"><span class="vtag code ${met ? "ok" : "bad"}">Code decided</span><span class="small">${b.status === "unproven" ? "Not proven: no Instagram reading, so it goes back to the brand"
+          : met ? `Met: ${n(r.views)} ≥ ${n(b.threshold)} views` : `Missed: ${n(r.views)} < ${n(b.threshold)} views`}</span></div>
+        ${b.status === "paid" ? `<p class="small" style="margin:6px 0 0">${icon("circle-check")} PayPal collected the ${usd(b.amount_cents)} bonus hold and paid ${esc(first())} by Payouts.</p>`
+          : b.status === "released" ? `<p class="small" style="margin:6px 0 0">${icon("undo-2")} The ${usd(b.amount_cents)} bonus hold was voided: all of it went back to ${esc(b.brand)}.</p>` : ""}
+        <p class="tiny muted" style="margin:6px 0 0" ${decided ? "" : "hidden"}>PayPal on confirm: ${met ? `collect the ${usd(b.amount_cents)} bonus hold (final_capture), then pay ${esc(first())} by Payouts` : `void the ${usd(b.amount_cents)} bonus hold: all of it goes back to ${esc(b.brand)}`}</p>
+        ${decided && !meTapped && (!ctx.IS_BRAND || main) ? `<button class="btn primary block" id="w-bn-tap" data-hash="${esc(b.decision_hash)}" style="margin-top:8px">${met ? `Confirm: pay the ${usd(b.amount_cents)} bonus` : "Confirm: release the bonus hold back"}</button>`
+          : decided ? `<p class="small">${icon("circle-check")} You confirmed. Waiting for ${ctx.IS_BRAND ? esc(first()) : esc(b.brand)}.</p>` : ""}`;
+    }
+    return `<div class="card bonus">${head}${body}${b.status === "offered" || b.status === "agreed" ? rules : ""}</div>`;
+  }
+  function bonusPill(b) {
+    return { offered: '<span class="pill waiting">Offered</span>', agreed: b.hold && b.hold.status === "authorized" ? '<span class="pill held">Held</span>' : '<span class="pill waiting">Agreed</span>',
+      met: '<span class="pill collected">Met</span>', missed: '<span class="pill failed">Missed</span>', unproven: '<span class="pill failed">Not proven</span>',
+      paid: '<span class="pill collected">Paid</span>', released: '<span class="pill">Released back</span>' }[b.status] || "";
   }
   // Results report: Instagram's numbers (with their source and time) and the cost per 1,000 views, worked out by code.
   const srcLine = (src, at, stale) => `<p class="tiny muted" style="margin:6px 0 0">${icon("clock")} ${esc(src)} · updated ${esc(ago(at))}${stale ? ' <span class="pill waiting">Stale: older than 7 days</span>' : ""}</p>`;
@@ -212,6 +261,10 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-bn-offer", b => go(b, () => api(ctx.url("/bonus"), { body: { threshold: +$("#w-bn-t", el).value, amount_cents: Math.round(+$("#w-bn-a", el).value * 100), read_day: +$("#w-bn-d", el).value } }), "Bonus offered"));
+    on("w-bn-confirm", b => go(b, () => api(ctx.url("/bonus/confirm"), { method: "POST" }), "Bonus confirmed"));
+    on("w-bn-read", b => go(b, () => api(ctx.url("/bonus/read"), { method: "POST" }), "Read from Instagram"));
+    on("w-bn-tap", b => go(b, () => api(ctx.url("/bonus/approve"), { body: { decision_hash: b.dataset.hash } }), "Confirmed"));
     on("w-res-refresh", b => go(b, () => api(ctx.url("/results/refresh"), { method: "POST" }), "Refreshed from Instagram"));
     on("w-comp-save", b => go(b, () => api(ctx.url("/competitors"), { body: { names: $("#w-comp", el).value.split(",").map(x => x.trim()).filter(Boolean) } }), "Saved"));
     on("w-recheck", b => go(b, () => api(ctx.url("/post/recheck"), { method: "POST" }), "Re-checked on Instagram"));
