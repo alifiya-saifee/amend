@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate", "team.set", "team.owed_settled", "team.refund_shared", "payout.item",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate", "team.set", "team.owed_settled", "settle.proposed", "settle.confirmed", "settle.withdrawn", "settle.done", "team.refund_shared", "payout.item",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -153,6 +153,10 @@ create table if not exists notifications (
 create table if not exists jobs (
   id text primary key, kind text not null, status text not null, attempts integer not null default 0,
   input_json text, result_json text, error text, created_at text not null, updated_at text not null);
+create table if not exists settlements (
+  id text primary key, deal_id text not null references deals(id), status text not null, why text, split_json text not null,
+  summary_json text, hash text not null, proposed_by text, confirmed_brand_at text, confirmed_creator_at text, settled_at text,
+  created_at text not null);
 create table if not exists payees (
   id text primary key, deal_id text not null references deals(id), role text not null, email text not null, pct integer not null,
   token text unique not null, money_item_id text, pos integer not null default 0, created_at text not null, removed_at text);

@@ -76,6 +76,8 @@ const Work = (() => {
     const bh = bonusHtml(w.bonus, w, main);
     if (bh) parts.unshift(bh);
     if (w.verdict) parts.push(verdictHtml(w.verdict, canTap));
+    const sh = settleHtml(w.settle, main);
+    if (sh) parts.push(sh);
     if (w.results) parts.push(resultsHtml(w.results));
     if (w.competitor && w.competitor.state !== "no_exclusivity") parts.push(competitorHtml(w.competitor));
     if (w.status === "delivered" || w.status === "completed" || (w.release.items || []).length) {
@@ -129,6 +131,32 @@ const Work = (() => {
             <p class="hint">Your tap approves exactly these calls. ${other ? `${esc(otherName)} already confirmed, so PayPal runs them now.` : `PayPal runs them once ${esc(otherName)} confirms too.`}</p>`
           : meTapped ? `<p class="small">${icon("circle-check")} You confirmed${other ? "" : `. Waiting for ${esc(otherName)}.`}</p>` : ""}</div></div>`
       : `<p class="small" style="margin-top:8px">${icon("lock")} No money moves on a failed verdict. Resolve what it flags and a new verdict is signed.</p>`}</div>`;
+  }
+  // Settle before a dispute: the AI summarises both sides (quoted), code proposes the split, both tap, then PayPal.
+  function settleHtml(s, main) {
+    if (!s || (!s.why && !s.current)) return "";
+    const can = !ctx.IS_BRAND || main;
+    const c = s.current, sp = (c && c.split) || s.preview;
+    const lines = sp ? `<div class="list">${sp.lines.map(l => `<div class="line"><div class="grow small"><b>${esc(l.name)}</b>
+        ${l.licence ? `<span class="muted">· ${l.creator_cents ? "paid, because something was delivered" : "not paid: nothing was delivered"}</span>`
+          : `<span class="muted">· delivered ${l.delivered} of ${l.agreed}</span>`}${l.quote ? `<div class="tiny muted quote">“${esc(l.quote)}”</div>` : ""}</div>
+        <div class="amt small">${l.creator_cents ? `${usd(l.creator_cents)} to ${esc(first())}` : ""}${l.brand_cents ? `<div class="tiny muted">${usd(l.brand_cents)} back</div>` : ""}</div></div>`).join("")}</div>
+      <p class="small" style="margin:8px 0 0"><b>${usd(sp.creator_cents)} to ${esc(first())} · ${usd(sp.brand_cents)} back to the brand</b> <span class="tiny muted">(worked out by code from what was delivered vs version ${ctx.V.deal.version})</span></p>` : "";
+    if (!c) return `<div class="card"><h3>${icon("scale")} Settle before a dispute</h3>
+      <p class="small muted">This deal has ${esc(s.why)}. Instead of a PayPal dispute, settle it here: the AI summarises each side in their own words, code proposes a split from what was delivered, and nothing moves until you both confirm.</p>
+      ${lines}${can ? `<button class="btn block" id="w-settle" style="margin-top:8px">Propose this settlement</button>` : ""}</div>`;
+    const side = x => x ? `<div class="small"><b>${esc(x.label)}:</b> ${esc(x.v.summary)}${(x.v.quotes || []).map(q => `<div class="tiny muted quote">“${esc(q)}”</div>`).join("")}</div>` : "";
+    const sm = c.summary || {};
+    const meTapped = ctx.IS_BRAND ? c.confirmed_brand_at : c.confirmed_creator_at;
+    const other = ctx.IS_BRAND ? c.confirmed_creator_at : c.confirmed_brand_at;
+    return `<div class="card settle"><div class="row between"><h3 style="margin:0">${icon("scale")} Settlement</h3><span class="pill ${c.status === "settled" ? "collected" : "waiting"}">${c.status === "settled" ? "Settled" : "Proposed"}</span></div>
+      ${sm.brand || sm.creator ? `<div class="stack" style="margin-top:8px;gap:6px"><div class="tiny muted">Each side, summarised by the AI (their own words quoted; no blame, no money)</div>
+        ${side(sm.brand && { label: "The brand", v: sm.brand })}${side(sm.creator && { label: first(), v: sm.creator })}</div>` : sm.note ? `<p class="tiny muted">${esc(sm.note)}</p>` : ""}
+      ${lines}
+      ${c.status === "settled" ? `<p class="small" style="margin-top:8px">${icon("circle-check")} Both confirmed. PayPal collected ${usd(c.split.creator_cents)} from the hold (the rest went back to the brand) and paid ${esc(first())}.</p>`
+        : can && !meTapped ? `<button class="btn primary block" id="w-settle-ok" data-hash="${esc(c.hash)}" style="margin-top:8px">Confirm this settlement</button>
+          <p class="hint">PayPal then collects ${usd(c.split.creator_cents)} from the hold (final_capture: the rest goes back to the brand) and pays ${esc(first())}. ${other ? "The other side already confirmed." : "Nothing moves until both of you confirm; it never happens on silence."}</p>`
+        : `<p class="small" style="margin-top:8px">${icon("circle-check")} You confirmed. Waiting for the other side; nothing moves until they do.</p>`}</div>`;
   }
   // Team splits: up to 4 people, shares of her payout (≤ 50%), one Payouts batch, a receipt link each, the refund rule.
   function teamHtml(t, w) {
@@ -287,6 +315,8 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-settle", b => go(b, () => api(ctx.url("/settle"), { method: "POST" }), "Settlement proposed"));
+    on("w-settle-ok", b => go(b, () => api(ctx.url("/settle/confirm"), { body: { hash: b.dataset.hash } }), "Confirmed"));
     on("w-team-save", b => go(b, () => api(ctx.url("/team"), { method: "PUT", body: { refund_rule: $("#w-team-rule", el).value,
       members: $$("#w-team .team-row", el).map(r => ({ role: r.querySelector(".t-role").value.trim(), email: r.querySelector(".t-email").value.trim(),
         pct: Math.round(+r.querySelector(".t-pct").value) })).filter(x => x.role || x.email || x.pct) } }), "Team saved"));

@@ -1632,6 +1632,10 @@ def _work(deal_id: str) -> dict:
             "competitor": _ig_safe(lambda: igdata.competitor_flags(d, deal)),
             "bonus": __import__("amend.bonus", fromlist=["view"]).view(d, deal_id),
             "team": __import__("amend.team", fromlist=["view"]).view(d, deal, get_settings().base_url.rstrip("/")),
+            "settle": {"why": __import__("amend.settle", fromlist=["eligible"]).eligible(d, deal),
+                       "current": __import__("amend.settle", fromlist=["current"]).current(d, deal_id),
+                       "preview": __import__("amend.settle", fromlist=["split"]).split(d, deal)
+                       if __import__("amend.settle", fromlist=["eligible"]).eligible(d, deal) else None},
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
@@ -1809,6 +1813,52 @@ def payee_receipt(token: str):
 <dt class="muted">Refund rule</dt><dd>{'Shared by share: a refund after payout comes off your future Amend payouts, by your share' if r['refund_rule'] == 'shared' else 'The creator covers refunds'}</dd>
 {f"<dt class='muted'>Owed from an earlier refund</dt><dd>{e(money.fmt_usd(r['owed_cents']))} (comes off your next payout)</dd>" if r['owed_cents'] else ''}</dl></div></main></body></html>"""
     return HTMLResponse(body, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+class SettleTapIn(BaseModel):
+    hash: str = Field(min_length=64, max_length=64)
+
+
+async def _settle(fn):
+    from amend import settle
+    try:
+        return await fn()
+    except settle.SettleError as e:
+        raise HTTPException(400, str(e)[:1].upper() + str(e)[1:] + ".")
+    except (money.ApprovalError, PayPalError) as e:
+        raise HTTPException(400, "PayPal couldn't finish the settlement right now. Nothing was taken twice; try again.") from e
+
+
+@app.post("/api/deals/{deal_id}/settle")
+async def creator_settle(deal_id: str, c: dict = Depends(require_creator)):
+    from amend import settle
+    deal, pid = _creator_ctx(deal_id, c)
+    await _settle(lambda: settle.propose(get_db(), deal, pid))
+    return _work(deal_id)
+
+
+@app.post("/api/d/{token}/settle")
+async def brand_settle(token: str):
+    from amend import settle
+    deal, pid = _brand_ctx(token)
+    await _settle(lambda: settle.propose(get_db(), deal, pid))
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/settle/confirm")
+async def creator_settle_confirm(deal_id: str, body: SettleTapIn, c: dict = Depends(require_creator)):
+    from amend import settle
+    deal, pid = _creator_ctx(deal_id, c)
+    await _settle(lambda: settle.confirm(get_db(), rail(), deal, pid, body.hash))
+    return _work(deal_id)
+
+
+@app.post("/api/d/{token}/settle/confirm")
+async def brand_settle_confirm(token: str, body: SettleTapIn):
+    from amend import settle
+    deal, pid = _brand_ctx(token)
+    await _settle(lambda: settle.confirm(get_db(), rail(), deal, pid, body.hash))
+    return _work(deal["id"])
 
 
 class CompetitorsIn(BaseModel):

@@ -147,6 +147,14 @@ async def fake_call_json(system: str, user: str, **kw):
         pos = None if not m else "start" if not cap[:m.start()].strip() else "end" if not cap[m.end():].strip() else "middle"
         out = {"disclosure": {"tag": m.group(0), "position": pos, "quote": m.group(0)} if m else None, "items": [], "date": None}
         return AIResult(out, "fake", 1, False)
+    if "summarise a disagreement in a brand deal" in system:  # rule-based: each side's latest message, quoted as written
+        out = {}
+        for side in ("brand", "creator"):
+            said = [l.split("] ", 1)[1] for l in user.splitlines() if l.startswith(f"[{side}] ")]
+            if said:
+                q = said[-1].split(".")[0].strip()
+                out[side] = {"summary": f"The {side} says: {q[:120]}.", "quotes": [q]}
+        return AIResult(out, "fake", 1, False)
     if "brand mentions in a creator's Instagram captions" in system:  # rule-based: known made-up brands, quoted as written
         posts = []
         for blk in user.split("Caption ")[1:]:

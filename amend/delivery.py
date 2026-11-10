@@ -350,7 +350,7 @@ def resolution_text(db: Database, g: dict) -> str:
         return f"{who} added {g.get('tag') or '#ad'} to the caption" + (" on Instagram" if g.get("on") == "instagram" else "")
     return {"add": f"{who} added it to the deal (a new hold)", "free": f"{who} made it a free extra",
             "remove": f"{who} asked for it to be removed", "drop": f"{who} removed it from the deal (collect less)",
-            "will_deliver": f"{who} will deliver it"}.get(r, f"Resolved by {who}")
+            "will_deliver": f"{who} will deliver it", "settled": "Settled by both, before any dispute"}.get(r, f"Resolved by {who}")
 
 
 def resolve_gap(db: Database, deal: dict, party_id: str, gap_id: str, resolution: str) -> dict:

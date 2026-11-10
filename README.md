@@ -99,6 +99,12 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **Settle before a dispute.** On a deal with an open delivery gap or a stuck revision, either side can propose a
+  settlement instead of going to PayPal. The AI summarises each side's position, quoting only that side's own words
+  (anything else is dropped); it sets no money. Code proposes the split from what was delivered against the latest
+  confirmed version (e.g. Reel delivered $450 to the creator, Story set not delivered $80 back). Both tap Confirm on
+  that exact proposal; it never executes on silence. Then PayPal collects the creator's part with `final_capture`
+  (the rest goes back), voids any hold not needed, and pays the creator.
 - **Team splits in one Payouts batch.** The creator adds up to 4 people (role, PayPal email, share % of her payout,
   at most 50% in all) and picks the refund rule upfront: "I cover refunds" (default) or "shared by share". At release,
   one PayPal Payouts batch pays her and the team, with a `sender_item_id` per person (in the receipt chain). Each item
@@ -154,6 +160,7 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   logged, no secret printed), and the fingerprint above won't match. Make a key with `python -m scripts.verdict_key`:
   it writes the seed to a private file and prints only the public key and fingerprint.
 - Deals recorded before the receipt chain existed show "Created before receipts"; a chain is never added afterwards.
+- A settlement pays the creator her delivered part directly: no holdback and no team split on that money.
 - The mandate is "AP2-style" (a signed, scoped, capped intent), not an AP2 implementation.
 - On-device signing needs Ed25519 in WebCrypto (Chrome 137+, Safari 17+, Firefox 129+). Older browsers pay without
   pre-approvals and confirm each change live.

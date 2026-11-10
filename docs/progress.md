@@ -617,3 +617,18 @@ before this and goes live with the next deploy.
   (1440 + 390): problems none; shots in `docs/screenshots/team/`.
 - Note: in a team deal, her own payout item is also "sent" until PayPal reports the batch (it used to show "paid"
   at once for single payouts; single payouts are unchanged).
+
+## Settle before a dispute (10 Nov, done before Wed 12:00 as required)
+- `amend/settle.py`, table `settlements`. Eligible: an open delivery gap, or a draft not approved after 2+
+  revisions. Either side (the brand's main contact or the creator) proposes.
+- AI: `SUMMARY_SYSTEM`, each side's summary kept only with quotes found word for word in that side's own messages
+  (a quote from the other side is dropped; no quotes → no summary). If the AI is down, there's no summary and the code
+  split still stands.
+- Code split: deliverables pay unit price × delivered (capped at agreed); licence lines are paid only if something
+  was delivered. Hash-bound; both tap; never on silence (the tick never touches it).
+- PayPal: live GET of each hold, capture with final_capture (bonus holds always voided), void unneeded holds,
+  Payouts to the creator (after any owed balance). Gaps close as "Settled by both, before any dispute". Deal →
+  completed (if delivered) or cancelled (nothing posted).
+- **Tests: 766 passed, 3 skipped.** New `test_settle.py` (5). Browser `settle_flow.py`: problems none; shots in
+  `docs/screenshots/settle/`.
+- Limit: a settlement pays the creator directly (no holdback, no team split).
