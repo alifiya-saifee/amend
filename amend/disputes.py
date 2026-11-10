@@ -101,6 +101,11 @@ def _opened(db: Database, row: dict) -> None:
                                        f"{_first(db, deal)} can download the proof from this deal and send it to PayPal.", kind="system")
     db.log_event("dispute.opened", actor="paypal", deal_id=deal["id"],
                  payload={"dispute": row["paypal_dispute_id"], "reason": row["reason"], "why": why, "amount_cents": row["amount_cents"]})
+    pack = stage_evidence(db, deal["id"])
+    db.update("disputes", "id", row["id"], {"evidence_status": "ready", "updated_at": now()})
+    post_message(db, deal["id"], None, f"The evidence pack is ready: the signed mandate, the confirmed version, the delivery check, "
+                                       f"the post link and the receipt chain ({pack['chain_events']} events, verified). "
+                                       f"{_first(db, deal)} taps Send proof to give it to PayPal.", kind="system")
 
 
 def _resolved(db: Database, row: dict, r: dict) -> str:
@@ -184,6 +189,22 @@ def evidence_pdf(db: Database, deal_id: str) -> bytes:
         say(f"PayPal dispute {d['paypal_dispute_id']}: {REASONS.get(d['reason'], d['reason'])}, "
             f"{money.fmt_usd(d['amount_cents'])}, status {d['status']}.", size=10, bold=True)
     doc.rule()
+    # 0. the signed mandate and the receipt PayPal already holds
+    from amend import chain, spine
+    doc.text("0. Signed brand mandate and the receipt in the PayPal order", 12, bold=True)
+    md = db.one("select * from mandates where deal_id = :d order by created_at desc limit 1", {"d": deal_id})
+    if md:
+        body = json.loads(md["body"])
+        say(f"Mandate {md['hash'][:16]}... signed by the brand on its own device (Ed25519) {_dubai(md['created_at'])}; "
+            f"cap {money.fmt_usd(md['cap_cents'])} = the PayPal hold; valid until {_dubai(md['expires_at'])}; status {md['status']}.", size=9)
+        for cnd in body.get("conditions", []):
+            say(f"- pre-approved: {cnd.get('label') or cnd.get('type')}", size=9)
+        say(f"Public key {md['pub'][:24]}...  Signature {md['sig'][:24]}...  (the exact signed text is kept and re-verifiable)", size=8)
+    else:
+        say("No mandate: every change was confirmed live by both sides.", size=9)
+    say(f"Receipt of the confirmed version {deal.get('version')}: SHA-256 {spine.receipt_hash(db, deal_id)[:32]}... "
+        "(the first 16 characters travel in the PayPal order's custom_id).", size=9)
+    doc.rule()
     # 1. versions, with the exact words behind each line
     doc.text("1. What was agreed (each line with the exact words it came from)", 12, bold=True)
     for v in range(1, (deal.get("version") or 1) + 1):
@@ -264,10 +285,31 @@ def evidence_pdf(db: Database, deal_id: str) -> bytes:
         pid = it.get("paypal_id") or it.get("paypal_parent_id") or ""
         say(f"{_dubai(it['created_at'])} - {it['kind']} {money.fmt_usd(it['amount_cents'])} - {it['status']}"
             + (f" - PayPal ...{pid[-4:]}" if pid else "") + (f" - approved by {appr}" if appr else ""), size=9)
+    doc.rule()
+    # 5. the receipt chain
+    v = chain.summary(db, deal_id, last=15)
+    doc.text("5. Receipt chain (each event carries the hash of the previous one)", 12, bold=True)
+    say(f"{v['events']} chained events, verified {'OK' if v['ok'] else 'BROKEN at event ' + str(v['broken_at'])}. "
+        f"Head {(v['head'] or '')[:32]}...", size=9, bold=True)
+    for r in v["last"]:
+        say(f"{_dubai(r['at'])}  {r['type']}  {r['hash'][:20]}...", size=8)
     doc.space(6)
     say("Every line above comes from Amend's append-only event log; nothing in it can be edited afterwards.", size=8,
         color=(0.36, 0.38, 0.42))
     return doc.bytes()
+
+
+def stage_evidence(db: Database, deal_id: str) -> dict:
+    """On CUSTOMER.DISPUTE.CREATED: build the pack at once and record its fingerprint in the chain. Sending it is a
+    PayPal write, so the creator taps "Send proof" (an approval record) and Amend sends it as PROOF_OF_FULFILLMENT."""
+    import hashlib
+    from amend import chain
+    pdf = evidence_pdf(db, deal_id)
+    v = chain.verify(db, deal_id)
+    info = {"pdf_sha256": hashlib.sha256(pdf).hexdigest(), "bytes": len(pdf), "chain_head": v["head"], "chain_ok": v["ok"],
+            "chain_events": v["events"]}
+    db.log_event("dispute.evidence_ready", actor="system", deal_id=deal_id, payload=info)
+    return info
 
 
 # ---------- submit to PayPal (a PayPal write: creator's approval first) ----------

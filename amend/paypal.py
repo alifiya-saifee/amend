@@ -198,6 +198,26 @@ class PayPalClient:
             raise _err(r)
         return r.json() if r.content else {}
 
+    # ---- disputes (status + the sandbox-only simulation calls used by scripts/dispute_sandbox_run.py) ----
+    async def get_dispute(self, dispute_id: str) -> dict:
+        return await self._get(f"/v1/customer/disputes/{dispute_id}")
+
+    async def require_evidence(self, dispute_id: str, *, request_id: str | None, approval: dict | None) -> dict:
+        """Sandbox only: make PayPal ask the seller for evidence (moves an inquiry to waiting for seller evidence)."""
+        return await self._write("POST", f"/v1/customer/disputes/{dispute_id}/require-evidence", {"action": "SELLER_EVIDENCE"},
+                                 request_id=request_id, approval=approval)
+
+    async def escalate(self, dispute_id: str, *, note: str, request_id: str | None, approval: dict | None) -> dict:
+        return await self._write("POST", f"/v1/customer/disputes/{dispute_id}/escalate", {"note": note[:2000]},
+                                 request_id=request_id, approval=approval)
+
+    async def adjudicate(self, dispute_id: str, *, outcome: str, request_id: str | None, approval: dict | None) -> dict:
+        """Sandbox only: PayPal decides the dispute (SELLER_FAVOR | BUYER_FAVOR)."""
+        if outcome not in ("SELLER_FAVOR", "BUYER_FAVOR"):
+            raise ValueError("outcome must be SELLER_FAVOR or BUYER_FAVOR")
+        return await self._write("POST", f"/v1/customer/disputes/{dispute_id}/adjudicate", {"adjudication_outcome": outcome},
+                                 request_id=request_id, approval=approval)
+
     # ---- invoices ----
     async def create_invoice(self, *, recipient_email: str, item_name: str, amount_cents: int, number: str,
                              request_id: str | None, approval: dict | None) -> dict:

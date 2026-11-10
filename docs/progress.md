@@ -383,3 +383,13 @@ Next: Block 7.
 - Fixed on the way: after a change applied, the chat box came back empty (it remembered the old messages and skipped drawing).
 - Browsers: Ed25519 WebCrypto is on in Chrome 137+, Safari 17+ and Firefox 129+. Older browsers see "can't sign on this device" and pay without pre-approvals. The test browser (Chromium 130) runs with --enable-experimental-web-platform-features.
 - Tests: test_mandates.py (signature, tampering, fields, conditions, cap, inside/outside, cumulative limit, post window). Browser tests/browser/mandate_flow.py: sign → $680 at PayPal → Sara's Story applies via the mandate. No problems.
+
+## PayPal spine, part 3: receipt chain + dispute (10 Nov)
+- Every deal event now stores prev_hash and hash: SHA-256 over the previous hash and the event's exact stored fields. chain.verify() recomputes the chain, and one changed byte breaks it at that event. That covers the mandate, change cards, each confirmation, each PayPal request ID and response ID (order, authorization, capture, payout, refund, void), webhooks and the evidence. The spine panel shows "Receipt chain: N events · verified".
+- On CUSTOMER.DISPUTE.CREATED, the evidence pack is built at once and its SHA-256 and the chain head go into the chain. It contains:
+  - 0: the signed mandate and the receipt in the PayPal order;
+  - 1–4: the confirmed versions with quotes, the confirmations, the delivery check with the post link, and every money step;
+  - 5: the receipt chain.
+  Sara taps Send proof (her approval record), and Amend sends it as PROOF_OF_FULFILLMENT, once. It isn't sent automatically, because rule 3 needs a human approval for every PayPal write.
+- scripts/dispute_sandbox_run.py: require-evidence → provide-evidence → adjudicate SELLER_FAVOR, then reads the dispute back. Dry run by default; `--run` only with Alifiya's go. Every write has its own approval record and a fixed request ID. The RESOLVED webhook then shows on the spine.
+- Open: run the script against the live sandbox dispute (needs your OK; uses the Render DATABASE_URL and PayPal env).

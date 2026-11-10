@@ -758,6 +758,8 @@ async def approve_refund(db: Database, pp, deal: dict, item_id: str, party_id: s
     r = await pp.refund(cap["paypal_id"], amount_cents=it["amount_cents"], request_id=it["request_id"],
                         approval=money.approval_record(db, it))
     it = money._set_status(db, money.get_item(db, it["id"]), "paid", party_id, paypal_id=r.get("id"))
+    db.log_event("paypal.called", actor=party_id, deal_id=deal["id"],
+                 payload={"item": it["id"], "call": "refund", "refund": r.get("id"), "capture": cap["paypal_id"], "request_id": it["request_id"]})
     db.update("money_items", "id", cap["id"], {"refunded_cents": cap["refunded_cents"] + it["amount_cents"], "updated_at": now()})
     hold = db.one("select * from money_items where deal_id = :d and kind = 'hold' and paypal_parent_id = :a",
                   {"d": deal["id"], "a": cap["paypal_parent_id"]})

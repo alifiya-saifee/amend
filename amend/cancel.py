@@ -165,6 +165,8 @@ async def approve(db: Database, rail: money.PlatformRail, deal: dict, by_party: 
             money.approve(db, vd["id"], brand_party)
             money.approve(db, vd["id"], creator_party)
             await pp.void(h["paypal_parent_id"], request_id=vd["request_id"], approval=money.approval_record(db, money.get_item(db, vd["id"])))
+            db.log_event("paypal.called", actor=by_party, deal_id=deal["id"],
+                         payload={"item": vd["id"], "call": "void", "authorization": h["paypal_parent_id"], "request_id": vd["request_id"]})
             money._set_status(db, money.get_item(db, vd["id"]), "sent", by_party)
             money._set_status(db, money.get_item(db, vd["id"]), "paid", by_party)
             money._set_status(db, money.get_item(db, h["id"]), "voided", by_party)

@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed",
+    "mandate.signed", "dispute.evidence_ready",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -371,16 +371,31 @@ class Database:
         with self.lock:
             if key and (old := self.one("select * from events where key = :key", {"key": key})):
                 return _event(old) | {"duplicate": True}
+            at, body = now(), json.dumps(payload or {}, ensure_ascii=False, sort_keys=True)
+            prev = h = None
+            if deal_id:  # receipt chain: each deal event carries the hash of the deal's previous event
+                last = self.one("select hash from events where deal_id = :d and hash is not null order by id desc limit 1", {"d": deal_id})
+                prev = (last or {}).get("hash") or GENESIS
+                h = chain_hash(prev, at, type, actor, deal_id, body)
             self.execute(
-                "insert into events (at, type, actor, deal_id, payload_json, key) "
-                "values (:at, :type, :actor, :deal_id, :payload, :key)",
-                {"at": now(), "type": type, "actor": actor, "deal_id": deal_id,
-                 "payload": json.dumps(payload or {}, ensure_ascii=False, sort_keys=True), "key": key})
+                "insert into events (at, type, actor, deal_id, payload_json, key, prev_hash, hash) "
+                "values (:at, :type, :actor, :deal_id, :payload, :key, :prev, :hash)",
+                {"at": at, "type": type, "actor": actor, "deal_id": deal_id, "payload": body, "key": key,
+                 "prev": prev, "hash": h})
             row = self.one("select * from events where id = (select max(id) from events)")
         return _event(row)
 
     def events_for(self, deal_id: str) -> list[dict]:
         return [_event(r) for r in self.all("select * from events where deal_id = :d order by id", {"d": deal_id})]
+
+
+GENESIS = "0" * 64
+
+
+def chain_hash(prev: str, at: str, type: str, actor: str, deal_id: str, payload_json: str) -> str:
+    """SHA-256 over the previous hash and this event's exact stored fields. Anyone with the rows can recompute it."""
+    import hashlib
+    return hashlib.sha256("|".join([prev, at, type, actor or "", deal_id or "", payload_json]).encode()).hexdigest()
 
 
 def _event(r: dict) -> dict:

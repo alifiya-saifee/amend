@@ -586,6 +586,8 @@ function spineHtml(S) {
       <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div>
     <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
       <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>
+    ${S.chain && S.chain.events ? `<p class="tiny ${S.chain.ok ? "muted" : "err"}" style="margin:0 0 6px">${icon(S.chain.ok ? "link" : "unlink")}
+      Receipt chain: ${S.chain.events} events, each holding the previous one's hash · ${S.chain.ok ? "verified" : "BROKEN"} · head <code>${esc((S.chain.head || "").slice(0, 12))}…</code></p>` : ""}
     ${C ? `<div class="sp-clock"><b>Hold day ${C.day} of ${C.of}</b> · ${C.in_honour ? `PayPal honour period until ${esc(fmtDate(C.honour_until))}`
       : "honour period over: Amend re-authorises once, automatically, before collecting"} · expires ${esc(fmtDate(C.expires_at))}
       <div class="meter" aria-hidden="true"><span style="width:${pct(C.day, C.of)}%"></span></div></div>` : ""}

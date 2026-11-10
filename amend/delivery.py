@@ -478,7 +478,7 @@ async def _payout(db: Database, pp, it: dict, deal: dict, actor: str) -> None:
     money._set_status(db, money.get_item(db, it["id"]), "paid", actor, paypal_id=batch)
     spine.record_seen(db, batch, kind="payout", status=(r.get("batch_header") or {}).get("batch_status"), source="response",
                       item_id=it["id"], deal_id=deal["id"])
-    db.log_event("paypal.called", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "payout", "batch": batch})
+    db.log_event("paypal.called", actor=actor, deal_id=deal["id"], payload={"item": it["id"], "call": "payout", "batch": batch, "request_id": it["request_id"]})
 
 
 # ---------- holdback ----------
@@ -523,6 +523,8 @@ async def tick_holdback(db: Database, rail: money.PlatformRail, at: datetime | N
                                      approval=money.approval_record(db, money.get_item(db, ref["id"])))
             money._set_status(db, money.get_item(db, ref["id"]), "sent", "system")
             money._set_status(db, money.get_item(db, ref["id"]), "paid", "system", paypal_id=r.get("id"))
+            db.log_event("paypal.called", actor="system", deal_id=deal["id"],
+                         payload={"item": ref["id"], "call": "refund", "refund": r.get("id"), "request_id": ref["request_id"]})
             db.log_event("holdback.returned", actor="system", deal_id=deal["id"], payload={"amount": hb["amount_cents"]})
             returned += 1
         elif at >= datetime.fromisoformat(deal["holdback_release_at"]):

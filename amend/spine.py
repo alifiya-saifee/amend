@@ -173,7 +173,10 @@ def view(db: Database, deal_id: str) -> dict:
                  "overcapture_on": _overcapture_on()}
     m = db.one("select id, hash, cap_cents, expires_at, status, body from mandates where deal_id = :d order by created_at desc limit 1",
                {"d": deal_id})
+    from amend import chain
+    ch = chain.verify(db, deal_id)
     return {"deal": deal_id, "version": deal["version"], "receipt_hash": receipt_hash(db, deal_id),
+            "chain": {"ok": ch["ok"], "events": ch["events"], "head": ch["head"]},
             "versions": [{"version": v, "lines": versions[v]} for v in sorted(versions)],
             "clock": hold_clock(main) if main else None, "headroom": meter, "dispute": dispute,
             "mandate": ({"hash": m["hash"], "cap_cents": m["cap_cents"], "expires_at": m["expires_at"], "status": m["status"],
