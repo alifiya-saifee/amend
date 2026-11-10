@@ -5,6 +5,7 @@ const Chat = (() => {
 
   function mount(el, opts) {
     base = opts.base; isBrand = opts.isBrand; token = opts.token || ""; onApplied = opts.onApplied;
+    lastSig = "";  // a fresh box (e.g. after the page reloads the deal) must draw, even when the messages didn't change
     // fill: the Inbox gives the chat a fixed-height box; the list scrolls and the composer stays pinned at the bottom
     el.innerHTML = `
       <div class="chat ${opts.fill ? "fill" : "card"}">
@@ -154,6 +155,7 @@ const Chat = (() => {
         const r = await api(`${base}/messages`, { body: { body: text } });
         $("#chat-in").value = ""; $("#chat-send").disabled = true; lastSig = ""; draw(r);
     if (r.ai_error) toast(r.ai_error + " Your message was sent.", "bad");
+    else if (r.change && r.change.status === "applied") { toast("Inside the signed mandate · applied"); if (onApplied) onApplied(); }
     else if (r.change) toast("Change card added · confirm it together");
    } catch (e) { toast(e.message, "bad"); }
     });

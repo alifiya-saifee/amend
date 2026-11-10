@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, money, notify, offers, shipping, spine, studio, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, mandates, money, notify, offers, shipping, spine, studio, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -632,6 +632,28 @@ async def brand_spine_refresh(token: str):
     deal_id = deals.open_link(get_db(), token)["deal"]["id"]
     rate_limit(f"spine:{deal_id}", 6, 60)
     return await spine.refresh(get_db(), rail().pp, deal_id)
+
+
+# ---------- signed brand mandate bound to the hold (AP2-style) ----------
+
+class MandateIn(BaseModel):
+    body: str = Field(max_length=4000)
+    sig: str = Field(max_length=200)
+    pub: str = Field(max_length=200)
+
+
+@app.get("/api/d/{token}/mandate/draft")
+def mandate_draft(token: str):
+    ctx = deals.open_link(get_db(), token)
+    return mandates.draft(get_db(), ctx["deal"])
+
+
+@app.post("/api/d/{token}/mandate")
+def mandate_sign(token: str, body: MandateIn):
+    rate_limit(f"mandate:{token[:12]}", 10, 600)
+    ctx = deals.open_link(get_db(), token)
+    m = mandates.submit(get_db(), ctx["deal"], party=ctx["party"], role=ctx["role"], body=body.body, sig=body.sig, pub=body.pub)
+    return {"hash": m["hash"], "cap_cents": m["cap_cents"], "expires_at": m["expires_at"]}
 
 
 # ---------- price offers before acceptance (brand offers, creator accepts / counters / declines) ----------

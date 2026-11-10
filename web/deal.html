@@ -485,6 +485,85 @@ function panel() {
   bindAlerts(document);  // the panel copy (desktop) and the History-tab copy (phones)
   loadSpine();
 }
+/* ---------- Signed brand mandate (AP2-style only, not a certified implementation): pre-approve up to 3 small changes at hold time ----------
+   The key is made on this device with WebCrypto Ed25519 and kept in IndexedDB as a non-extractable key: Amend never sees
+   the private key, only the public key and the signature. The PayPal hold becomes the cap (deal + allowed extras). */
+let MDRAFT = null;
+function mandateHtml() {
+  return `<details class="mandate-box" id="mbox"><summary><b>Pre-approve small changes</b> <span class="muted small">(optional · signed on this device)</span></summary>
+    <p class="small muted">An AP2-style mandate: you sign up to 3 conditions now. A change inside them counts as your confirmation; ${esc(V.creator.name.split(" ")[0])} still confirms.
+      PayPal holds the deal plus the extras you allow, and releases whatever isn't used.</p>
+    <label class="chk"><input type="checkbox" id="m-x"> <span>Extra <select id="m-item" aria-label="Item"></select> up to $<input id="m-max" type="number" value="150" min="1" max="1000" step="1" aria-label="Limit in dollars"> in total</span></label>
+    <label class="chk"><input type="checkbox" id="m-w"> <span>The post date can move between <input type="date" id="m-from" aria-label="From"> and <input type="date" id="m-to" aria-label="To"></span></label>
+    <label class="chk"><input type="checkbox" id="m-ad"> <span>Every post carries #ad</span></label>
+    <p class="tiny muted" id="m-note"></p></details>`;
+}
+async function setupMandate() {
+  try { MDRAFT = await api(url("/mandate/draft")); } catch { $("#mbox").remove(); return; }
+  $("#m-item").innerHTML = MDRAFT.items.map(i => `<option value="${esc(i.code)}">${esc(i.name)}</option>`).join("");
+  const dl = V.deal.deadline && /^\d{4}-\d{2}-\d{2}/.test(V.deal.deadline) ? new Date(V.deal.deadline.slice(0, 10) + "T12:00:00Z") : new Date(Date.now() + 7 * 864e5);
+  const iso = x => x.toISOString().slice(0, 10);
+  $("#m-from").value = iso(new Date(dl - 2 * 864e5)); $("#m-to").value = iso(new Date(+dl + 2 * 864e5));
+  let ok = false;
+  try { ok = !!(window.crypto && crypto.subtle && window.indexedDB && await brandKey()); } catch { ok = false; }
+  if (!ok) {
+    $$("#mbox input, #mbox select").forEach(i => i.disabled = true);
+    $("#m-note").textContent = "This browser can't sign on the device, so pay without pre-approvals: you confirm each change live.";
+    return;
+  }
+  const upd = () => {
+    const extra = $("#m-x").checked ? Math.round(+$("#m-max").value * 100) || 0 : 0;
+    $("#pay").textContent = `Pay with PayPal: hold ${usd(V.total_cents + extra)}`;
+    if ($("#hold-h")) $("#hold-h").textContent = extra ? `Hold ${usd(V.total_cents + extra)} with PayPal (deal ${usd(V.total_cents)} + up to ${usd(extra)} pre-approved)` : `Hold ${usd(V.total_cents)} with PayPal`;
+    $("#m-note").textContent = mandateConditions().length ? `You'll sign this on this device before PayPal. Cap ${usd(V.total_cents + extra)} = the PayPal hold.` : "";
+  };
+  $$("#mbox input, #mbox select").forEach(i => i.onchange = i.oninput = upd);
+}
+function mandateConditions() {
+  if (!$("#mbox")) return [];
+  const out = [];
+  if ($("#m-x").checked) {
+    const name = $("#m-item").selectedOptions[0]?.textContent || $("#m-item").value, max = Math.round(+$("#m-max").value * 100);
+    out.push({ type: "extra_item", item: $("#m-item").value, max_cents: max, label: `Extra ${name}, up to ${usd(max)} in total` });
+  }
+  if ($("#m-w").checked) out.push({ type: "post_window", from: $("#m-from").value, to: $("#m-to").value,
+    label: `The post date can move between ${$("#m-from").value} and ${$("#m-to").value}` });
+  if ($("#m-ad").checked) out.push({ type: "disclosure", tag: "#ad", label: "Every post carries #ad" });
+  return out;
+}
+// Canonical JSON (sorted keys, no spaces), the same text Amend checks and hashes
+function canon(o) {
+  if (Array.isArray(o)) return "[" + o.map(canon).join(",") + "]";
+  if (o && typeof o === "object") return "{" + Object.keys(o).sort().map(k => JSON.stringify(k) + ":" + canon(o[k])).join(",") + "}";
+  return JSON.stringify(o);
+}
+function keyStore() {
+  return new Promise((res, rej) => { const r = indexedDB.open("amend-keys", 1); r.onupgradeneeded = () => r.result.createObjectStore("keys");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+}
+async function brandKey() {
+  const db = await keyStore();
+  const get = () => new Promise(r => { const q = db.transaction("keys").objectStore("keys").get("ed25519"); q.onsuccess = () => r(q.result); q.onerror = () => r(null); });
+  let kp = await get();
+  if (!kp) {
+    kp = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);  // private key never leaves this device
+    await new Promise(r => { const q = db.transaction("keys", "readwrite").objectStore("keys").put(kp, "ed25519"); q.onsuccess = r; q.onerror = r; });
+  }
+  return kp;
+}
+async function signMandate() {
+  const conds = mandateConditions();
+  const extra = conds.filter(c => c.type === "extra_item").reduce((a, c) => a + c.max_cents, 0);
+  const m = { v: MDRAFT.v, type: MDRAFT.type, deal: MDRAFT.deal, creator: MDRAFT.creator, brand: MDRAFT.brand, scope: MDRAFT.scope,
+    deal_cents: MDRAFT.deal_cents, cap_cents: MDRAFT.deal_cents + extra, expires_at: MDRAFT.expires_at, nonce: MDRAFT.nonce, conditions: conds };
+  const body = canon(m), kp = await brandKey();
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const sig = b64(await crypto.subtle.sign({ name: "Ed25519" }, kp.privateKey, new TextEncoder().encode(body)));
+  const pub = b64(await crypto.subtle.exportKey("raw", kp.publicKey));
+  const r = await api(url("/mandate"), { body: { body, sig, pub } });
+  toast(`Mandate signed · ${r.hash.slice(0, 12)}…`);
+  return r;
+}
 /* ---------- PayPal spine: the PayPal objects behind each version, the hold clock, the headroom meter ---------- */
 let SPINE = null;
 async function loadSpine(refresh = false) {
@@ -640,16 +719,21 @@ function brand(d) {
     $("#view").innerHTML = `
       <div class="banner ok">${esc(first)} accepted <i data-lucide='circle-check' aria-hidden='true'></i> · Version ${d.version}</div>
       <div class="card gold" style="margin-top:12px">
-        <h2>${expired ? "Hold expired, hold again" : `Hold ${usd(V.total_cents)} with PayPal`}</h2>
+        <h2 id="hold-h">${expired ? "Hold expired, hold again" : `Hold ${usd(V.total_cents)} with PayPal`}</h2>
         <p class="small">PayPal reserves the money. It is <b>not</b> taken now. It's collected only when the delivery matches this deal. If the deal is cancelled, the unused part is released.</p>
         <p class="small muted">A PayPal hold lasts up to 29 days (sandbox check, 7 Nov).</p>
+        ${!waiting && V.me.role === "brand_main" ? mandateHtml() : ""}
         <button class="btn primary block" id="pay">${waiting ? "Continue at PayPal" : `Pay with PayPal: hold ${usd(V.total_cents)}`}</button>
       </div>
       <details class="card hide-desktop" style="margin-top:12px"><summary>See the deal</summary>${linesHtml()}${extrasHtml()}</details>
       ${briefHtml(false)}`;
+    if ($("#mbox")) setupMandate();
     $("#pay").onclick = e => busy(e.currentTarget, async () => {
-   try { const r = await api(url("/pay"), { method: "POST" }); if (r.approve_url) location.href = r.approve_url; else toast("PayPal didn't give a link. Try again.", "bad"); }
-   catch (er) { toast(er.message, "bad", () => $("#pay").click()); }
+      try {
+        if (!waiting && mandateConditions().length) await signMandate();
+        const r = await api(url("/pay"), { method: "POST" });
+        if (r.approve_url) location.href = r.approve_url; else toast("PayPal didn't give a link. Try again.", "bad");
+      } catch (er) { toast(er.message, "bad", () => $("#pay").click()); }
     });
     return;
   }

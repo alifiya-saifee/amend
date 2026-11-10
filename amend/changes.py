@@ -419,7 +419,8 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
     db.log_event("change.detected" if status == "previewed" else "change.suggested", actor=proposer, deal_id=deal["id"],
                  payload={"change": cid, "kind": out.kind, "delta_cents": delta, "conflicts": rip.conflicts,
                           "untouched": rip.untouched_count})
-    return db.one("select * from changes where id = :id", {"id": cid})
+    from amend import mandates  # inside the brand's signed mandate → the brand's confirmation, signed in advance
+    return mandates.pre_confirm(db, deal, db.one("select * from changes where id = :id", {"id": cid}))
 
 
 NUM_WORDS = {"one": 1, "single": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
@@ -476,7 +477,7 @@ def card(db: Database, c: dict) -> dict:
             "quote": c["quote"], "source": c["source"], "proposed_by": who.get("name"),
             "suggestion": c["status"] == "detected", "brand_ok": bool(c["confirmed_brand_at"]),
             "creator_ok": bool(c["confirmed_creator_at"]), "override_reason": c["override_reason"],
-            "expires_at": c["expires_at"], "pending_hold": _pending_hold(db, c)}
+            "expires_at": c["expires_at"], "pending_hold": _pending_hold(db, c), "via_mandate": c.get("brand_via_mandate")}
 
 
 def _pending_hold(db: Database, c: dict) -> dict | None:

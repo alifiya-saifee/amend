@@ -375,3 +375,11 @@ Next: Block 7.
 - Change cards say "+$X comes out of the existing PayPal hold" (spare held money) or "+$X needs a new PayPal approval from the brand".
 - Over-capture (using PayPal's headroom) is built but OFF (PAYPAL_OVERCAPTURE=false) until a sandbox probe confirms Amend's account allows it. When it is on, a change inside the headroom comes out of the existing hold.
 - Open question: may I run a sandbox over-capture probe? It needs one hold approved by you.
+
+## PayPal spine, part 2: signed brand mandate (10 Nov)
+- At hold time the brand can pre-approve up to 3 checkable things: an extra item up to $X in total, a post-date window, and #ad on every post. Their browser signs a canonical JSON with an Ed25519 key made on the device (WebCrypto, non-extractable, kept in IndexedDB). Amend verifies the signature over the exact text and checks every field against its own numbers. Wording on the page is "AP2-style"; it never claims to be AP2 compliant.
+- cap = the PayPal hold = deal + pre-approved extras (e.g. $530 + up to $150 → a $680 hold). The extra part rests on a fact quoting the signed conditions. The mandate's hash is part of the receipt hash in the PayPal order's custom_id.
+- A change card inside the mandate counts as the brand's confirmation. The creator still confirms; her own proposal is her confirmation, so it applies at once and "+$80 comes out of the existing PayPal hold". The limit is cumulative. A change that breaks her own limits (e.g. a weekend post) is never pre-approved. Outside the mandate, the brand confirms live.
+- Fixed on the way: after a change applied, the chat box came back empty (it remembered the old messages and skipped drawing).
+- Browsers: Ed25519 WebCrypto is on in Chrome 137+, Safari 17+ and Firefox 129+. Older browsers see "can't sign on this device" and pay without pre-approvals. The test browser (Chromium 130) runs with --enable-experimental-web-platform-features.
+- Tests: test_mandates.py (signature, tampering, fields, conditions, cap, inside/outside, cumulative limit, post window). Browser tests/browser/mandate_flow.py: sign → $680 at PayPal → Sara's Story applies via the mandate. No problems.

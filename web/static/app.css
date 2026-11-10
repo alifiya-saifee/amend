@@ -614,3 +614,13 @@ body.browse .filters-side input::placeholder, #f-budget::placeholder { color: va
 .sp-line + .sp-line { border-top: 1px dashed var(--border); }
 .sp-obj { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; }
 .sp-type { color: var(--muted); }
+
+/* signed brand mandate on the hold card */
+.mandate-box { border: 1px dashed var(--border-2); border-radius: 12px; padding: 10px 12px; margin: 10px 0 12px; background: var(--surface); }
+.mandate-box summary { cursor: pointer; }
+.mandate-box .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin: 8px 0; line-height: 1.6; }
+.mandate-box .chk input[type=checkbox] { margin-top: 5px; flex: none; }
+.mandate-box .chk input[type=number] { width: 80px; padding: 4px 6px; display: inline-block; }
+.mandate-box .chk input[type=date], .mandate-box select { padding: 4px 6px; width: auto; display: inline-block; max-width: 100%; }
+.mandate-box .chk input[type=checkbox] { width: auto; height: auto; }
+.mandate-box .chk > span { flex: 1; min-width: 0; }
