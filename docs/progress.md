@@ -584,3 +584,16 @@ before this and goes live with the next deploy.
 ### Open questions
 - Day D must fall inside the 29-day PayPal hold. The card warns if the hold expires first; the brand would then need
   to hold the bonus again (not automated).
+
+## Bonus tiers in the brand's mandate (10 Nov)
+- New mandate condition `bonus_tiers` (max conditions now 4): 1 to 3 tiers, each with more views and more money,
+  read on day 1 to 21. Signing it creates an agreed bonus (`via_mandate` = the mandate hash; fact source
+  `mandate:<hash>`), and the top tier becomes the bonus hold. Re-signing replaces it.
+- Day D: `tier_reached` (code) picks the highest tier. Met → capture that tier (final_capture, so the rest of the
+  bonus hold comes back; logged as `money.unused_released`) + Payouts. Missed → void. The brand's approval is recorded
+  from its signed mandate (`approval.via_mandate`), so only the creator taps; a brand tap is refused.
+- Mandate box: "Performance bonus" with 3 tier rows and the day; the note shows the bonus hold and the total held.
+- **Tests: 753 passed, 3 skipped.** New `test_bonus_tiers.py` (6). Browser `tiers_flow.py`: problems none; shots
+  06 to 09 in `docs/screenshots/bonus/`.
+- Choice: hold = base hold + a separate top-tier hold (two PayPal approvals) rather than one bigger hold, so the base
+  release's final_capture can't release the bonus part early.

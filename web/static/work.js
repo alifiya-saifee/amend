@@ -149,7 +149,11 @@ const Work = (() => {
         ${rules}<button class="btn primary block" id="w-bn-offer" style="margin-top:8px">Offer the bonus to ${esc(first())}</button></details>`;
     }
     const head = `<div class="row between"><h3 style="margin:0">${icon("trophy")} Performance bonus</h3>${bonusPill(b)}</div>
-      <p class="small" style="margin:6px 0 0"><b>${esc(b.terms)}</b></p>`;
+      ${b.tiers && b.tiers.length > 1 ? `<div class="list" style="margin-top:6px">${b.tiers.map(t => `<div class="line"><span class="grow small">at ${n(t.at)} views</span><b class="amt">+${usd(t.cents)}</b>
+        ${b.tier && b.tier.at === t.at ? '<span class="pill collected">reached</span>' : ""}</div>`).join("")}</div>
+        <p class="tiny muted" style="margin:4px 0 0">The highest tier reached is paid; read on day ${b.read_day} after posting.</p>`
+      : `<p class="small" style="margin:6px 0 0"><b>${esc(b.terms)}</b></p>`}
+      ${b.via_mandate ? `<p class="tiny muted" style="margin:4px 0 0">${icon("pen-line")} Pre-signed in ${esc(b.brand)}'s mandate <code>${esc(b.via_mandate.slice(0, 12))}…</code>: only ${esc(first())} taps to release it.</p>` : ""}`;
     let body = "";
     if (b.status === "offered") body = ctx.IS_BRAND ? `<p class="small muted">Waiting for ${esc(first())} to confirm.</p>`
       : `<button class="btn primary block" id="w-bn-confirm" style="margin-top:8px">Confirm the bonus</button><p class="hint">Then ${esc(b.brand)} holds ${usd(b.amount_cents)} with PayPal.</p>`;
@@ -164,15 +168,16 @@ const Work = (() => {
       const r = b.reading || {};
       const met = b.status === "met" || b.status === "paid", decided = ["met", "missed", "unproven"].includes(b.status);
       const meTapped = ctx.IS_BRAND ? b.confirmed_brand_at : b.confirmed_creator_at;
+      const pay = b.tier ? b.tier.cents : b.amount_cents;
       body = `<div class="vlab" style="margin-top:8px"><span class="vtag ai">Instagram read</span><span class="small">${r.views != null ? `${n(r.views)} views` : esc(r.why || "no reading")}
           ${r.fetched_at ? ` <span class="tiny muted">· ${esc(r.source || "Instagram insights")} · ${esc(ago(r.fetched_at))}</span>` : ""}</span></div>
         <div class="vlab"><span class="vtag code ${met ? "ok" : "bad"}">Code decided</span><span class="small">${b.status === "unproven" ? "Not proven: no Instagram reading, so it goes back to the brand"
-          : met ? `Met: ${n(r.views)} ≥ ${n(b.threshold)} views` : `Missed: ${n(r.views)} < ${n(b.threshold)} views`}</span></div>
-        ${b.status === "paid" ? `<p class="small" style="margin:6px 0 0">${icon("circle-check")} PayPal collected the ${usd(b.amount_cents)} bonus hold and paid ${esc(first())} by Payouts.</p>`
+          : met ? `Met: ${n(r.views)} ≥ ${n(b.tier ? b.tier.at : b.threshold)} views${b.tiers && b.tiers.length > 1 ? ` · tier +${usd(pay)}` : ""}` : `Missed: ${n(r.views)} < ${n(b.threshold)} views`}</span></div>
+        ${b.status === "paid" ? `<p class="small" style="margin:6px 0 0">${icon("circle-check")} PayPal collected ${usd(pay)} from the bonus hold and paid ${esc(first())} by Payouts${pay < b.amount_cents ? `; ${usd(b.amount_cents - pay)} went back to ${esc(b.brand)}` : ""}.</p>`
           : b.status === "released" ? `<p class="small" style="margin:6px 0 0">${icon("undo-2")} The ${usd(b.amount_cents)} bonus hold was voided: all of it went back to ${esc(b.brand)}.</p>` : ""}
-        <p class="tiny muted" style="margin:6px 0 0" ${decided ? "" : "hidden"}>PayPal on confirm: ${met ? `collect the ${usd(b.amount_cents)} bonus hold (final_capture), then pay ${esc(first())} by Payouts` : `void the ${usd(b.amount_cents)} bonus hold: all of it goes back to ${esc(b.brand)}`}</p>
-        ${decided && !meTapped && (!ctx.IS_BRAND || main) ? `<button class="btn primary block" id="w-bn-tap" data-hash="${esc(b.decision_hash)}" style="margin-top:8px">${met ? `Confirm: pay the ${usd(b.amount_cents)} bonus` : "Confirm: release the bonus hold back"}</button>`
-          : decided ? `<p class="small">${icon("circle-check")} You confirmed. Waiting for ${ctx.IS_BRAND ? esc(first()) : esc(b.brand)}.</p>` : ""}`;
+        <p class="tiny muted" style="margin:6px 0 0" ${decided ? "" : "hidden"}>PayPal on confirm: ${met ? `collect ${usd(pay)} from the ${usd(b.amount_cents)} bonus hold (final_capture${pay < b.amount_cents ? `: ${usd(b.amount_cents - pay)} goes back to ${esc(b.brand)}` : ""}), then pay ${esc(first())} by Payouts` : `void the ${usd(b.amount_cents)} bonus hold: all of it goes back to ${esc(b.brand)}`}</p>
+        ${decided && !meTapped && (!ctx.IS_BRAND || main) ? `<button class="btn primary block" id="w-bn-tap" data-hash="${esc(b.decision_hash)}" style="margin-top:8px">${met ? `Confirm: pay the ${usd(pay)} bonus` : "Confirm: release the bonus hold back"}</button>`
+          : decided ? `<p class="small">${icon("circle-check")} ${ctx.IS_BRAND && b.via_mandate ? "Pre-signed in your mandate" : "You confirmed"}. Waiting for ${ctx.IS_BRAND ? esc(first()) : esc(b.brand)}.</p>` : ""}`;
     }
     return `<div class="card bonus">${head}${body}${b.status === "offered" || b.status === "agreed" ? rules : ""}</div>`;
   }

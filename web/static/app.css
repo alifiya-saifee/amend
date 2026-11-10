@@ -676,3 +676,7 @@ dialog.grid-detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 @media (prefers-color-scheme: dark) { html:not(.theme-light):has(body:not(.marketing)) { background: #0E1013; } }
 html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 .src-chip.src-demo { white-space: nowrap; font-weight: 500; }
+/* bonus tiers in the brand's mandate */
+.m-tiers { margin: 4px 0 0 28px; }
+.m-tier, .m-tier-head { display: grid; grid-template-columns: 52px minmax(0, 1fr) minmax(0, 96px); gap: 6px; align-items: center; margin-top: 4px; }
+.m-tier input { width: 100%; min-width: 0; }

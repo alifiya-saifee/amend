@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set", "bonus.offered", "bonus.agreed", "bonus.decided", "bonus.confirmed", "bonus.settled", "approval.via_mandate",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -255,7 +255,8 @@ COLUMNS = {
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
                     "deal_version": "integer", "custom_id": "text", "invoice_id": "text",
                     "released_cents": "integer not null default 0"},  # unused hold sent back (final_capture or void)  # PayPal spine: version + refs sent
-    "events": {"prev_hash": "text", "hash": "text"},  # receipt chain: each deal event carries the previous one's hash
+    "events": {"prev_hash": "text", "hash": "text"},
+    "bonuses": {"tiers_json": "text", "via_mandate": "text"},  # bonus tiers signed in the brand's mandate  # receipt chain: each deal event carries the previous one's hash
     "accounts": {"settings_json": "text not null default '{}'"},
     "team_members": {"can_confirm": "integer not null default 0"},
     "messages": {"meta_json": "text not null default '{}'"},

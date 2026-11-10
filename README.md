@@ -107,6 +107,10 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   and all of it goes back. **No screenshots as proof:** if Instagram can't be read by day D + 2, the bonus goes back to
   the brand. The bonus hold is never part of the base release or a cancellation split (cancelling voids it). PayPal
   holds last 29 days, so day D is 1 to 21 days after posting.
+  **Bonus tiers** (up to 3, e.g. 10,000 views +$50, 50,000 views +$150) can be signed in the brand's mandate. The
+  brand holds base + top tier (the bonus is its own hold); code picks the highest tier Instagram's numbers reach;
+  because the brand pre-signed it, only the creator taps; PayPal collects that tier with `final_capture`, so the rest
+  of the bonus hold goes back to the brand. Tiers only add money: the base price never goes down.
 - **Brand data from Instagram, every number with its source and "updated X ago"** (stale after 7 days):
   - **Results report** per deal: views, reach, saves and shares from the post's insights, and **cost per 1,000 views =
     paid ÷ views × 1,000**, worked out by code. Refresh button (rate limited) and CSV download.

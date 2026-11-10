@@ -32,8 +32,9 @@ from datetime import date, datetime, timedelta, timezone
 from amend import spine  # noqa: F401  (hold life)
 from amend.db import Database, new_id, now
 
-MAX_CONDITIONS = 3
-TYPES = ("extra_item", "post_window", "disclosure")
+MAX_CONDITIONS = 4
+TYPES = ("extra_item", "post_window", "disclosure", "bonus_tiers")
+MAX_TIERS = 3
 
 
 from amend.deals import DealError  # noqa: E402
@@ -79,7 +80,7 @@ def _check_conditions(db: Database, deal: dict, conds) -> list[dict]:
     for c in conds:
         t = c.get("type") if isinstance(c, dict) else None
         if t not in TYPES or t in seen:
-            raise MandateError("each condition must be one of: extra item, post window, disclosure (once each)")
+            raise MandateError("each condition must be one of: extra item, post window, disclosure, bonus tiers (once each)")
         seen.add(t)
         if t == "extra_item":
             if c.get("item") not in codes or not isinstance(c.get("max_cents"), int) or not 0 < c["max_cents"] <= 100_000:
@@ -93,6 +94,17 @@ def _check_conditions(db: Database, deal: dict, conds) -> list[dict]:
                 raise MandateError("post window: an end after the start, at most 30 days")
         elif t == "disclosure" and c.get("tag") not in ("#ad", "#sponsored", "#paidpartnership"):
             raise MandateError("disclosure: #ad, #sponsored or #paidpartnership")
+        elif t == "bonus_tiers":
+            tiers = c.get("tiers")
+            ok = isinstance(tiers, list) and 1 <= len(tiers) <= MAX_TIERS and c.get("metric") == "views" \
+                and isinstance(c.get("read_day"), int) and 1 <= c["read_day"] <= 21 \
+                and all(isinstance(x, dict) and isinstance(x.get("at"), int) and isinstance(x.get("cents"), int)
+                        and 1000 <= x["at"] <= 100_000_000 and 1000 <= x["cents"] <= 1_000_000 for x in tiers)
+            if ok:  # each tier higher than the last, in views and in money (a bonus only ever adds)
+                ok = all(a["at"] < b["at"] and a["cents"] < b["cents"] for a, b in zip(tiers, tiers[1:]))
+            if not ok:
+                raise MandateError("bonus tiers: 1 to 3 tiers, each with more views and a bigger bonus ($10 to $10,000), "
+                                   "read on day 1 to 21 after posting")
     return conds
 
 
@@ -147,6 +159,12 @@ def submit(db: Database, deal: dict, *, party: dict, role: str, body: str, sig: 
         db.insert("mandates", row)
         db.log_event("mandate.signed", actor=party["id"], deal_id=deal["id"],
                      payload={"mandate": row["id"], "hash": h, "cap_cents": m["cap_cents"], "conditions": [c["type"] for c in conds]})
+        tiers = next((c for c in conds if c["type"] == "bonus_tiers"), None)
+        from amend import bonus
+        try:
+            bonus.from_mandate(db, deal, party["id"], tiers, h)
+        except bonus.BonusError as e:
+            raise MandateError(str(e)) from None
     return row
 
 
