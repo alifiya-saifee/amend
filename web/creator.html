@@ -20,6 +20,20 @@ function bars(obj) {
   const rows = named.slice(0, other.length ? 4 : 5).concat(other);
   return rows.length ? `<div class="bars">${rows.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><span class="track"><span class="fill" style="width:${Math.min(100, v)}%;display:block"></span></span><span>${Math.round(v)}%</span></div>`).join("")}</div>` : '<p class="muted small">Not shared</p>';
 }
+// Her connected Instagram: each number with its source and "updated X ago"; disclosure history counted by code.
+function igHtml(g) {
+  if (!g) return "";
+  const when = (src, at, stale) => `<span class="tiny muted">${esc(src)} · updated ${esc(ago(at))}</span>${stale ? ' <span class="pill waiting">Stale</span>' : ""}`;
+  const d = g.disclosure && g.disclosure.data, f = g.followers, a = g.audience && g.audience.data;
+  return `<section class="card" style="margin-top:14px"><div class="row between"><h2 style="margin:0">Instagram @${esc(g.handle)}</h2><span class="pill collected">Connected</span></div>
+    ${f && f.value != null ? `<p class="small" style="margin:8px 0 0"><b>${Number(f.value).toLocaleString("en-US")}</b> followers · ${when(f.source, f.fetched_at, f.stale)}</p>` : ""}
+    ${a && a.top_countries && a.top_countries.length ? `<p class="small" style="margin:4px 0 0">Top countries: ${a.top_countries.map(x => esc(x.country)).join(", ")} · ${when(g.audience.source, g.audience.fetched_at, g.audience.stale)}</p>` : ""}
+    ${d ? `<h3 style="margin-top:12px">Disclosure history</h3><p class="small" style="margin:0"><b>${esc(d.line)}</b> (last ${d.posts} posts)</p>
+      <p class="tiny muted" style="margin:2px 0 6px">${d.method === "ai" ? "The AI found the brand mentions (each quoted from the caption); code counted the #ad." : "Tagged accounts found by code; code counted the #ad."} ${when(g.disclosure.source, g.disclosure.fetched_at, g.disclosure.stale)}</p>
+      <div class="list">${d.items.map(i => `<div class="line"><span>${icon(i.has_ad ? "circle-check" : "circle-alert")}</span><div class="grow small">${i.brands.map(b => `<b>${esc(b.name)}</b> <span class="tiny muted quote">“${esc(b.quote)}”</span>`).join(" · ")}
+        <div class="tiny muted">${esc(fmtDate(i.date))} · ${i.has_ad ? `“${esc(i.ad_quote)}”` : "no #ad"}</div></div>${i.permalink ? `<a class="tiny" href="${esc(i.permalink)}" target="_blank" rel="noopener">post</a>` : ""}</div>`).join("")}</div>` : ""}
+  </section>`;
+}
 function metricsHtml(c) {
   if (!c.metrics || !c.metrics.length) return `<section class="card" style="margin-top:14px"><h2>Reach</h2><p class="muted small">No numbers shared yet.</p></section>`;
   return c.metrics.map(m => `<section class="card" style="margin-top:14px">
@@ -82,6 +96,7 @@ async function load() {
         ${c.city ? `<span class="pill"><i data-lucide='map-pin' aria-hidden='true'></i> ${esc(c.city)}</span>` : ""}${(c.languages || []).map(l => `<span class="pill">${esc(l)}</span>`).join("")}
         ${c.is_demo ? '<span class="pill planned">Demo data</span>' : ""}</div></div>
     ${metricsHtml(c)}
+    ${igHtml(c.instagram)}
     ${samplesHtml(c)}
     <section class="card" style="margin-top:14px"><h2>Availability</h2>
       <p class="small">${c.next_available ? `Next available <b>${esc(fmtDate(c.next_available))}</b>` : "Ask about dates"}${c.turnaround_days != null ? ` · first draft in about ${c.turnaround_days} days` : ""}</p>

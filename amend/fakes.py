@@ -138,6 +138,15 @@ async def fake_call_json(system: str, user: str, **kw):
         pos = None if not m else "start" if not cap[:m.start()].strip() else "end" if not cap[m.end():].strip() else "middle"
         out = {"disclosure": {"tag": m.group(0), "position": pos, "quote": m.group(0)} if m else None, "items": [], "date": None}
         return AIResult(out, "fake", 1, False)
+    if "brand mentions in a creator's Instagram captions" in system:  # rule-based: known made-up brands, quoted as written
+        posts = []
+        for blk in user.split("Caption ")[1:]:
+            i, _, cap = blk.partition(":\n")
+            found = [{"name": n, "quote": n} for n in ("Dune Roast", "Bean Bros", "Oud & Ember") if n.lower() in cap.lower()]
+            found += [{"name": m, "quote": m} for m in re.findall(r"@[A-Za-z0-9_.]+", cap)]
+            if found and i.strip().isdigit():
+                posts.append({"i": int(i.strip()), "brands": found})
+        return AIResult({"posts": posts}, "fake", 1, False)
     if "draft video frames" in system:
         return AIResult({"checks": [{"check": "Product clearly visible", "ok": True, "frame": 1, "note": "product on the table"},
                                     {"check": "Matches the brief", "ok": True, "frame": 3, "note": "home setting"}]}, "fake", 1, False)
@@ -156,9 +165,30 @@ def _fake_instagram() -> None:
         f = os.environ.get("AMEND_FAKE_IG_CAPTION_FILE")  # {"caption": ..., "timestamp": ...}
         d = _json.loads(Path(f).read_text()) if f and Path(f).exists() else {}
         cap, ts = d.get("caption", "National Day cold brew"), d.get("timestamp", "2026-11-13T08:30:00+0000")
-        return httpx.Response(200, json={"business_discovery": {"media": {"data": [
-            {"id": "17900000000DEMO", "media_type": "VIDEO", "media_product_type": "REELS", "timestamp": ts,
-             "caption": cap, "permalink": "https://www.instagram.com/reel/DEMO610/"}]}}})
+        fields, path = req.url.params.get("fields", ""), req.url.path
+        reel = {"id": "17900000000DEMO", "media_type": "VIDEO", "media_product_type": "REELS", "timestamp": ts,
+                "caption": cap, "permalink": "https://www.instagram.com/reel/DEMO610/"}
+        if path.endswith("/17900000000DEMO/insights"):
+            return httpx.Response(200, json={"data": [{"name": "views", "values": [{"value": 48250}]},
+                                                      {"name": "reach", "values": [{"value": 31120}]},
+                                                      {"name": "saved", "values": [{"value": 812}]},
+                                                      {"name": "shares", "values": [{"value": 406}]}]})
+        if path.endswith("/insights"):
+            return httpx.Response(200, json={"data": [{"name": "follower_demographics", "total_value": {"breakdowns": [{"results": [
+                {"dimension_values": ["AE"], "value": 5200}, {"dimension_values": ["SA"], "value": 1400}, {"dimension_values": ["IN"], "value": 900}]}]}}]})
+        if fields == "username":
+            return httpx.Response(200, json={"username": "clinicrobotest", "id": "IG-FAKE"})
+        older = [  # made-up captions for the demo account
+            {"id": "1791", "caption": "Morning flat white at Bean Bros before the shoot", "timestamp": "2026-11-08T07:10:00+0000",
+             "permalink": "https://www.instagram.com/p/FAKE1/", "media_product_type": "FEED"},
+            {"id": "1792", "caption": "#ad Weekend brunch with @kahwahouse, their saffron latte", "timestamp": "2026-11-05T09:00:00+0000",
+             "permalink": "https://www.instagram.com/p/FAKE2/", "media_product_type": "FEED"},
+            {"id": "1793", "caption": "Trying the new Oud & Ember candle range at home", "timestamp": "2026-11-01T18:00:00+0000",
+             "permalink": "https://www.instagram.com/p/FAKE3/", "media_product_type": "FEED"},
+            {"id": "1794", "caption": "Sunset walk on Kite Beach", "timestamp": "2026-10-28T16:30:00+0000",
+             "permalink": "https://www.instagram.com/p/FAKE4/", "media_product_type": "REELS"}]
+        return httpx.Response(200, json={"business_discovery": {"followers_count": 12480, "media_count": 212,
+                                                                "media": {"data": [reel] + older}}})
     igpost.TRANSPORT, igpost.FAKE = httpx.MockTransport(handler), True
 
 

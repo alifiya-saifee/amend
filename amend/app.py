@@ -16,7 +16,7 @@ import json
 import logging
 import secrets
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
-from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, inbox, mandates, money, notify, offers, shipping, spine, studio, verdict, webhooks
+from amend import ai, auth, brandspace, briefs, business, calls, cancel, changes, deals, delivery, discovery, engine, igdata, inbox, mandates, money, notify, offers, shipping, spine, studio, verdict, webhooks
 from amend.config import get_settings
 from amend.db import Database, get_db, new_id
 from amend.db import now as db_now
@@ -757,8 +757,27 @@ def expire_link(token: str, c: dict = Depends(require_creator)):
 
 # ---------- public creator page ----------
 
+async def _instagram_block(raw: dict) -> dict | None:
+    """Her connected Instagram, with the source and time of each number: followers, audience, disclosure history."""
+    from amend import igdata
+    h = raw.get("ig_handle")
+    try:
+        if not h or not await asyncio.to_thread(igdata.connected, get_db(), h):
+            return None
+        d = igdata.snap(get_db(), "disclosure", h)
+        if not d or (igdata._age(d["fetched_at"]) or timedelta(0)) >= timedelta(hours=igdata.BD_CACHE_HOURS):
+            await asyncio.to_thread(igdata.captions, get_db(), h)
+            d = await igdata.disclosure_for_connected(get_db(), h)
+    except (igdata.Unavailable, ai.ProviderError):
+        d = igdata.snap(get_db(), "disclosure", h) if h else None
+    posts, aud = igdata.snap(get_db(), "posts", h), igdata.snap(get_db(), "audience", h)
+    return {"handle": h, "disclosure": d, "followers": posts and {"value": posts["data"].get("followers"), "source": posts["source"],
+                                                                  "fetched_at": posts["fetched_at"], "stale": posts["stale"]},
+            "audience": aud}
+
+
 @app.get("/api/c/{handle}")
-def public_creator(handle: str):
+async def public_creator(handle: str):
     c = deals.creator_by_handle(get_db(), handle)
     if not c:
         raise HTTPException(404, "Creator not found")
@@ -770,7 +789,8 @@ def public_creator(handle: str):
             it["aed"] = money.aed_range(it.get("min_cents"), it.get("max_cents")) or money.fmt_aed(it["standard_cents"], compact=True)
     # the header line comes from the same audience numbers as the charts, so the two can never disagree
     return prof | {"audience": discovery.audience_line(prof["metrics"], c["audience"]), "niche": c["niche"], "price_privacy": discovery.privacy_of(raw),
-                   "limits": {"posting_days": c["limits"].get("posting_days", [])}, "items": items}
+                   "limits": {"posting_days": c["limits"].get("posting_days", [])}, "items": items,
+                   "instagram": await _instagram_block(raw)}
 
 
 # ---------- discovery (Phase 4) ----------
@@ -1590,11 +1610,73 @@ def _work(deal_id: str) -> dict:
     return {"status": deal["status"], "draft": draft, "post": post, "gaps_open": len(delivery.open_gaps(d, deal_id)),
             "release": delivery.release_view(d, deal_id), "requirements": delivery.requirements(deal),
             "verdict": _verdict_out(verdict.issue(d, deal_id)),
+            "results": _ig_safe(lambda: igdata.results(d, deal)) if post else None,
+            "competitor": _ig_safe(lambda: igdata.competitor_flags(d, deal)),
             "holdback_release_at": deal.get("holdback_release_at"), "post_removed_at": deal.get("post_removed_at"),
             "review": review, "editor": json.loads(deal.get("editor_json") or "null"),
             "silent_approval_days": deal.get("silent_approval_days"),
             "ig": {"on": iglookup_enabled(), "handle": (d.one("select ig_handle from creators where id = :c",
                                                               {"c": deal["creator_id"]}) or {}).get("ig_handle")}}
+
+
+def _ig_safe(fn):
+    """Instagram data on a page never breaks the page: if Instagram can't be reached, say so."""
+    from amend import igdata
+    try:
+        return fn()
+    except igdata.Unavailable as e:
+        return {"state": "unavailable", "message": str(e)}
+
+
+async def _ig_refresh(deal: dict, pid: str) -> dict:
+    from amend import igdata
+    try:
+        await asyncio.to_thread(igdata.refresh, get_db(), deal, pid)
+    except igdata.Unavailable as e:
+        raise HTTPException(429 if "try again" in str(e) else 503, str(e) + ".")
+    return _work(deal["id"])
+
+
+@app.post("/api/deals/{deal_id}/results/refresh")
+async def creator_results_refresh(deal_id: str, c: dict = Depends(require_creator)):
+    return await _ig_refresh(*_creator_ctx(deal_id, c))
+
+
+@app.post("/api/d/{token}/results/refresh")
+async def brand_results_refresh(token: str):
+    return await _ig_refresh(*_brand_ctx(token))
+
+
+def _results_csv(deal: dict) -> Response:
+    from amend import igdata
+    return Response(igdata.results_csv(get_db(), deal), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="amend-results-{deal["id"]}.csv"'})
+
+
+@app.get("/api/deals/{deal_id}/results.csv")
+def creator_results_csv(deal_id: str, c: dict = Depends(require_creator)):
+    return _results_csv(_creator_ctx(deal_id, c)[0])
+
+
+@app.get("/api/d/{token}/results.csv")
+def brand_results_csv(token: str):
+    return _results_csv(_brand_ctx(token)[0])
+
+
+class CompetitorsIn(BaseModel):
+    names: list[str] = Field(default_factory=list, max_length=5)
+
+
+@app.post("/api/d/{token}/competitors")
+def brand_competitors(token: str, body: CompetitorsIn):
+    """The brand names the competitors its exclusivity covers (not a money term: it only drives the check)."""
+    ctx = deals.open_link(get_db(), token)
+    if ctx["role"] != "brand_main":
+        raise HTTPException(403, "Only the brand's main contact can set this.")
+    names = [n.strip()[:40] for n in body.names if n.strip()][:5]
+    get_db().update("deals", "id", ctx["deal"]["id"], {"competitors_json": json.dumps(names)})
+    get_db().log_event("deal.competitors_set", actor=ctx["party"]["id"], deal_id=ctx["deal"]["id"], payload={"names": names})
+    return _work(ctx["deal"]["id"])
 
 
 def iglookup_enabled() -> bool:
@@ -2627,6 +2709,8 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     for extra in TICK_TASKS:  # shipping nudges, silent approval, call nudges
         result.update(extra(d))
     result.update(await delivery.tick_holdback(d, rail()))
+    from amend import igdata
+    result.update(await igdata.tick(d))  # Instagram refresh policy: only what's due
     d.log_event("tick.ran", actor="system", payload=result)
     return {"ok": True, **result}
 

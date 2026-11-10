@@ -529,3 +529,31 @@ She deployed with VERDICT_SIGNING_KEY. Asked: read the post from Instagram, the 
 
 ### Next
 - Alifiya: Manual Deploy. Keep cron-job.org on `/internal/tick` every 10 minutes until 21 Dec.
+
+## Brand data from Instagram (10 Nov)
+### Done
+- `amend/igdata.py`, table `ig_snapshots` (every number stored with its source and fetched time; stale after 7 days).
+  - **Connected** = the creator's Instagram is the account linked to Amend's token (the owner username is cached a
+    day). Only then are insights available.
+- **Results report** (deal page, Delivery tab, both sides): views, reach, saves, shares from `/{media-id}/insights`.
+  Cost per 1,000 views = paid ÷ views × 1,000 by code, where paid = collected minus refunds, or the deal total before
+  collection (said on screen). Refresh (once per deal per 10 minutes) and CSV.
+- **Disclosure history** (creator profile, connected account): last 12 captions; Gemini finds the brand mentions, which
+  must be quoted word for word; code counts "#ad on X of Y posts that mention a brand". The Discover lookup shows the
+  same line from code only (tagged accounts), because **real looked-up accounts never go to the free AI tier**.
+- **Exclusivity check:** the brand's main contact names up to 5 competitors (`deals.competitors_json`, not a money
+  term); captions that mention one are flagged with the quote and the date.
+- **Refresh policy in the tick:** posts every 6 h for 7 days, then daily until usage ends; the connected account
+  nightly (followers + last 12 posts, then re-count) and its audience weekly (top countries); at most 20 Graph calls
+  per tick. Business Discovery is cached 24 h.
+- README: "Connecting Instagram for real creators needs Meta app review; the demo uses my test account."
+- **Tests: 739 passed, 3 skipped.** New `test_igdata.py` (13). Browser `brand_data.py` (after `IG=1 mandate_flow.py`):
+  problems none; shots in `docs/screenshots/brand-data/`.
+- Bug caught by the tests: a post that had never been read was always "due a moment from now", so the tick never
+  read it.
+
+### Open questions
+- Insights metric names (`views`, `reach`, `saved`, `shares`) are Meta's current ones for v23. If Meta refuses one for
+  a media type, the card says Instagram didn't share it. To confirm on the live test Reel.
+- The seeded Sara profile shows demo metrics (85K) next to the connected test account's real numbers (12,480): each
+  is labelled with its source.

@@ -236,7 +236,8 @@ async function igLookup(handle) {
       <div style="text-align:left"><b>${esc(n.name || "@" + n.username)}</b><div class="tiny muted">@${esc(n.username)}</div></div></div>
     <div class="grid4 ig-stats">${[["Followers", num(n.followers)], ["Posts", num(n.posts)], ["Median likes", num(n.median_likes)],
       ["Median comments", num(n.median_comments)]].map(([k, v]) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>
-    <p class="small" style="margin:8px 0 0">Engagement <b>${n.engagement_pct == null ? "–" : n.engagement_pct + "%"}</b> (median likes and comments of her last ${n.posts_used} posts ÷ followers)</p>
+    <p class="small" style="margin:8px 0 0">Engagement <b>${n.engagement_pct == null ? "–" : n.engagement_pct + "%"}</b> (median likes and comments of the last ${n.posts_used} posts ÷ followers)</p>
+    ${n.disclosure ? `<p class="small" style="margin:4px 0 0"><b>${esc(n.disclosure.line)}</b> <span class="tiny muted">(tagged accounts found by code in the last ${n.disclosure.posts} captions)</span></p>` : ""}
     <p class="tiny muted" style="margin:4px 0 0">Fetched ${esc(fmtDate(r.fetched_at))}, ${esc(fmtTime(r.fetched_at))} from Instagram · Audience (age, city, gender): added when she joins Amend</p></div>`;
 }
 async function saveHandle(btn) {

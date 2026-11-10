@@ -74,6 +74,8 @@ const Work = (() => {
     const canTap = w.status === "delivered" && (R0.length === 0 || R0.some(i => i.status === "planned" && i.needs.includes(mine0) && !i.approved_by.includes(mine0)))
       && (!ctx.IS_BRAND || main);
     if (w.verdict) parts.push(verdictHtml(w.verdict, canTap));
+    if (w.results) parts.push(resultsHtml(w.results));
+    if (w.competitor && w.competitor.state !== "no_exclusivity") parts.push(competitorHtml(w.competitor));
     if (w.status === "delivered" || w.status === "completed" || (w.release.items || []).length) {
       const R = w.release.items || [];
       const mine = ctx.IS_BRAND ? "brand" : "creator";
@@ -130,6 +132,38 @@ const Work = (() => {
           : meTapped ? `<p class="small">${icon("circle-check")} You confirmed${other ? "" : `. Waiting for ${esc(otherName)}.`}</p>` : ""}</div></div>`
       : `<p class="small" style="margin-top:8px">${icon("lock")} No money moves on a failed verdict. Resolve what it flags and a new verdict is signed.</p>`}</div>`;
   }
+  // Results report: Instagram's numbers (with their source and time) and the cost per 1,000 views, worked out by code.
+  const srcLine = (src, at, stale) => `<p class="tiny muted" style="margin:6px 0 0">${icon("clock")} ${esc(src)} · updated ${esc(ago(at))}${stale ? ' <span class="pill waiting">Stale: older than 7 days</span>' : ""}</p>`;
+  function resultsHtml(r) {
+    const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
+    const tools = `<div class="row wrapx" style="gap:8px;margin-top:10px">${r.state !== "no_post" && r.state !== "not_connected" ? `<button class="btn small" id="w-res-refresh">${icon("refresh-cw")} Refresh</button>` : ""}
+      ${r.state === "ok" ? `<a class="btn small" href="${ctx.url("/results.csv")}" download>${icon("download")} Download CSV</a>` : ""}</div>`;
+    if (r.state !== "ok") return `<div class="card"><h3>${icon("chart-column")} Results</h3><p class="small muted">${esc(r.message)}</p>${tools}</div>`;
+    return `<div class="card results"><div class="row between"><h3 style="margin:0">${icon("chart-column")} Results</h3>
+        ${r.permalink ? `<a class="small" href="${esc(r.permalink)}" target="_blank" rel="noopener">open post</a>` : ""}</div>
+      <div class="grid4" style="margin-top:10px">${[["Views", r.views], ["Reach", r.reach], ["Saves", r.saves], ["Shares", r.shares]]
+        .map(([k, v]) => `<div class="tile"><span class="k">${k}</span><span class="v">${n(v)}</span></div>`).join("")}</div>
+      <p class="small" style="margin:10px 0 0"><b>Cost per 1,000 views: ${r.cpm_cents == null ? "–" : usd(r.cpm_cents, true)}</b>
+        <span class="muted">= ${usd(r.paid_cents)} paid ÷ ${n(r.views)} views × 1,000 (${esc(r.paid_basis)}; worked out by Amend, not the AI)</span></p>
+      ${srcLine(r.source, r.fetched_at, r.stale)}
+      ${r.next_check ? `<p class="tiny muted" style="margin:2px 0 0">Next check ${esc(fmtDate(r.next_check))} (every 6 h for 7 days after the post, then daily until the usage rights end)</p>` : ""}
+      ${tools}</div>`;
+  }
+  // Exclusivity: recent captions that mention a named competitor (found by code), with the quote and the date.
+  function competitorHtml(c) {
+    const canSet = ctx.IS_BRAND && ctx.V.me.role === "brand_main";
+    const names = (c.names || []).join(", ");
+    const form = canSet ? `<div class="row wrapx" style="gap:8px;margin-top:8px"><input id="w-comp" class="grow" placeholder="e.g. Bean Bros, Kahwa House" value="${esc(names)}" aria-label="Competitors the exclusivity covers">
+      <button class="btn small" id="w-comp-save">Save</button></div>` : "";
+    let body = "";
+    if (c.state === "ok") body = (c.flags.length
+      ? `<div class="banner bad small" style="margin-top:8px">${icon("triangle-alert")} ${c.flags.length} recent post${c.flags.length === 1 ? "" : "s"} mention a competitor</div>
+         <div class="list">${c.flags.map(f => `<div class="line"><div class="grow"><b>${esc(f.competitor)}</b> · ${esc(fmtDate(f.date))}
+           <div class="tiny muted quote">“${esc(f.quote)}”</div></div>${f.permalink ? `<a class="small" href="${esc(f.permalink)}" target="_blank" rel="noopener">post</a>` : ""}</div>`).join("")}</div>`
+      : `<p class="small" style="margin-top:8px">${icon("circle-check")} No mention of ${esc(names)} in the last ${c.posts} posts.</p>`) + srcLine(c.source, c.fetched_at, c.stale);
+    else body = `<p class="small muted" style="margin-top:8px">${esc(c.message || "")}</p>`;
+    return `<div class="card"><h3>${icon("shield")} Exclusivity check</h3><p class="tiny muted" style="margin:0">Recent captions are checked by code for the competitors named here. A flag is for people to discuss; it never moves money.</p>${form}${body}</div>`;
+  }
   // a release line's chip in words for what it is: a collection, a payout, or a holdback still waiting for its day
   function releasePill(i) {
     if (i.kind === "payout" && i.status === "paid") return `<span class="pill collected">Paid</span>`;
@@ -178,6 +212,8 @@ const Work = (() => {
       delivered: Object.fromEntries($$("[data-deliv]", el).map(i => [i.dataset.deliv, +i.value])) } }), "Delivery checked"));
     $$("[data-gap]", el).forEach(b => b.onclick = () => go(b, () => api(ctx.url(`/gaps/${b.dataset.gap}`), { body: { resolution: b.dataset.res } }), "Resolved"));
     on("w-release", b => go(b, () => api(ctx.url("/release/approve"), { method: "POST" }), "Release approved"));
+    on("w-res-refresh", b => go(b, () => api(ctx.url("/results/refresh"), { method: "POST" }), "Refreshed from Instagram"));
+    on("w-comp-save", b => go(b, () => api(ctx.url("/competitors"), { body: { names: $("#w-comp", el).value.split(",").map(x => x.trim()).filter(Boolean) } }), "Saved"));
     on("w-recheck", b => go(b, () => api(ctx.url("/post/recheck"), { method: "POST" }), "Re-checked on Instagram"));
     on("w-fixcap-go", b => go(b, () => api(ctx.url("/post/caption"), { body: { caption: $("#w-fixcap", el).value } }), "Caption re-checked"));
     on("w-verdict", b => go(b, () => api(ctx.url("/release/approve"), { body: { verdict_hash: b.dataset.hash } }), "Verdict confirmed"));

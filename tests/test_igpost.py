@@ -57,7 +57,7 @@ def test_a_matched_reel_is_read_from_instagram_and_code_decides(client, mocks, o
     g = mocks.get(GRAPH).mock(return_value=media("#ad Our new cold brew is here"))
     with caplog.at_level(logging.INFO):
         w = submit(client, deal)
-    req = g.calls.last.request
+    req = next(c.request for c in g.calls if c.request.url.params["fields"].startswith("business_discovery"))
     fields = req.url.params["fields"]
     assert fields == "business_discovery.username(clinicrobotest){media.limit(10){id,media_type,media_product_type,timestamp,caption,permalink}}"
     assert TOKEN not in str(req.url) and req.headers["Authorization"] == f"Bearer {TOKEN}"
@@ -99,7 +99,7 @@ def test_no_ad_on_instagram_fails_then_editing_it_there_and_rechecking_passes(cl
     g.mock(return_value=media("#ad Our new cold brew is here"))  # she edits the caption on Instagram
     w = client.post(f"/api/deals/{deal}/post/recheck", headers=ORIGIN).json()
     new = w["verdict"]
-    assert g.call_count == 2  # never cached
+    assert sum(c.request.url.params["fields"].startswith("business_discovery") for c in g.calls) == 2  # never cached
     assert w["gaps_open"] == 0 and new["result"] == "pass" and new["hash"] != old["hash"]
     assert "added #ad to the caption on Instagram" in check(w, "Disclosure")["reason"]
     client.post(f"/api/d/{tok}/release/approve", json={"verdict_hash": new["hash"]}, headers=ORIGIN)

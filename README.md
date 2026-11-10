@@ -99,6 +99,18 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
   reads it again (rate limited) and signs a new verdict. Stories can't be read for other accounts, so they come from
   the creator's upload. Not found, a personal account, or the lookup switched off: the check uses what she entered
   and says so. The token is never stored; the log carries the media id only.
+- **Brand data from Instagram, every number with its source and "updated X ago"** (stale after 7 days):
+  - **Results report** per deal: views, reach, saves and shares from the post's insights, and **cost per 1,000 views =
+    paid ÷ views × 1,000**, worked out by code. Refresh button (rate limited) and CSV download.
+  - **Disclosure history** on the creator's profile: "#ad on X of Y posts that mention a brand" over the last 12
+    captions, with the quotes. The AI only finds the brand mentions (each quoted word for word); code counts. For
+    looked-up accounts (real people), nothing goes to the AI: code finds tagged accounts instead.
+  - **Exclusivity check:** the brand names the competitors; recent captions that mention one are flagged with the quote
+    and the date (code; it never moves money).
+  - **Refresh policy:** the connected account nightly (followers and the last 12 posts) and its audience weekly; a live
+    deal's post every 6 h for 7 days, then daily until the usage rights end. Business Discovery is cached 24 h.
+  - **Connecting Instagram for real creators needs Meta app review; the demo uses my test account.** Insights (views,
+    reach, audience) come only from that connected account; other creators show "needs Instagram connected".
 - **#ad becomes a money rule only when the brand signs it.** If the signed mandate says "Every post carries #ad", a
   caption without the tag fails the verdict and opens a gap card for the creator ("Add #ad at the start of the
   caption"). No release until it passes, and only a fixed caption closes it (the brand can't wave it through).

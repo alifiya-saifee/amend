@@ -26,7 +26,7 @@ log = logging.getLogger("amend.iglookup")
 CACHE_HOURS = 24
 PER_BRAND_PER_HOUR = 30
 FIELDS = ("username,name,biography,profile_picture_url,followers_count,media_count,"
-          "media.limit(12){like_count,comments_count,timestamp,media_type,permalink}")
+          "media.limit(12){like_count,comments_count,timestamp,media_type,permalink,caption}")
 NOT_PRO = "Couldn't find @{handle} on Instagram, or it's a personal account. Instagram only shares numbers for professional accounts."
 UNAVAILABLE = "Instagram lookup unavailable right now."
 RATE_CODES = {4, 17, 32, 613, 80001, 80002}  # Graph API rate-limit error codes
@@ -51,7 +51,17 @@ def numbers(bd: dict) -> dict:
             "median_likes": round(statistics.median(likes)) if likes else None,
             "median_comments": round(statistics.median(comments)) if comments else None,
             "engagement_pct": round(100 * med_both / followers, 2) if med_both is not None and followers else None,
-            "posts_used": len(media)}
+            "posts_used": len(media),
+            "disclosure": _disclosure(bd)}
+
+
+def _disclosure(bd: dict) -> dict | None:
+    from amend import igdata  # code only (tagged accounts), never the AI, for accounts that aren't connected
+    d = igdata.disclosure_for_lookup(bd, (bd.get("username") or "").lower())
+    if d:
+        for it in d["items"]:
+            it.pop("permalink", None)
+    return d
 
 
 def _cached(db: Database, handle: str) -> dict | None:

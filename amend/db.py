@@ -26,7 +26,7 @@ EVENT_TYPES = {
     "brief.submitted", "brief.edited", "deal.drafted", "deal.draft_failed", "deal.offered", "deal.accepted",
     "deal.declined", "deal.status", "term.price_edited", "term.price_agreed",
     "offer.made", "offer.countered", "offer.declined",
-    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked",
+    "mandate.signed", "dispute.evidence_ready", "money.unused_released", "verdict.signed", "verdict.confirmed", "post.caption_fixed", "post.rechecked", "ig.refreshed", "deal.competitors_set",
     # facts and changes
     "fact.added", "fact.suggested", "fact.superseded", "fact.rejected",
     "change.detected", "change.confirmed", "change.rejected", "change.expired", "change.applied",
@@ -153,6 +153,8 @@ create table if not exists notifications (
 create table if not exists jobs (
   id text primary key, kind text not null, status text not null, attempts integer not null default 0,
   input_json text, result_json text, error text, created_at text not null, updated_at text not null);
+create table if not exists ig_snapshots (
+  id text primary key, kind text not null, key text not null, json text not null, source text not null, fetched_at text not null);
 create table if not exists ig_lookups (
   handle text primary key, json text not null, fetched_at text not null);
 create table if not exists ig_lookup_calls (
@@ -239,7 +241,8 @@ COLUMNS = {
               "dispute_open": "integer not null default 0",
               "usage_start": "text", "usage_end": "text", "usage_months": "integer",  # lifecycle 2: usage-rights clock
               "usage_reminded_at": "text", "usage_extension_at": "text",  # a PayPal dispute is open: the holdback is frozen  # our own live test runs: kept, but out of Earnings/Ledger/Inbox
-              "is_demo": "integer not null default 0"},
+              "is_demo": "integer not null default 0",
+              "competitors_json": "text not null default '[]'"},  # names the exclusivity covers (for the competitor check)
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
                 "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
