@@ -1032,3 +1032,7 @@ question wasn't answered, so the recommended option was taken.
 - Next: her motion clips (`docs/video/act1-opening.mp4`, `act3-closing.mp4`: dropped in automatically), her 5 s
   phone clip (re-film the draft upload and Scene B), Scene E (Thu), Scene F (dispute), her voiceover.
 - Open: the spine's headroom line now shows the later $770 total, so it's left out of Scene A.
+- Draft 4 (`amend-draft-4.mp4`, 2:04 silent): release in order: proposal once with Maya's tap → $450 Collected → the
+  Payouts batch 5RWB27Q7XNYYS (Maya $324, editor $81, $45 not sent yet) → $450 held = $450 collected ✓. Change card
+  ~4 s (priced lines, then "Confirmed by both · applied"). Rebuild close-up: banner + the first three "matches" lines.
+  Scene F says "Resolved" only when `DISPUTE_RESOLVED = True` in `build_cut3.py` (after the live run reaches RESOLVED).

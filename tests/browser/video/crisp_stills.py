@@ -54,12 +54,22 @@ def run(only=None):
             print(key, "clock:", " ".join(c.inner_text().split())[:120])
             pg.screenshot(path=str(OUT / f"{key}-clock.png"), clip=span(c, c, ptop=-4, pbot=-4))
             if key == "B":
+                # the payout proof: the Payouts batch lines (Maya, editor) down to the $45 holdback not sent yet
+                lines = pg.locator(".sp-ver:visible").first.locator(".sp-line")
+                first = lines.filter(has_text="PayPal Payouts").first
+                last = lines.filter(has_text="Not sent to PayPal yet").first
+                first.scroll_into_view_if_needed(); pg.wait_for_timeout(300)
+                print("payouts:", " ".join(first.inner_text().split())[:120], "…", " ".join(last.inner_text().split())[:80])
+                pg.screenshot(path=str(OUT / "B-payouts.png"), clip=span(first, last, ptop=-3, pbot=8))
                 # the same sheet, only narrower (CSS width), so its lines wrap into a shot that can be shown large
                 pg.add_style_tag(content="#rebuild-sheet{width:820px!important;max-width:820px!important}")
                 pg.click("[data-rebuild]:visible")
                 pg.wait_for_selector("#rebuild-sheet .banner", timeout=120000); pg.wait_for_timeout(1200)
                 bn = pg.locator("#rebuild-sheet .banner").first
                 print("rebuild:", " ".join(bn.inner_text().split())[:200])
+                # close-up: the green banner and the first three lines that say "matches"
+                ln = pg.locator("#rebuild-sheet .rb-line").nth(2)
+                pg.screenshot(path=str(OUT / "B-rebuild-3.png"), clip=span(bn, ln, padx=12, ptop=4, pbot=-3))
                 sh = pg.locator("#rebuild-sheet")
                 pg.screenshot(path=str(OUT / "B-rebuild-banner.png"),
                               clip=span(sh.locator(".gd-head"), sh.locator(".rb-line").first, padx=12, ptop=14, pbot=-3))

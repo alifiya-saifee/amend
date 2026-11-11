@@ -59,6 +59,11 @@ LA, LB = "Pain: paid late → Fix: PayPal hold before work", "Pain: free extra w
 LC, LD = "Pain: “did you deliver?” → Fix: checked from Instagram, signed", "Fix: PayPal collects only what was agreed"
 LG = "Proof: rebuilt from PayPal alone"
 
+# "Resolved" goes in the Scene F caption only once the live dispute run reaches RESOLVED (not yet, 11 Nov)
+DISPUTE_RESOLVED = False
+CARD_BODIES["F-placeholder"] = ('<div class="kicker">Scene F · to film after the dispute is opened</div><h1>PayPal dispute → signed evidence</h1>'
+                                '<p>Dispute banner → evidence pack → Send proof' + (' → RESOLVED.' if DISPUTE_RESOLVED else '.') + '</p>')
+
 # card(name, dur, caption?) · clip(src, a, z, box, caption, label, pan=(y0, y1)?) · still(src, t, box, dur, caption, label)
 # img(png in docs/video/crisp, dur, caption, label): a crisp element screenshot, already cropped to the card
 T = [
@@ -75,11 +80,9 @@ T = [
     # B · the voice note → a priced change card
     ("clip", "B-voice-change-card", 2.5, 5.5, (282, 242, 797, 718), "Then the brand sends a voice note with four changes.", LB),
     ("clip", "B-voice-change-card", 21.5, 25.0, (282, 665, 797, 270), "Then the brand sends a voice note with four changes.", LB),
-    ("clip", "B-voice-change-card", 27.3, 32.5, (313, 375, 737, 496), "The AI only reads, and quotes her exact words.", LB),
-    ("clip", "B-voice-change-card", 32.5, 38.6, (313, 375, 737, 496), "Code prices each line from Maya’s list: free if it was already agreed, priced if it’s new work.", LB),
-    ("still", "B-voice-change-card", 36.0, (313, 585, 737, 192), 1.5, "+$240, every line from her list.", LB),
-    ("clip", "B2-maya-confirms", 3.0, 5.2, (318, 330, 744, 497), "Nadia sends it, Maya confirms…", LB, None, {"min_w": 1200}),  # 63 %: the whole card, title to buttons
-    ("clip", "B2-maya-confirms", 9.3, 12.0, (318, 336, 744, 488), "…and the extra comes out of the hold Nadia already signed for.", LB, (336, 336)),
+    # the change card, ~4 s: its priced lines, then "Confirmed by both · applied"
+    ("clip", "B-voice-change-card", 35.5, 37.7, (313, 375, 737, 496), "The AI quotes her words; code prices each line from Maya’s list: +$240.", LB),
+    ("clip", "B2-maya-confirms", 10.0, 12.0, (318, 336, 744, 488), "Both confirm, and the extra comes out of the hold Nadia signed.", LB, (336, 336)),
     ("card", "bridge", 2.0, "The same flow on a delivered deal: a $450 Reel, plus a $30 bonus held separately."),
     # C · Instagram: fail → fix → pass
     ("clip", "C1-instagram-check", 15.2, 16.8, (288, 0, 800, 530), "Maya posts. Amend reads the post straight from Instagram.", LC),
@@ -90,16 +93,17 @@ T = [
     ("clip", "C2-instagram-check", 12.9, 14.3, (284, 88, 800, 282), "…Amend reads it again, and signs a new verdict.", LC),
     ("still", "C2-instagram-check", 14.2, (284, 88, 800, 282), 1.5, "…Amend reads it again, and signs a new verdict.", LC),
     # D · release
-    ("clip", "D1-nadia-confirms", 5.3, 9.3, (284, 266, 796, 380), "Both confirm.", LD),
-    ("clip", "D2-maya-confirms-release", 5.5, 8.9, (290, 266, 796, 380), "Both confirm.", LD),
+    # proposed release once (Nadia has confirmed; Maya taps at 7.6 s) → collected → the payout batch → the balance
+    ("clip", "D2-maya-confirms-release", 5.9, 8.3, (290, 266, 796, 380), "Code proposes the release: exactly what was agreed. Both confirm.", LD),
     ("img", "B-money.png", 1.6, "PayPal collects exactly the agreed amount: $450.", LD),
-    ("still", "D2-maya-confirms-release", 8.8, (290, 266, 796, 380), 1.5, "Maya and her editor are paid in one Payouts batch; $45 is held back.", LD),
-    ("img", "B-ver1.png", 2.2, "Every hold balances to the cent: $450 held = $450 collected ✓", LD),
+    ("img", "B-payouts.png", 2.4, "Maya and her editor are paid in one Payouts batch; $45 is held back.", LD),
+    ("img", "B-ver1.png", 2.0, "Every hold balances to the cent: $450 held = $450 collected ✓", LD),
     ("card", "E-placeholder", 10.0, "Results come from Instagram itself, so the bonus Nadia signed is paid without a single screenshot."),
-    ("card", "F-placeholder", 15.0, "And if a brand disputes later, Amend answers PayPal with signed evidence from the deal’s receipt chain. Resolved."),
+    ("card", "F-placeholder", 15.0, "And if a brand disputes later, Amend answers PayPal with signed evidence from the deal’s receipt chain."
+     + (" Resolved." if DISPUTE_RESOLVED else "")),
     # G · the proof
     ("clip", "G-rebuild-from-paypal", 10.9, 17.0, (300, 156, 1320, 766), "Amend’s money doesn’t live in Amend. Here’s the whole deal, rebuilt from PayPal alone.", LG),
-    ("img", "B-rebuild-banner.png", 1.8, "Rebuilt from PayPal: matches Amend, receipt hash included.", LG),
+    ("img", "B-rebuild-3.png", 2.0, "Rebuilt from PayPal: every line matches Amend.", LG),
     ("card", "07-same-engine", 6.0, None), ("card", "08-end", 6.0, None),
 ]
 MOTION = {"01-title": V / "act1-opening.mp4", "08-end": V / "act3-closing.mp4"}
@@ -217,7 +221,7 @@ def render_assets(pg):
         pg.screenshot(path=str(LOOK / f"shadow-{ow}x{oh}.png"), omit_background=True)
 
 
-def build(out_name="amend-draft-3"):
+def build(out_name="amend-draft-4"):
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
