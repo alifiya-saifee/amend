@@ -1019,3 +1019,16 @@ question wasn't answered, so the recommended option was taken.
 - docs/judging.md: the judge path ends with Rebuild from PayPal. SANDBOX_TESTING.md: judges' creator has one Demo
   history deal; chat changes need "Send change card"; Rebuild from PayPal after the release; dispute step reference
   fixed (step 10). devpost.md: the test count once. The dispute line stays ⟨update after Scene F⟩.
+
+## Demo video drafts 2 and 3 (11 Nov)
+- Draft 2 (`build_cut2.py`): shot area with a label band and a caption band, whole-component zooms, proof close-ups,
+  bridge card, no Results card before Scene E.
+- Draft 3 (`build_cut3.py`, 2:21 silent, `amend-draft-3.mp4`, 72 MB): warm animated background (#100d0a, drifting
+  amber glow, light grain, vignette); rounded 20 px shots with a soft shadow, cropped to the card's own border; every
+  shot 65–75 % of the frame width (one change card at 64 % so it fits whole); Inter SemiBold 46 px captions (the build
+  fails if one wraps to 3 lines); scene label on the shot's left edge. Proof stills are crisp 2× element screenshots
+  from the live pages (`crisp_stills.py`, read-only; Rebuild from PayPal is GETs only): $680 held, hold day 1 of 29,
+  Version 1 authorization, $450 collected, $450 held = $450 collected ✓, Rebuilt from PayPal ✓.
+- Next: her motion clips (`docs/video/act1-opening.mp4`, `act3-closing.mp4`: dropped in automatically), her 5 s
+  phone clip (re-film the draft upload and Scene B), Scene E (Thu), Scene F (dispute), her voiceover.
+- Open: the spine's headroom line now shows the later $770 total, so it's left out of Scene A.
