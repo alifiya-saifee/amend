@@ -101,13 +101,13 @@ TIMELINE = [
     ("clip", "B-voice-change-card", 2.2, 5.5, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
     ("clip", "B-voice-change-card", 14.5, 17.0, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
     ("clip", "B-voice-change-card", 27.0, 40.0, "The AI only reads, and quotes her exact words. Code prices every line from Maya’s own price list: free if it’s inside what was agreed, priced if it’s new work.", LAB_B, (180, 250, 1280, 720)),
-    ("clip", "B2-maya-confirms", 3.0, 11.4, "Nadia sends it, Maya confirms, and the extra comes out of the hold Nadia already signed for.", LAB_B, (240, 135, 1440, 810)),
+    ("clip", "B2-maya-confirms", 3.0, 6.0, "Nadia sends it, Maya confirms, and the extra comes out of the hold Nadia already signed for.", LAB_B, (200, 220, 1280, 720)),
     # C · Instagram check: fail → fix → pass
-    ("clip", "C1-instagram-check", 5.0, 18.6, "Maya posts. Amend reads the post straight from Instagram. #ad is missing, which the brand required, so code fails it and no money moves.", LAB_C, (200, 0, 1440, 810)),
+    ("clip", "C1-instagram-check", 12.0, 18.6, "Maya posts. Amend reads the post straight from Instagram. #ad is missing, which the brand required, so code fails it and no money moves.", LAB_C, (200, 0, 1440, 810)),
     ("clip", "C-caption-edit-mac", 6.0, 13.5, "She fixes the caption on Instagram…", LAB_C, (736, 306, 1350, 759)),
     ("clip", "C2-instagram-check", 5.0, 13.0, "…Amend reads it again, and signs a new verdict.", LAB_C, (200, 0, 1440, 810)),
     # D · release
-    ("clip", "D1-nadia-confirms", 4.0, 9.5, "Both confirm.", LAB_D, (330, 0, 1300, 731)),
+    ("clip", "D1-nadia-confirms", 4.0, 9.5, "Both confirm.", LAB_D, (180, 0, 1440, 810)),
     ("clip", "D2-maya-confirms-release", 5.5, 9.0, "Both confirm.", LAB_D, (240, 0, 1440, 810)),
     ("clip", "D2-maya-confirms-release", 30.0, 41.0, "PayPal collects exactly the agreed amount, and pays Maya and her editor in one Payouts batch. Every hold balances to the cent.", LAB_D, (820, 0, 1100, 619)),
     ("card", "E-placeholder", 0, 10.0, "Results come from Instagram itself, so the bonus Nadia signed is paid without a single screenshot.", "Fix: results from Instagram, not screenshots"),
