@@ -929,3 +929,29 @@ question wasn't answered, so the recommended option was taken.
 - Fixed: the $9 holdback read "Waiting for PayPal" in the deal Table (Ledger: "Scheduled"); now "Scheduled" in both.
 - Note: a WebM test file gets "Couldn't read the file's Content Credentials in this browser" (WebM can't carry
   them); phone videos (MP4 / MOV) are read. Not changed.
+
+## Section 3 live + "Ask the sender first" (11 Nov)
+- Live Section 3 (`tests/browser/live_cards.py`): 3.1–3.6 right; 3.7 (one long message) made only the date card and
+  dropped shorter / subtitles / paid ad silently; 3.9 "do it for $5" got no answer (the AI rightly set no price).
+- **Ask the sender first** (Alifiya's point 3): a decider's message, voice note, call, screenshot or WhatsApp import that
+  looks like a change no longer becomes a card straight away. Under the sender's own message (only they see it):
+  "This looks like a change to the deal:" + the priced lines (code prices from the list; $0 spec lines "no extra cost";
+  items not on the list "not on <creator>'s price list", "no price") + total + **Send change card** / **Edit** /
+  **Just a message**. Voice notes, calls etc. say "From your voice note: this looks like…".
+  - Send change card = the sender's confirmation, exactly the one a card got before (same side rule, conflicts, mandate
+    pre-confirm); the 48 h clock starts then; the other side is notified then; the other side confirms; PayPal approval
+    above the hold or mandate as today. **No money rule weakened.** Only-unpriced lines can't be sent ("ask for a price").
+  - Edit puts the words back in the box; Just a message closes it; nothing reaches the other side either way.
+  - Ignored (another message, or 10 min): a small "Possible change: +$X" chip for the sender, tap to reopen. After
+    30 min the other decider sees "<name> mentioned a change. Ask them to send it as a card?" (no amounts) with
+    **Ask them** (posts one chat message, once).
+  - Non-deciders: the suggestion goes to the deciders only; the writer gets no card back.
+  - One message → one card with several lines (dates, list items, $0 specs, unpriced items). Spec lines are recorded
+    as `spec` facts with their quotes when both confirm; unpriced items never become part of the deal.
+  - Cards from usage, the delivery check and the simulator are unchanged (made directly, as before).
+- /try steps, README judge path and judging.md: "type 'Add one more Story set', then tap Send change card".
+- Tests: `tests/test_ask_first.py` (10: asked first, send, edit, just a message, ignored → nudge, non-decider, voice
+  note, several lines + unpriced, only unpriced can't be sent, AI quotes word for word, no notification until sent);
+  older tests now tap Send change card. Browser `tests/browser/ask_first.py` and `try_path.py` at 390 + 1440: problems
+  none, no JS errors. Shots in `docs/screenshots/ask-first/`. **Tests: 890 passed, 3 skipped.**
+- Open: 3.9 (a typed price gets no reply) not changed.

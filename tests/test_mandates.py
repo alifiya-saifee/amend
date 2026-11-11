@@ -15,7 +15,7 @@ from amend import mandates, spine
 from amend.db import get_db
 
 from .test_booking import ORIGIN, client, mocks, to_offered  # noqa: F401
-from .test_changes import says
+from .test_changes import brand_says, says
 
 KEY = Ed25519PrivateKey.generate()
 PUB = base64.b64encode(KEY.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode()
@@ -121,9 +121,10 @@ def held_with_mandate(client, mocks, conditions):
 
 
 def creator_says(client, deal, text):
+    from .test_changes import sent
     r = client.post(f"/api/deals/{deal}/messages", json={"body": text}, headers=ORIGIN)
     assert r.status_code == 200, r.text
-    return r.json()
+    return sent(client, f"/api/deals/{deal}", r.json())
 
 
 STORY_REPLY = {"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "one more Story set"}],
@@ -146,7 +147,7 @@ def test_a_change_inside_the_mandate_needs_no_live_brand_confirm(client, mocks):
 def test_the_brands_proposal_inside_the_mandate_still_waits_for_the_creator(client, mocks):
     deal, tok = held_with_mandate(client, mocks, [STORY])
     says(mocks, STORY_REPLY)
-    c = client.post(f"/api/d/{tok}/messages", json={"body": "Could we add one more Story set?"}, headers=ORIGIN).json()["change"]
+    c = brand_says(client, tok, "Could we add one more Story set?")["change"]
     assert c["brand_ok"] and not c["creator_ok"] and c["status"] == "previewed"
 
 

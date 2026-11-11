@@ -2673,7 +2673,7 @@ async def _tag(deal: dict, pid: str, mid: str, body: TagIn) -> dict:
     except calls.CallError as e:
         raise HTTPException(400, str(e))
     out = await _detect(deal, deal["brand_party_id"] if pid != deal["brand_party_id"] and
-                        changes.side_of(d, deal, pid) == "creator" else pid, text, f"call:{mid}", mid) if text else {}
+                        changes.side_of(d, deal, pid) == "creator" else pid, text, f"call:{mid}", mid, ask=pid) if text else {}
     if out.get("change"):  # each line links to the second in the call it came from
         ch = d.one("select lines_json from changes where id = :c", {"c": out["change"]["id"]})
         lines = json.loads(ch["lines_json"])
@@ -2931,8 +2931,10 @@ def _creator_ctx(deal_id: str, c: dict) -> tuple[dict, str]:
     return deals.get_deal(get_db(), deal_id), c["party_id"]
 
 
-async def _detect(deal: dict, party_id: str, text: str, source: str, message_id: str | None) -> dict:
-    """Run change detection on words from the chat. The AI picks codes and quotes; the code prices and ripples."""
+async def _detect(deal: dict, party_id: str, text: str, source: str, message_id: str | None, ask: str | None = None) -> dict:
+    """Run change detection on words from the chat. The AI picks codes and quotes; the code prices and ripples.
+    A decider's words make an "asked" card that only the sender (`ask`, default the speaker) sees until they tap
+    Send change card; the other side is told only then."""
     if deal["status"] not in ("accepted", "in_progress", "delivered", "paused") or deal["version"] < 1:
         return {}
     d = get_db()
@@ -2947,13 +2949,15 @@ async def _detect(deal: dict, party_id: str, text: str, source: str, message_id:
         return {"ai_error": "Couldn't check this message for changes right now."}
     if out.kind == "revision" or out.lines:
         d.log_event("feedback.classified", actor="ai", deal_id=deal["id"], payload={"kind": out.kind, "source": source})
-    c = changes.build(d, deal, out, message=text, proposer=party_id, source=source, message_id=message_id)
-    if c:
+    c = changes.build(d, deal, out, message=text, proposer=party_id, source=source, message_id=message_id, ask=ask or party_id)
+    if c and c["status"] != "asked":
         creator_party = d.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
         other = deal["brand_party_id"] if party_id == creator_party else creator_party
         who = (d.one("select name from parties where id = :p", {"p": party_id}) or {}).get("name", "Someone")
         await notify.send(d, other, "change", [who, deal.get("brand_org") or "your deal", (c.get("quote") or "")[:80],
                                                f"{get_settings().base_url.rstrip('/')}/"])
+    if c and c["status"] == "detected":  # a non-decider's words: the suggestion goes to the deciders, never to the writer
+        return {"suggested_to_deciders": True}
     return {"change": changes.card(d, c)} if c else {}
 
 
@@ -3066,7 +3070,7 @@ class ActIn(BaseModel):
     qty: int | None = Field(None, ge=-10, le=10)
 
 
-def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, qty: int | None = None) -> dict:
+async def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, qty: int | None = None) -> dict:
     d = get_db()
     if not d.one("select id from changes where id = :c and deal_id = :d", {"c": cid, "d": deal["id"]}):
         raise HTTPException(404, "change not found")
@@ -3074,17 +3078,23 @@ def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, q
         card = changes.act(d, cid, party_id, action, reason=reason, qty=qty)
     except changes.ChangeError as e:
         raise HTTPException(400, str(e))
+    if action == "send":  # the card now exists for the other side: tell them, as a card made straight from words was before
+        creator_party = d.one("select party_id from creators where id = :c", {"c": deal["creator_id"]})["party_id"]
+        other = deal["brand_party_id"] if changes.side_of(d, deal, party_id) == "creator" else creator_party
+        who = (d.one("select name from parties where id = :p", {"p": party_id}) or {}).get("name", "Someone")
+        await notify.send(d, other, "change", [who, deal.get("brand_org") or "your deal", (card.get("quote") or "")[:80],
+                                               f"{get_settings().base_url.rstrip('/')}/"])
     return {"change": card, **_chat(deals.get_deal(d, deal["id"]), party_id)}
 
 
 @app.post("/api/d/{token}/changes/{cid}/{action}")
-def brand_act(token: str, cid: str, action: str, body: ActIn):
-    return _act(*_brand_ctx(token), cid, action, body.reason, body.qty)
+async def brand_act(token: str, cid: str, action: str, body: ActIn):
+    return await _act(*_brand_ctx(token), cid, action, body.reason, body.qty)
 
 
 @app.post("/api/deals/{deal_id}/changes/{cid}/{action}")
-def creator_act(deal_id: str, cid: str, action: str, body: ActIn, c: dict = Depends(require_creator)):
-    return _act(*_creator_ctx(deal_id, c), cid, action, body.reason, body.qty)
+async def creator_act(deal_id: str, cid: str, action: str, body: ActIn, c: dict = Depends(require_creator)):
+    return await _act(*_creator_ctx(deal_id, c), cid, action, body.reason, body.qty)
 
 
 class InviteIn(BaseModel):

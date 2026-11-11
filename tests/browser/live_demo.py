@@ -97,9 +97,11 @@ with sync_playwright() as p:
     # 2.3 change card
     br.goto(brand_link.split("#")[0] + "#chat"); br.reload(); br.wait_for_selector("#chat-in", timeout=60000)
     br.fill("#chat-in", "Add one more Story set"); br.click("#chat-send")
-    br.wait_for_selector(".changecard", timeout=120000); br.wait_for_timeout(2500)
-    card = " ".join(br.locator(".changecard").last.inner_text().split()); shot(br, "2.3-change-card")
-    r("2.3 change card", "+$20" in card and "unchanged" in card, card[:170])
+    br.wait_for_selector(".askcard [data-act=send]", timeout=120000); br.wait_for_timeout(1500)
+    ask = " ".join(br.locator(".askcard").last.inner_text().split()); shot(br, "2.3a-asked")
+    br.click(".askcard [data-act=send]"); br.wait_for_selector(".changecard.previewed", timeout=60000); br.wait_for_timeout(2000)
+    card = " ".join(br.locator(".changecard.previewed").last.inner_text().split()); shot(br, "2.3-change-card")
+    r("2.3 ask → Send change card", "looks like a change to the deal" in ask and "+$20" in card and "unchanged" in card, card[:170])
     # 2.4 creator confirms
     cr = ctx.new_page(); cr.set_viewport_size({"width": 1440, "height": 900}); cr.goto(creator_link, timeout=120000); cr.wait_for_timeout(4000)
     cr.goto(cr.url.split("#")[0] + "#chat"); cr.wait_for_timeout(4000)

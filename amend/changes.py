@@ -63,10 +63,17 @@ class FieldChange(BaseModel):
     quote: str
 
 
+class Mention(BaseModel):
+    what: str = Field(min_length=1, max_length=80)
+    quote: str
+
+
 class ChangeOut(BaseModel):
     kind: str = Field(pattern="^(none|change|revision|new_work)$")
     lines: list[LineDelta] = []
     fields: list[FieldChange] = []
+    specs: list[Mention] = []        # how existing work is made (shorter Reel, subtitles): no extra cost
+    not_on_list: list[Mention] = []  # something new that isn't on the creator's price list: never priced by the AI
     quote: str = ""
 
 
@@ -75,10 +82,14 @@ Reply with ONE JSON object only:
 {"kind": "none" | "change" | "revision" | "new_work",
  "lines": [{"item_code": "<code from the price list>", "qty_delta": <int, + adds, - removes>, "quote": "<exact words>"}],
  "fields": [{"field": "post_date", "value": "<YYYY-MM-DD or weekday name>", "quote": "<exact words>"}],
+ "specs": [{"what": "<short, e.g. Shorter Reel>", "quote": "<exact words>"}],
+ "not_on_list": [{"what": "<short, e.g. Paid ad use for 30 days>", "quote": "<exact words>"}],
  "quote": "<the exact words that make the change>"}
 - "revision": feedback on a draft that adjusts existing work (brighter colours, shorter intro). No lines.
 - "new_work": feedback asking for something new on a draft (a new scene, a new location): one line with the item code.
-- "change": adds or removes deliverables, or moves the posting date.
+- "change": adds or removes deliverables, or moves the posting date. One message can hold several of these: list every one.
+- "specs": how the agreed work is made (shorter, subtitles, a colour) when it isn't a draft revision. No price.
+- "not_on_list": something new the message asks for that has no item code in the price list (e.g. paid ad use). No price.
 - "none": chit-chat, questions, thanks.
 Never set prices or totals. Every quote must be copied word for word from the message. Only use item codes from the list."""
 
@@ -102,7 +113,7 @@ def validate(data: dict, message: str, codes: set[str]) -> ChangeOut:
             raise ai.DraftRejected(f"unknown item code {l.item_code!r}")
         if l.qty_delta == 0:
             raise ai.DraftRejected("a line must add or remove something")
-    for x in [*out.lines, *out.fields]:
+    for x in [*out.lines, *out.fields, *out.specs, *out.not_on_list]:
         if not engine.quote_in(x.quote, message):
             raise ai.DraftRejected(f"quote not in the message: {x.quote!r}")
     if out.kind != "none" and out.quote and not engine.quote_in(out.quote, message):
@@ -219,8 +230,16 @@ def timeline(db: Database, deal_id: str, viewer: str) -> dict:
         items.append({"type": "message", "id": m["id"], "at": m["at"], "kind": m["kind"], "body": m["body"],
                       "media_url": m["media_url"], "meta": json.loads(m["meta_json"] or "{}"),
                       "from": p.get("name") or "Amend", "from_id": m["party_id"], "mine": m["party_id"] == viewer})
+    deal_for_side = db.one("select * from deals where id = :d", {"d": deal_id})
+    viewer_side = side_of(db, deal_for_side, viewer) if deal_for_side else "other"
     for c in db.all("select * from changes where deal_id = :d and coalesce(kind, '') <> 'cancel' order by created_at", {"d": deal_id}):
+        if c["status"] == "dismissed" or (c["status"] == "asked" and c.get("ask_party") != viewer):
+            continue
+        if c["status"] == "detected" and c["proposed_by"] == viewer and viewer_side not in ("brand", "creator"):
+            continue  # a non-decider's words: the suggestion goes to the deciders, never back to the writer
         items.append({"type": "change", "at": c["created_at"], **card(db, c)})
+    if deal_for_side:
+        items.extend(nudges(db, deal_for_side, viewer))
     sys_text = {"authorized": ("{amt} held by PayPal", "lock"), "paid": ("{amt} collected", "wallet"), "voided": ("Hold released", "unlock"),
                 "refunded": ("{amt} refunded", "rotate-ccw"), "expired": ("A hold expired · hold again", "hourglass")}
     sysl = lambda at, body, icon: items.append({"type": "system", "at": at, "body": body, "icon": icon})
@@ -322,10 +341,10 @@ def _current_lines(db: Database, deal: dict) -> list[dict]:
 
 def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: str, source: str,
           message_id: str | None, today: date | None = None, forced: dict[str, int] | None = None,
-          existing: dict | None = None) -> dict | None:
+          existing: dict | None = None, ask: str | None = None) -> dict | None:
     """Price the AI's reading with code, build the ripple, and save the change card. None when nothing changes."""
     today = today or datetime.now(timezone.utc).date()
-    if out.kind == "none" or (not out.lines and not out.fields and out.kind != "revision"):
+    if out.kind == "none" or (not out.lines and not out.fields and not out.specs and not out.not_on_list and out.kind != "revision"):
         return None
     side = side_of(db, deal, proposer)
     if side == "other":
@@ -393,6 +412,12 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         delta += fee
         ripple_changes.append({"fact_id": None, "delta_cents": fee, "field": "post_date", "value": new_d.isoformat(),
                                "quote": f.quote})
+    for m in out.specs:  # $0: how the agreed work is made; recorded with its quote when both confirm
+        lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
+                      "source": "no extra cost", "spec": True})
+    for m in out.not_on_list:  # never priced: not part of the change until the creator puts a price on it
+        lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
+                      "source": f"not on {_creator_first(db, deal)}'s price list", "unpriced": True})
     if not lines:
         return None
     rip = engine.ripple(db, deal["id"], ripple_changes)
@@ -401,6 +426,11 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
             if c not in rip.conflicts:
                 rip.conflicts.append(c)
     status = "previewed" if side in ("brand", "creator") else "detected"  # reviewers create suggestions only
+    # a decider's own words: ask the sender first ("This looks like a change to the deal"); nothing is shown to the other
+    # side and nobody is confirmed until the sender taps Send change card (then exactly as before)
+    asked = bool(ask) and status == "previewed" and not existing
+    if asked:
+        status = "asked"
     open_choice = any("choices" in l for l in lines)
     if existing:  # S102: a choice was made; re-price the same card, both sides confirm the chosen version
         upd = {"lines_json": json.dumps(lines), "ripple_json": json.dumps(rip.to_dict()), "untouched_count": rip.untouched_count,
@@ -413,12 +443,15 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
            "ripple_json": json.dumps(rip.to_dict()), "untouched_count": rip.untouched_count, "proposed_by": proposer,
            "quote": out.quote or message[:200], "source": source, "message_id": message_id, "delta_cents": delta,
            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EXPIRY_HOURS)).isoformat(), "created_at": now(),
-           "confirmed_brand_at": now() if side == "brand" and not open_choice else None,
-           "confirmed_creator_at": now() if side == "creator" and not rip.conflicts and not open_choice else None}
+           "confirmed_brand_at": now() if side == "brand" and not open_choice and not asked else None,
+           "confirmed_creator_at": now() if side == "creator" and not rip.conflicts and not open_choice and not asked else None,
+           "ask_party": ask if asked else None}
     db.insert("changes", row)
-    db.log_event("change.detected" if status == "previewed" else "change.suggested", actor=proposer, deal_id=deal["id"],
+    db.log_event({"previewed": "change.detected", "asked": "change.asked"}.get(status, "change.suggested"), actor=proposer, deal_id=deal["id"],
                  payload={"change": cid, "kind": out.kind, "delta_cents": delta, "conflicts": rip.conflicts,
                           "untouched": rip.untouched_count})
+    if asked:
+        return db.one("select * from changes where id = :id", {"id": cid})
     from amend import mandates  # inside the brand's signed mandate → the brand's confirmation, signed in advance
     return mandates.pre_confirm(db, deal, db.one("select * from changes where id = :id", {"id": cid}))
 
@@ -477,7 +510,11 @@ def card(db: Database, c: dict) -> dict:
             "quote": c["quote"], "source": c["source"], "proposed_by": who.get("name"),
             "suggestion": c["status"] == "detected", "brand_ok": bool(c["confirmed_brand_at"]),
             "creator_ok": bool(c["confirmed_creator_at"]), "override_reason": c["override_reason"],
-            "expires_at": c["expires_at"], "pending_hold": _pending_hold(db, c), "via_mandate": c.get("brand_via_mandate")}
+            "expires_at": c["expires_at"], "pending_hold": _pending_hold(db, c), "via_mandate": c.get("brand_via_mandate"),
+            "asked": c["status"] == "asked", "ask_party": c.get("ask_party"), "created_at": c.get("created_at"),
+            "only_unpriced": bool(lines) and all(l.get("unpriced") for l in lines),
+            "message_body": ((db.one("select body from messages where id = :m", {"m": c["message_id"]}) or {}).get("body")
+                             if c.get("status") == "asked" and c.get("message_id") else None)}
 
 
 def _pending_hold(db: Database, c: dict) -> dict | None:
@@ -497,6 +534,8 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
     side = side_of(db, deal, party_id)
     if deal["status"] == "paused" and action in ("confirm", "propose"):
         raise ChangeError("the deal is paused: money actions wait until the brand decides")
+    if c["status"] == "asked" or action in ("send", "edit", "dismiss", "nudge"):
+        return _act_asked(db, c, deal, party_id, side, action)
     if c["status"] not in ("detected", "previewed"):
         raise ChangeError(f"this change is already {c['status']}")
     if datetime.now(timezone.utc) >= datetime.fromisoformat(c["expires_at"]):
@@ -563,6 +602,74 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
     return card(db, db.one("select * from changes where id = :id", {"id": change_id}))
 
 
+NUDGE_MINUTES = 30
+
+
+def _act_asked(db: Database, c: dict, deal: dict, party_id: str, side: str, action: str) -> dict:
+    """The sender's choice on "This looks like a change to the deal": Send change card (their confirmation, exactly as
+    a card made straight from their words before), Edit (their words back in the box), Just a message (nothing).
+    The other decider's "Ask them to send it as a card?" after 30 min. No money rule changes here."""
+    if action == "nudge":
+        if c["status"] != "asked" or side not in ("brand", "creator") or party_id == c["ask_party"]:
+            raise ChangeError("nothing to ask about here")
+        if db.one("select id from events where deal_id = :d and type = 'change.nudged' and payload_json like :p",
+                  {"d": deal["id"], "p": f'%"{c["id"]}"%'}):
+            return card(db, c)
+        name = _name(db, c["ask_party"])
+        post_message(db, deal["id"], party_id, f"{name}, it looks like you mentioned a change. Could you send it as a change card, "
+                                               "so we can both confirm it?")
+        db.log_event("change.nudged", actor=party_id, deal_id=deal["id"], payload={"change": c["id"]})
+        return card(db, c)
+    if c["status"] != "asked":
+        raise ChangeError(f"this change is already {c['status']}")
+    if party_id != c["ask_party"]:
+        raise ChangeError("only the person who wrote this can send it as a change card")
+    if action in ("edit", "dismiss"):
+        db.update("changes", "id", c["id"], {"status": "dismissed"})
+        db.log_event("change.edited" if action == "edit" else "change.dismissed", actor=party_id, deal_id=deal["id"],
+                     payload={"change": c["id"]})
+        return card(db, db.one("select * from changes where id = :id", {"id": c["id"]}))
+    if action != "send":
+        raise ChangeError("send it as a change card first")
+    lines = json.loads(c["lines_json"] or "[]")
+    if all(l.get("unpriced") for l in lines):
+        raise ChangeError(f"nothing on {_creator_first(db, deal)}'s price list here yet: ask for a price in the chat first")
+    if deal["status"] == "paused":
+        raise ChangeError("the deal is paused: money actions wait until the brand decides")
+    rip = json.loads(c["ripple_json"] or "{}")
+    open_choice = any("choices" in l for l in lines)
+    who = side_of(db, deal, c["proposed_by"])  # whose words: the same confirmation a card got before, nothing more
+    db.update("changes", "id", c["id"], {
+        "status": "previewed",
+        "confirmed_brand_at": now() if who == "brand" and not open_choice else None,
+        "confirmed_creator_at": now() if who == "creator" and not rip.get("conflicts") and not open_choice else None,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=EXPIRY_HOURS)).isoformat()})
+    db.log_event("change.sent", actor=party_id, deal_id=deal["id"], payload={"change": c["id"], "delta_cents": c["delta_cents"]})
+    from amend import mandates
+    return card(db, mandates.pre_confirm(db, deal, db.one("select * from changes where id = :id", {"id": c["id"]})))
+
+
+def nudges(db: Database, deal: dict, viewer: str, at: datetime | None = None) -> list[dict]:
+    """After 30 min, the other decider sees "<name> mentioned a change. Ask them to send it as a card?" (no amounts)."""
+    at = at or datetime.now(timezone.utc)
+    if side_of(db, deal, viewer) not in ("brand", "creator"):
+        return []
+    out = []
+    for c in db.all("select * from changes where deal_id = :d and status = 'asked'", {"d": deal["id"]}):
+        if c["ask_party"] == viewer or side_of(db, deal, c["ask_party"]) == side_of(db, deal, viewer):
+            continue
+        since = datetime.fromisoformat(c["created_at"])
+        if at - since < timedelta(minutes=NUDGE_MINUTES):
+            continue
+        asked = bool(db.one("select id from events where deal_id = :d and type = 'change.nudged' and payload_json like :p",
+                            {"d": deal["id"], "p": f'%"{c["id"]}"%'}))
+        name = _name(db, c["ask_party"])
+        out.append({"type": "ask_nudge", "at": (since + timedelta(minutes=NUDGE_MINUTES)).isoformat(), "change_id": c["id"],
+                    "body": f"{name} mentioned a change. Ask them to send it as a card?",
+                    "asked": asked})
+    return out
+
+
 def apply(db: Database, c: dict, actor: str) -> dict:
     """Version +1 and the money follows the ripple. Paid items are never cancelled."""
     from amend import deals as D
@@ -586,6 +693,10 @@ def apply(db: Database, c: dict, actor: str) -> dict:
                                     speaker_id=proposer if engine.is_confirmed(db, proposer) else deal["brand_party_id"])
                 new_fact_ids.append(f["id"])
                 db.update("deals", "id", deal["id"], {"deadline": l["value"]})
+            if l.get("spec"):  # $0: how the work is made, kept with its quote in this version
+                f = engine.add_fact(db, deal["id"], "spec", l["label"], l["quote"], l["quote"], source=f"change:{c['id']}",
+                                    speaker_id=proposer if engine.is_confirmed(db, proposer) else deal["brand_party_id"])
+                new_fact_ids.append(f["id"])
             if not code or not l.get("qty_delta"):
                 continue
             if code in qty and code not in ("date_change", "extra_revision"):

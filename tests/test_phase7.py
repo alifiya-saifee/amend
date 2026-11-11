@@ -174,7 +174,7 @@ def test_s49_reviewer_conflict_pauses_money_only(client, mocks, held):
     assert client.post(f"/api/deals/{deal}/messages", json={"body": "Okay, waiting for you both"}, headers=ORIGIN).status_code == 200
     mocks.ai.mock(return_value=ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "one more Story"}], "quote": "one more Story"}))
     c = client.post(f"/api/d/{tok}/messages", json={"body": "add one more Story"}, headers=ORIGIN).json()["change"]
-    blocked = client.post(f"/api/deals/{deal}/changes/{c['id']}/confirm", json={}, headers=ORIGIN)
+    blocked = client.post(f"/api/d/{tok}/changes/{c['id']}/send", json={}, headers=ORIGIN)  # Send change card waits too
     assert blocked.status_code == 400 and "paused" in blocked.json()["detail"]
     assert client.post(f"/api/d/{ali}/pause/resolve", json={"pick": "b"}, headers=ORIGIN).status_code == 400  # only Nadia decides
     back = client.post(f"/api/d/{tok}/pause/resolve", json={"pick": "a"}, headers=ORIGIN).json()

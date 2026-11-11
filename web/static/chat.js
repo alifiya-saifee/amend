@@ -36,8 +36,17 @@ const Chat = (() => {
   catch (e) { if (!quiet) toast(e.message, "bad", load); }
   }
 
+  // ask first: an "asked" card the sender ignored (wrote again, or 10 min passed) shrinks to a chip; a tap opens it again
+  const expandedAsk = new Set();
+  function askCollapsed(c, items) {
+    if (expandedAsk.has(c.id)) return false;
+    const later = items.some(i => i.type === "message" && i.mine && i.at > c.at);
+    return later || Date.now() - new Date(c.at).getTime() > 10 * 60 * 1000;
+  }
+  let lastItems = [];
   function draw(t) {
-    const sig = JSON.stringify(t.items.map(i => [i.id || i.at, i.status, i.brand_ok, i.creator_ok]));
+    lastItems = t.items;
+    const sig = JSON.stringify(t.items.map(i => [i.id || i.change_id || i.at, i.status, i.brand_ok, i.creator_ok, i.asked, expandedAsk.has(i.id)]));
     if (sig === lastSig) return;
     const atBottom = isNearBottom();
     lastSig = sig;
@@ -45,6 +54,7 @@ const Chat = (() => {
     list.innerHTML = t.items.length ? withDays(t.items) :
       `<div class="empty small">No messages yet. Changes typed here become change cards that both of you confirm.</div>`;
     $$("[data-act]", list).forEach(b => b.onclick = () => act(b));
+    $$("[data-expand]", list).forEach(b => b.onclick = () => { expandedAsk.add(b.dataset.expand); lastSig = ""; draw({ ...t }); });
     $$("[data-nudge]", list).forEach(b => b.onclick = () => busy(b, async () => {
       try { const r = await api(`${base}/nudge/${b.dataset.nudge}`, { body: { answer: b.dataset.ans } }); lastSig = ""; draw(r);
     if (b.dataset.ans === "something") voice(); } catch (e) { toast(e.message, "bad"); }
@@ -61,7 +71,10 @@ const Chat = (() => {
 
   function item(i) {
     if (i.type === "system") return `<div class="sysline">${i.icon ? `<i data-lucide='${i.icon}' aria-hidden='true'></i>` : ""}${esc(i.body)} · ${time(i.at)}</div>`;
-    if (i.type === "change") return changeCard(i);
+    if (i.type === "change") return i.asked ? askCard(i) : changeCard(i);
+    if (i.type === "ask_nudge") return `<div class="changecard ask-nudge"><div class="small"><i data-lucide='message-circle-question' aria-hidden='true'></i> ${esc(i.body)}</div>
+      <div class="row" style="gap:8px;margin-top:8px">${i.asked ? `<span class="pill held">You asked them</span>`
+        : `<button class="btn small primary" data-act="nudge" data-id="${i.change_id}">Ask them</button>`}</div></div>`;
     if (i.type === "brief") return briefCard(i);
     const media = i.media_url ? (i.kind === "image"
       ? `<a href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><img class="chat-img" src="${mediaUrl(i.media_url)}" alt="${esc(i.meta.name || "image")}"></a>`
@@ -96,6 +109,31 @@ const Chat = (() => {
   function mediaUrl(u) { return isBrand ? `${u}?t=${encodeURIComponent(token)}` : u; }
   function time(iso) { return fmtTime(iso); }  // one formatter (app.js): "2:00 PM"
 
+  const ASK_FROM = { voice: "From your voice note: this", call: "From the call: this", screenshot: "From the screenshot: this",
+                     whatsapp: "From the WhatsApp chat: this" };
+  function lineAmt(l) {
+    return l.unpriced ? "no price" : l.choices ? "?" : l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free";
+  }
+  function askCard(c) {  // only the sender sees this; nothing is on the deal until they tap Send change card
+    const total = (c.delta_cents > 0 ? "+" : c.delta_cents < 0 ? "−" : "") + usd(Math.abs(c.delta_cents));
+    if (askCollapsed(c, lastItems)) return `<div class="ask-chip-row"><button class="pill ask-chip" data-expand="${c.id}" title="Only you see this">
+      <i data-lucide='lightbulb' aria-hidden='true'></i> Possible change: ${c.delta_cents ? total : "no money change"}</button></div>`;
+    const lead = (ASK_FROM[(c.source || "").split(":")[0]] || "This") + " looks like a change to the deal:";
+    return `<div class="changecard askcard" data-ask="${c.id}">
+      <div class="small"><b>${esc(lead)}</b></div>
+      <div class="list">${c.lines.map(l => `<div class="line"><div class="grow">${esc(l.label)}${l.source ? `<div class="tiny muted">${esc(l.source)}</div>` : ""}</div>
+        <div class="amt cc-amt ${l.unpriced ? "" : l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${lineAmt(l)}</div>
+        <button class="q" data-quote="${esc(l.quote)}" data-who="You" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
+      <div class="row between" style="margin-top:6px"><span class="small">Total change</span><b class="num">${c.delta_cents ? total : "$0"}</b></div>
+      ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
+      ${c.only_unpriced ? `<p class="small" style="margin:8px 0 0">Not on the price list yet: ask for a price in the chat first.</p>` : ""}
+      <div class="row wrapx" style="margin-top:10px;gap:8px">
+        ${c.only_unpriced ? "" : `<button class="btn primary small" data-act="send" data-id="${c.id}">Send change card</button>`}
+        <button class="btn small" data-act="edit" data-id="${c.id}" data-body="${esc(c.message_body || "")}">Edit</button>
+        <button class="btn small" data-act="dismiss" data-id="${c.id}">Just a message</button></div>
+      <div class="tiny muted" style="margin-top:6px">Only you see this. Sending it counts as your confirmation; ${isBrand ? "the creator" : "the brand"} confirms next.</div>
+    </div>`;
+  }
   function changeCard(c) {
     const open = c.status === "previewed" || c.status === "detected";
     const title = c.suggestion ? "<i data-lucide='lightbulb' aria-hidden='true'></i> Suggestion" : c.kind === "revision" ? "<i data-lucide='pencil' aria-hidden='true'></i> Revision" : c.kind === "new_work" ? "<i data-lucide='sparkle' aria-hidden='true'></i> New work detected" : "<i data-lucide='lightbulb' aria-hidden='true'></i> Change detected";
@@ -110,7 +148,7 @@ const Chat = (() => {
           ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}
           ${l.choices && open && !c.suggestion ? `<div class="row wrapx" style="gap:6px;margin-top:6px">${l.choices.map(ch =>
             `<button class="btn small" data-act="choose" data-qty="${ch.qty}" data-id="${c.id}">${esc(ch.label)} · −${usd(Math.abs(ch.amount_cents))}</button>`).join("")}</div>` : ""}</div>
-          <div class="amt cc-amt ${l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${l.choices ? "?" : l.amount_cents ? (l.amount_cents > 0 ? "+" : "−") + usd(Math.abs(l.amount_cents)) : "free"}</div>
+          <div class="amt cc-amt ${l.unpriced ? "" : l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${lineAmt(l)}</div>
      <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
       ${c.override_reason ? `<div class="tiny muted">Creator's override: “${esc(c.override_reason)}”</div>` : ""}
@@ -141,6 +179,9 @@ const Chat = (() => {
       try {
         const r = await api(`${base}/changes/${id}/${action}`, { body: { reason, qty: b.dataset.qty ? +b.dataset.qty : null } });
         lastSig = ""; draw(r);
+        if (action === "edit") { const box = $("#chat-in"); box.value = b.dataset.body || ""; box.focus(); $("#chat-send").disabled = !box.value.trim(); }
+        if (action === "send") toast(`Change card sent · ${isBrand ? "the creator" : "the brand"} confirms next`);
+        if (action === "nudge") toast("Asked them to send it as a card");
     if (r.change && r.change.status === "applied") { toast("Confirmed by both · applied"); if (onApplied) onApplied(); }
    } catch (e) { toast(e.message, "bad"); }
     });
@@ -156,6 +197,8 @@ const Chat = (() => {
         $("#chat-in").value = ""; $("#chat-send").disabled = true; lastSig = ""; draw(r);
     if (r.ai_error) toast(r.ai_error + " Your message was sent.", "bad");
     else if (r.change && r.change.status === "applied") { toast("Inside the signed mandate · applied"); if (onApplied) onApplied(); }
+    else if (r.change && r.change.asked) { /* the ask panel under the message says it */ }
+    else if (r.suggested_to_deciders) toast("Sent. If it changes the deal, the deciders see a suggestion");
     else if (r.change) toast("Change card added · confirm it together");
    } catch (e) { toast(e.message, "bad"); }
     });

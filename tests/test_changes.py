@@ -29,10 +29,19 @@ def says(mocks, data):
     mocks.ai.mock(return_value=ai_reply(data))
 
 
-def brand_says(client, tok, text):
+def sent(client, base, j):
+    """The sender taps Send change card when Amend asks (as a person now does); anything else comes back unchanged."""
+    if (j.get("change") or {}).get("asked"):
+        r = client.post(f"{base}/changes/{j['change']['id']}/send", json={}, headers=ORIGIN)
+        assert r.status_code == 200, r.text
+        return r.json()
+    return j
+
+
+def brand_says(client, tok, text, send=True):
     r = client.post(f"/api/d/{tok}/messages", json={"body": text}, headers=ORIGIN)
     assert r.status_code == 200, r.text
-    return r.json()
+    return sent(client, f"/api/d/{tok}", r.json()) if send else r.json()
 
 
 def test_plain_message_no_card(client, mocks, held):
@@ -166,7 +175,10 @@ def test_s23_reviewer_creates_suggestion_only(client, mocks, held):
     link = client.post(f"/api/d/{tok}/invite", json={"name": "Ali", "role": "Legal"}, headers=ORIGIN).json()["link"]
     ali = link.rsplit("/", 1)[1]
     says(mocks, {"kind": "change", "fields": [{"field": "post_date", "value": MON, "quote": "post Monday 14 Dec"}], "quote": "post Monday 14 Dec"})
-    c = client.post(f"/api/d/{ali}/messages", json={"body": "Could we post Monday 14 Dec instead?"}, headers=ORIGIN).json()["change"]
+    r = client.post(f"/api/d/{ali}/messages", json={"body": "Could we post Monday 14 Dec instead?"}, headers=ORIGIN).json()
+    assert r.get("suggested_to_deciders") and "change" not in r  # never back to the writer
+    assert all(i["type"] != "change" for i in r["items"])
+    c = next(i for i in client.get(f"/api/d/{tok}/chat").json()["items"] if i["type"] == "change")  # the deciders see it
     assert c["suggestion"] and c["status"] == "detected"
     r = client.post(f"/api/deals/{deal}/changes/{c['id']}/confirm", json={}, headers=ORIGIN)
     assert r.status_code == 400 and "suggestion" in r.json()["detail"]

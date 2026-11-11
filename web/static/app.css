@@ -692,3 +692,9 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 @media (max-width: 520px) { .team-row { grid-template-columns: minmax(0, 1fr) 64px; } .team-row .t-email { grid-column: 1 / -1; grid-row: 2; } }
 .receipt-dl { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 12px 0 0; }
 .receipt-dl dt { margin-top: 8px; } .receipt-dl dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ask first: the sender's own "This looks like a change" panel and its chip (only they see these) */
+.changecard.askcard { border-style: dashed; }
+.ask-chip-row { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
+.ask-chip { cursor: pointer; border: 1px dashed var(--border); background: transparent; display: inline-flex; align-items: center; gap: 6px; }
+.ask-chip svg { width: 14px; height: 14px; }

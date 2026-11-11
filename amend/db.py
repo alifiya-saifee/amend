@@ -42,7 +42,7 @@ EVENT_TYPES = {
     # webhooks (Phase 2)
     "webhook.verified", "webhook.rejected", "webhook.duplicate", "webhook.applied",
     # chat and changes (Phase 3)
-    "message.sent", "message.imported", "change.previewed", "change.discussed", "change.reminded", "change.override",
+    "message.sent", "message.imported", "change.previewed", "change.asked", "change.sent", "change.edited", "change.dismissed", "change.nudged", "change.discussed", "change.reminded", "change.override",
     "feedback.classified", "teammate.invited", "change.suggested",
     # discovery and briefs (Phase 4–5)
     "profile.saved", "metrics.saved", "metrics.read_from_screenshot", "brief.field_countered", "brief.field_agreed", "brief.accepted_all",
@@ -266,7 +266,7 @@ COLUMNS = {
               "team_refund_rule": "text"},  # creator (default) | shared: chosen when the team is set  # names the exclusivity covers (for the competitor check)
     "changes": {"kind": "text", "lines_json": "text not null default '[]'", "proposed_by": "text", "quote": "text",
                 "source": "text", "override_reason": "text", "reminded_at": "text", "message_id": "text",
-                "delta_cents": "integer not null default 0", "brand_via_mandate": "text"},
+                "delta_cents": "integer not null default 0", "brand_via_mandate": "text", "ask_party": "text"},
     "money_items": {"payee_email": "text", "change_id": "text", "note": "text",
                     "deal_version": "integer", "custom_id": "text", "invoice_id": "text",
                     "released_cents": "integer not null default 0",

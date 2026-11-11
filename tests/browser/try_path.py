@@ -64,7 +64,10 @@ with sync_playwright() as p:
     check("$70 held by PayPal" in br.inner_text("body"), "no '$70 held by PayPal'")
     # 2. "Add one more Story set"
     br.goto(f"{BASE}/d/{token}#chat"); br.reload(); br.wait_for_selector("#chat-in", timeout=20000)
-    box = br.locator("#chat-in").first; box.fill("Add one more Story set"); box.press("Enter"); br.wait_for_timeout(3500)
+    box = br.locator("#chat-in").first; box.fill("Add one more Story set"); box.press("Enter")
+    br.wait_for_selector(".askcard [data-act=send]", timeout=20000)  # Amend asks the brand first
+    check("looks like a change to the deal" in br.inner_text(".askcard"), "no ask panel")
+    br.click(".askcard [data-act=send]"); br.wait_for_timeout(2500)
     ch = q("select delta_cents, quote from changes where deal_id = ? order by created_at desc limit 1", deal_id)
     check(ch and ch[0][0] == 2000, f"change card {ch}")
     br.screenshot(path=str(OUT / "02-change-card-brand-390.png"))

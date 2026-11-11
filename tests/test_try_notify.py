@@ -67,13 +67,15 @@ def test_s42_try_page_reset_and_cap(client, mocks):
     mocks.ai.mock(return_value=ai_reply({"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, "quote": "Add one more Story set"}],
                                          "quote": "Add one more Story set"}))
     c = client.post(f"/api/d/{tok}/messages", json={"body": "Add one more Story set"}, headers=ORIGIN).json()["change"]
-    assert c["delta_cents"] == 2000
+    assert c["delta_cents"] == 2000 and c["asked"]  # the brand sees the priced lines first
+    c = client.post(f"/api/d/{tok}/changes/{c['id']}/send", json={}, headers=ORIGIN).json()["change"]  # Send change card
     back = client.get(r["creator_link"].replace("http://testserver", ""), follow_redirects=False)
     assert back.status_code == 303 and back.headers["location"] == f"/studio/deals/{r['deal']}"
     ok = client.post(f"/api/deals/{r['deal']}/changes/{c['id']}/confirm", json={}, headers=ORIGIN)
     assert ok.status_code == 200 and client.get(f"/api/d/{tok}").json()["total_cents"] == 9000
     mocks.ai.mock(return_value=ai_reply({"kind": "change", "lines": [{"item_code": "reel", "qty_delta": 1, "quote": "another Reel"}], "quote": "another Reel"}))
     c2 = client.post(f"/api/d/{tok}/messages", json={"body": "And another Reel"}, headers=ORIGIN).json()["change"]
+    c2 = client.post(f"/api/d/{tok}/changes/{c2['id']}/send", json={}, headers=ORIGIN).json()["change"]
     over = client.post(f"/api/deals/{r['deal']}/changes/{c2['id']}/confirm", json={}, headers=ORIGIN)
     assert over.status_code == 400 and "$100" in over.json()["detail"]
 
