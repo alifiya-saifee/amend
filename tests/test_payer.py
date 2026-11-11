@@ -90,3 +90,10 @@ def test_repeat_return_records_once(client, mocks):
     deal, tok = hold_with(client, mocks, order(business="Dune Roast Coffee"))
     client.get(f"/paypal/return?t={tok}&token=ORDER1", follow_redirects=False)
     assert len([e for e in get_db().events_for(deal) if e["type"] == "paypal.payer_checked"]) == 1
+
+
+def test_spaces_inside_a_name_dont_matter():
+    """Live, 11 Nov: the sandbox buyer "Nadia DuneRoast" paid for "Dune Roast Coffee": that names the brand."""
+    assert payer.compare("Dune Roast Coffee", {"name": "Nadia DuneRoast"})["result"] == "match"
+    assert payer.compare("Dune Roast Coffee", {"name": "Omar Haddad"})["result"] == "mismatch"
+    assert payer.compare("Dune Roast Coffee", {"name": "Dune Smith"})["result"] == "mismatch"  # one word isn't enough

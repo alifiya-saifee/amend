@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>reel</title>
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  body { background: linear-gradient(170deg, #f6e7cf 0%, #e9c99a 45%, #b9773f 100%); }
+  .sun { position: absolute; width: 900px; height: 900px; border-radius: 50%; left: 90px; top: 250px;
+         background: radial-gradient(circle, rgba(255,255,255,.55), rgba(255,255,255,0) 65%); animation: breathe 8s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.06); } }
+  .glass { position: absolute; left: 330px; top: 560px; width: 420px; height: 700px; border-radius: 0 0 70px 70px;
+           border: 10px solid rgba(255,255,255,.85); border-top: none; background: rgba(255,255,255,.18); overflow: hidden;
+           box-shadow: 0 40px 80px rgba(80,40,10,.25); }
+  .brew { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(180deg, #6b3a1c, #3b1e0c);
+          animation: pour 3.2s 0.6s ease-out forwards; }
+  @keyframes pour { to { height: 560px; } }
+  .milk { position: absolute; left: 0; right: 0; top: 140px; height: 0; background: linear-gradient(180deg, rgba(246,231,207,.95), rgba(246,231,207,0));
+          animation: milk 2s 3.6s ease-out forwards; }
+  @keyframes milk { to { height: 260px; } }
+  .ice { position: absolute; width: 110px; height: 110px; border-radius: 22px; background: rgba(255,255,255,.55);
+         border: 4px solid rgba(255,255,255,.8); top: -160px; animation: drop 1.4s cubic-bezier(.3,1.4,.6,1) forwards; }
+  .i1 { left: 60px; animation-delay: 1.2s; } .i2 { left: 200px; animation-delay: 1.6s; } .i3 { left: 120px; animation-delay: 2.0s; }
+  @keyframes drop { to { top: 230px; transform: rotate(14deg); } }
+  .i2 { --r: -9deg; } .i3 { animation-name: drop3; } @keyframes drop3 { to { top: 330px; transform: rotate(-12deg); } }
+  .straw { position: absolute; left: 600px; top: 380px; width: 26px; height: 520px; background: #fff; border-radius: 14px;
+           transform: rotate(14deg); transform-origin: bottom; opacity: 0; animation: in .6s 4.6s forwards; }
+  h1 { position: absolute; left: 0; right: 0; top: 150px; text-align: center; margin: 0; font-size: 104px; font-weight: 800;
+       color: #3b1e0c; letter-spacing: -2px; opacity: 0; animation: up .9s .3s forwards; }
+  .sub { position: absolute; left: 0; right: 0; top: 290px; text-align: center; font-size: 52px; color: #5d3317; opacity: 0;
+         animation: up .9s 1s forwards; }
+  .tag { position: absolute; left: 0; right: 0; bottom: 260px; text-align: center; font-size: 60px; font-weight: 700; color: #fff;
+         opacity: 0; animation: up .8s 5.2s forwards; text-shadow: 0 4px 18px rgba(60,25,5,.35); }
+  .note { position: absolute; left: 0; right: 0; bottom: 120px; text-align: center; font-size: 34px; color: rgba(255,255,255,.9); opacity: 0;
+          animation: up .8s 5.8s forwards; }
+  @keyframes up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+  @keyframes in { to { opacity: 1; } }
+</style></head>
+<body>
+  <div class="sun"></div>
+  <h1>Cold brew at home</h1>
+  <div class="sub">3 ingredients · 12 hours · 1 glass</div>
+  <div class="straw"></div>
+  <div class="glass"><div class="brew"></div><div class="milk"></div><div class="ice i1"></div><div class="ice i2"></div><div class="ice i3"></div></div>
+  <div class="tag">Dune Roast cold brew</div>
+  <div class="note">Made-up brand · demo video for Amend</div>
+</body></html>

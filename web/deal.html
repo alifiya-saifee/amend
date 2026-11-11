@@ -371,8 +371,14 @@ function nextStep(d, pendingHolds) {
   if (pendingHolds.length) return IS_BRAND ? { ic: "wallet", t: `Hold ${usd(pendingHolds.reduce((a, h) => a + h.amount_cents, 0))} more`, s: "A confirmed change added work. Pay with PayPal to hold the extra." }
     : { ic: "hourglass", t: "Waiting for the extra hold", s: `${brandName} needs to hold the money for the confirmed change.` };
   if (d.status === "completed") return { ic: "circle-check", t: "Done", s: "Every payment is in the ledger with the words behind it.", tab: "money" };
-  if (d.status === "delivered" && !(V.held_cents || 0) && (V.money || []).some(i => i.kind === "capture" && i.status === "paid"))
-    return { ic: "circle-check", t: "Money collected", s: IS_BRAND ? "Nothing more to do. Any holdback goes to the creator later, only if the post is still live." : "Any holdback is paid on its day if the post is still live.", tab: "money" };
+  // collected: no main hold left open (a bonus keeps its own PayPal hold until Instagram's views are read)
+  const isBonus = i => String(i.note || "").startsWith("bonus:");
+  const bonusHeld = (V.money || []).filter(i => i.kind === "hold" && i.status === "authorized" && isBonus(i)).reduce((a, i) => a + i.amount_cents, 0);
+  if (d.status === "delivered" && (V.money || []).some(i => i.kind === "capture" && i.status === "paid")
+      && !(V.money || []).some(i => i.kind === "hold" && i.status === "authorized" && !isBonus(i)))
+    return { ic: "circle-check", t: "Money collected",
+      s: (IS_BRAND ? "Nothing more to do. Any holdback goes to the creator later, only if the post is still live." : "Any holdback is paid on its day if the post is still live.")
+        + (bonusHeld ? ` The ${usd(bonusHeld)} bonus stays held by PayPal until the views are read from Instagram.` : ""), tab: "money" };
   if (d.status === "delivered" && V.caption_fix) return IS_BRAND
     ? { ic: "hourglass", t: `Waiting for ${first} to fix the caption`, s: `${V.caption_fix}: your signed mandate requires it. No money is released until it's there.`, tab: "delivery" }
     : { ic: "pencil", t: V.caption_fix, s: V.caption_on_instagram ? "Edit the caption on Instagram, then tap Re-check on Instagram. The brand's signed mandate needs it." : "The brand's signed mandate needs it. No money is released until the caption has it.", tab: "delivery" };

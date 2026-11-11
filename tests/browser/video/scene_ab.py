@@ -77,7 +77,9 @@ with sync_playwright() as p:
             print("  card for Maya:", " ".join(pg.locator(".changecard.previewed").last.inner_text().split())[:400], flush=True)
             conf = ".changecard.previewed [data-act=confirm]"
             if pg.query_selector(conf):
-                sc.click(conf, after=3.0); sc.mark("Maya confirms")
-            pg.wait_for_timeout(1500); sc.hold(2.0); sc.mark("version 2 / money line")
+                sc.click(conf, after=0.3); sc.mark("Maya confirms")
+            pg.wait_for_timeout(2500)  # the page redraws: back to the card (never the Team panel: it shows an email)
+            pg.goto(f"{B}/studio/deals/{DEAL}#chat"); pg.wait_for_selector(".changecard", timeout=60000); pg.wait_for_timeout(1500)
+            pg.locator(".changecard").last.scroll_into_view_if_needed(); sc.hold(2.5); sc.mark("version 2 / money line")
             print("  after confirm:", " ".join(pg.inner_text("#chat-list").split())[-300:], flush=True)
     b.close()

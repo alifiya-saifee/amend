@@ -57,6 +57,11 @@ def compare(brand: str | None, p: dict) -> dict:
         c = norm(cand)
         if b and c and (c == b or f" {b} " in f" {c} " or f" {c} " in f" {b} "):
             hit = True
+        bw = b.split()  # spaces inside a name don't matter: "Nadia DuneRoast" names "Dune Roast Coffee"
+        for k in (len(bw), 2):
+            joined = "".join(bw[:k])
+            if b and c and k <= len(bw) and len(joined) >= 6 and joined in c.replace(" ", ""):
+                hit = True
     dom = (p.get("email_domain") or "").split(".")[0]
     dom, compact = re.sub(r"[^a-z0-9]", "", dom), b.replace(" ", "")
     if b and len(dom) >= 6 and dom not in _GENERIC_DOMAINS and (compact.startswith(dom) or dom.startswith(compact)):

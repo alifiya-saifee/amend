@@ -141,3 +141,17 @@ def test_every_money_event_is_named_even_unusual_ones():
     assert text("paid") == f"{money.fmt_usd(53000)} collected"
     assert text("sent") == f"Collection of {money.fmt_usd(53000)} sent to PayPal"
     assert "Money status" not in text("approved")
+
+
+@needs_node
+def test_after_release_a_held_bonus_still_says_money_collected():
+    """Live, 11 Nov: after the release Maya saw "Waiting for the brand's sign-off" because the separate $30 bonus hold
+    was still open. The bonus keeps its own hold; the main money is collected."""
+    money = ("[{kind: 'hold', status: 'paid', amount_cents: 45000, note: null},"
+             " {kind: 'hold', status: 'authorized', amount_cents: 3000, note: 'bonus:hold bn_x'},"
+             " {kind: 'capture', status: 'paid', amount_cents: 45000, note: 'release:capture'}]")
+    setup = f"const IS_BRAND = false; let V = {{creator: {{name: 'Maya Rahman'}}, brand: {{name: 'Nadia'}}, held_cents: 3000, money: {money}}};"
+    n = js(["nextStep"], setup, "nextStep({status: 'delivered'}, [])")
+    assert n["t"] == "Money collected" and "$30 bonus stays held by PayPal" in n["s"]
+    still_held = setup.replace("status: 'paid', amount_cents: 45000, note: null", "status: 'authorized', amount_cents: 45000, note: null")
+    assert js(["nextStep"], still_held, "nextStep({status: 'delivered'}, []).t") == "Waiting for the brand's sign-off"
