@@ -13,6 +13,11 @@ import secrets
 from amend.paypal import PayPalClient
 
 _BATCHES: dict[str, list] = {}  # local fake only: what each Payouts batch carried
+_OBJ: dict[str, dict] = {}       # local fake only: orders, authorisations, captures, refunds as PayPal would report them
+
+
+def _money(cents_str):
+    return {"currency_code": "USD", "value": cents_str}
 
 
 def enabled() -> bool:
@@ -39,24 +44,50 @@ class FakePayPal(PayPalClient):
             oid = "FAKE" + secrets.token_hex(5).upper()
             ret = body["payment_source"]["paypal"]["experience_context"]["return_url"]
             self.orders[oid] = {"amount": body["purchase_units"][0]["amount"]["value"], "return": ret}
+            pu = body["purchase_units"][0]
+            _OBJ[oid] = {"id": oid, "status": "APPROVED", "purchase_units": [{"amount": _money(pu["amount"]["value"]),
+                         "custom_id": pu.get("custom_id"), "invoice_id": pu.get("invoice_id")}]}
             base = ret.split("/paypal/return")[0]
             return {"id": oid, "status": "PAYER_ACTION_REQUIRED",
                     "links": [{"rel": "payer-action", "href": f"{base}/fake-paypal/checkout?token={oid}"}]}
         m = re.match(r"/v2/checkout/orders/(\w+)/authorize", path)
         if m:
-            return {"purchase_units": [{"payments": {"authorizations": [{"id": "AUTH-" + m.group(1), "status": "CREATED"}]}}]}
+            aid, o = "AUTH-" + m.group(1), _OBJ.get(m.group(1)) or {}
+            pu = (o.get("purchase_units") or [{}])[0]
+            if o:
+                o["status"] = "COMPLETED"
+            _OBJ[aid] = {"id": aid, "status": "CREATED", "amount": pu.get("amount"), "custom_id": pu.get("custom_id"),
+                         "invoice_id": pu.get("invoice_id"), "_captured": 0}
+            return {"purchase_units": [{"payments": {"authorizations": [{"id": aid, "status": "CREATED"}]}}]}
         if path.endswith("/capture"):
-            return {"id": "CAP" + secrets.token_hex(4).upper(), "status": "COMPLETED",
+            cid, aid = "CAP" + secrets.token_hex(4).upper(), path.split("/")[-2]
+            a = _OBJ.get(aid) or {}
+            _OBJ[cid] = {"id": cid, "status": "COMPLETED", "amount": _money((body or {}).get("amount", {}).get("value", "0")),
+                         "custom_id": a.get("custom_id"), "invoice_id": a.get("invoice_id")}
+            if a:
+                from amend.paypal import to_cents
+                a["_captured"] = a.get("_captured", 0) + to_cents(_OBJ[cid]["amount"]["value"])
+                a["status"] = "CAPTURED" if (body or {}).get("final_capture") or a["_captured"] >= to_cents((a.get("amount") or {}).get("value", "0")) \
+                    else "PARTIALLY_CAPTURED"
+            return {"id": cid, "status": "COMPLETED",
                     "seller_receivable_breakdown": {"paypal_fee": {"currency_code": "USD", "value": "1.23"}}}
         if path.endswith("/reauthorize"):
-            return {"id": "AUTH-RE" + secrets.token_hex(3).upper(), "status": "CREATED", "expiration_time": "2026-12-30T00:00:00Z"}
+            rid, old = "AUTH-RE" + secrets.token_hex(3).upper(), _OBJ.get(path.split("/")[-2]) or {}
+            _OBJ[rid] = {**old, "id": rid, "status": "CREATED", "amount": _money((body or {}).get("amount", {}).get("value", "0")), "_captured": 0}
+            return {"id": rid, "status": "CREATED", "expiration_time": "2026-12-30T00:00:00Z"}
         if path.endswith("/void"):
+            if path.split("/")[-2] in _OBJ:
+                _OBJ[path.split("/")[-2]]["status"] = "VOIDED"
             return {}
         if path.endswith("/refund"):
-            return {"id": "REF" + secrets.token_hex(4).upper(), "status": "COMPLETED"}
+            rid, cap = "REF" + secrets.token_hex(4).upper(), _OBJ.get(path.split("/")[-2]) or {}
+            _OBJ[rid] = {"id": rid, "status": "COMPLETED", "amount": _money((body or {}).get("amount", {}).get("value", "0"))}
+            if cap:
+                cap["status"] = "PARTIALLY_REFUNDED" if _OBJ[rid]["amount"]["value"] != (cap.get("amount") or {}).get("value") else "REFUNDED"
+            return {"id": rid, "status": "COMPLETED"}
         if path == "/v1/payments/payouts":
             bid = "PB" + secrets.token_hex(4).upper()
-            _BATCHES[bid] = [{"payout_item": {"sender_item_id": i.get("sender_item_id")},  # every item succeeds, unless its
+            _BATCHES[bid] = [{"payout_item": {"sender_item_id": i.get("sender_item_id"), "amount": i.get("amount")},  # every item succeeds, unless its
                               "transaction_status": "FAILED" if "fail" in (i.get("receiver") or "") else "SUCCESS"}  # email says "fail"
                              for i in (body or {}).get("items") or []]
             return {"batch_header": {"payout_batch_id": bid, "batch_status": "PENDING"}}
@@ -67,10 +98,18 @@ class FakePayPal(PayPalClient):
             aid = path.rsplit("/", 1)[1]
             from datetime import datetime, timedelta, timezone
             t = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=1)  # authorised an hour ago, on any day
+            mem = {k: v for k, v in (_OBJ.get(aid) or {}).items() if not k.startswith("_")}
             return {"id": aid, "status": "CREATED", "create_time": t.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "expiration_time": (t + timedelta(days=29)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+                    "expiration_time": (t + timedelta(days=29)).strftime("%Y-%m-%dT%H:%M:%SZ"), **mem}
         if "/v2/checkout/orders/" in path:
-            return {"id": path.rsplit("/", 1)[1], "status": "APPROVED"}
+            oid = path.rsplit("/", 1)[1]
+            return _OBJ.get(oid) or {"id": oid, "status": "APPROVED"}
+        if "/v2/payments/captures/" in path or "/v2/payments/refunds/" in path:
+            got = _OBJ.get(path.rsplit("/", 1)[1])
+            if not got:
+                from amend.paypal import PayPalError
+                raise PayPalError(404, "RESOURCE_NOT_FOUND", "not in the local fake")
+            return got
         if path.startswith("/v1/payments/payouts/"):
             bid = path.rsplit("/", 1)[1]
             return {"batch_header": {"payout_batch_id": bid, "batch_status": "SUCCESS"}, "items": _BATCHES.get(bid, [])}

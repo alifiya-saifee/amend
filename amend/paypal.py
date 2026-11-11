@@ -169,6 +169,9 @@ class PayPalClient:
     async def get_capture(self, capture_id: str) -> dict:
         return await self._get(f"/v2/payments/captures/{capture_id}")
 
+    async def get_refund(self, refund_id: str) -> dict:
+        return await self._get(f"/v2/payments/refunds/{refund_id}")
+
     async def refund(self, capture_id: str, *, amount_cents: int, request_id: str | None,
                      approval: dict | None) -> dict:
         body = {"amount": {"currency_code": "USD", "value": dollars(amount_cents)}}

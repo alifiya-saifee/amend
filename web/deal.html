@@ -611,6 +611,7 @@ async function loadSpine(refresh = false) {
   $$("[data-spine-refresh]").forEach(b => b.onclick = () => busy(b, () => loadSpine(true)));
   $$("[data-spine-table]").forEach(b => b.onclick = () => busy(b, spineTable));
   $$("[data-spine-map]").forEach(b => b.onclick = () => busy(b, async () => { try { await paypalMap(); } catch (er) { toast(friendlyError(er), "bad"); } }));
+  $$("[data-rebuild]").forEach(b => b.onclick = () => busy(b, async () => { try { await rebuildSheet(); } catch (er) { toast(friendlyError(er), "bad"); } }));
 }
 // The spine's PayPal objects as a table (AG Grid Community): every money line of every version, with where PayPal's
 // last status came from. A row opens its receipt hash, request ID and each PayPal object.
@@ -682,9 +683,39 @@ async function paypalMap() {
       n.status ? esc(n.status) : "", n.how ? esc(n.how) : "", n.capture_path ? esc(n.capture_path) : "",
       n.conservation && n.conservation.ok === true ? "balances" : n.conservation && n.conservation.ok === false ? "<b>does not balance</b>" : ""
     ].filter(Boolean).join(" · ")}</div></div>`;
-  d.innerHTML = `<div class="gd-head"><h3>${icon("workflow")} PayPal objects, in order</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+  d.innerHTML = `<div class="gd-head"><h3>${icon("workflow")} PayPal objects, in order</h3><div class="row" style="gap:6px">
+      <button class="btn small ghost" data-rebuild-map>${icon("history")} Rebuild from PayPal</button><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div></div>
     <p class="tiny muted">Every PayPal object behind this deal, with its real ID, the PayPal-Request-Id Amend sent and the receipt hash of the deal version it belongs to. Receipt now <code>${esc(M.receipt_hash.slice(0, 16))}…</code></p>
     ${Object.entries(M.stages).map(([k, nodes]) => `<div class="map-stage"><div class="small"><b>${titles[k]}</b></div>${nodes.length ? nodes.map(row).join("") : `<div class="tiny muted">None</div>`}</div>`).join("")}`;
+  d.querySelector("[data-close]").onclick = () => d.close();
+  const rb = d.querySelector("[data-rebuild-map]");
+  if (rb) rb.onclick = () => busy(rb, async () => { try { d.close(); await rebuildSheet(); } catch (er) { toast(friendlyError(er), "bad"); } });
+  d.showModal ? d.showModal() : d.setAttribute("open", "");
+}
+// Rebuild from PayPal: PayPal's own answers (GETs only, nothing saved), line by line next to Amend's record.
+async function rebuildSheet() {
+  const R = await api(url("/rebuild"), { method: "POST" });
+  let d = document.getElementById("rebuild-sheet");
+  if (!d) {
+    d = document.createElement("dialog"); d.id = "rebuild-sheet"; d.className = "grid-sheet";
+    d.addEventListener("click", e => { if (e.target === d) d.close(); });
+    document.body.appendChild(d);
+  }
+  const mark = s => s === "match" ? `<span class="rb-ok">${icon("circle-check")} matches</span>` : s === "mismatch" ? `<span class="rb-bad">${icon("circle-x")} doesn't match</span>`
+    : `<span class="rb-na">${icon("circle-minus")} not checked</span>`;
+  const amt = (o) => `${o.amount_cents == null ? "–" : usd(o.amount_cents)}${o.status ? " · " + esc(o.status) : ""}`;
+  const line = l => `<div class="map-node rb-line ${l.state}"><div class="row between"><b>${esc(l.what)}</b><span>${mark(l.state)}</span></div>
+    <div class="small">PayPal: ${amt(l.paypal)} &nbsp;·&nbsp; Amend: ${amt({ amount_cents: l.amend.amount_cents, status: l.amend.status ? moneyWord(l.amend.status, l.kind) : "" })}</div>
+    ${l.problems.length ? `<ul class="small rb-problems">${l.problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+    <div class="tiny muted">${l.hash && l.hash.note ? esc("Receipt: " + l.hash.note) + " · " : ""}${l.paypal_id ? `<code>${esc(l.paypal_id)}</code> · ` : ""}${l.endpoint ? `<code>${esc(l.endpoint)}</code> · ` : ""}answered ${esc(fmtTime(l.answered_at))}${l.note ? " · " + esc(l.note) : ""}</div></div>`;
+  d.innerHTML = R.demo ? `<div class="gd-head"><h3>${icon("history")} Rebuild from PayPal</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+      <p class="small">${esc(R.text)}. Its IDs start with DEMO: made-up history, never sent to PayPal.</p>`
+    : `<div class="gd-head"><h3>${icon("history")} Rebuild from PayPal</h3><button class="btn small ghost" data-close aria-label="Close">${icon("x")}</button></div>
+    <div class="banner ${R.ok ? "ok" : "wait"} small">${esc(R.text)}</div>
+    <p class="small" style="margin:8px 0 0">${esc(R.hash.text)}</p>
+    <p class="tiny muted">Built only from PayPal's answers to GET requests at ${esc(fmtTime(R.at))}: no AI, nothing saved, no money moves. Each line shows which PayPal endpoint answered.</p>
+    ${R.versions.map(v => `<div class="map-stage"><div class="small"><b>Version ${v.version ?? "–"}</b></div>${v.lines.map(line).join("")}</div>`).join("")}
+    ${R.not_sent.length ? `<div class="map-stage"><div class="small"><b>Not at PayPal yet</b></div>${R.not_sent.map(n => `<div class="tiny muted">${esc(n.what)} ${usd(n.amount_cents)} · ${esc(n.note)}</div>`).join("")}</div>` : ""}`;
   d.querySelector("[data-close]").onclick = () => d.close();
   d.showModal ? d.showModal() : d.setAttribute("open", "");
 }
@@ -738,7 +769,8 @@ function spineHtml(S) {
   const pct = (a, b) => Math.max(0, Math.min(100, Math.round(100 * a / Math.max(b, 1))));
   return `<div class="card spine"><div class="row between"><h3>${icon("route")} PayPal spine</h3>
       <div class="row" style="gap:6px"><button class="btn small ghost" data-spine-map>${icon("workflow")} Map</button><button class="btn small ghost" data-spine-table>${icon("table")} Table</button>
-      <button class="btn small ghost" data-spine-refresh>Check PayPal now</button></div></div>
+      <button class="btn small ghost" data-spine-refresh>Check PayPal now</button>
+      <button class="btn small ghost" data-rebuild>${icon("history")} Rebuild from PayPal</button></div></div>
     <p class="tiny muted" style="margin-top:-4px">Every version of this deal maps to PayPal objects. Version ${S.version} receipt
       <code>${esc(S.receipt_hash.slice(0, 12))}…</code> travels in the PayPal order (custom_id).</p>
     ${S.chain && S.chain.events ? `<p class="tiny ${S.chain.ok ? "muted" : "err"}" style="margin:0 0 6px">${icon(S.chain.ok ? "link" : "unlink")}

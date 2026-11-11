@@ -698,3 +698,10 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 .ask-chip-row { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
 .ask-chip { cursor: pointer; border: 1px dashed var(--border); background: transparent; display: inline-flex; align-items: center; gap: 6px; }
 .ask-chip svg { width: 14px; height: 14px; }
+
+/* Rebuild from PayPal */
+.rb-ok { color: var(--ok, #2f7a4b); font-weight: 700; }
+.rb-bad { color: var(--bad, #b3261e); font-weight: 700; }
+.rb-na { color: var(--muted); font-weight: 700; }
+.rb-line.mismatch { border-color: var(--bad, #b3261e); }
+.rb-problems { margin: 4px 0 0 18px; padding: 0; }

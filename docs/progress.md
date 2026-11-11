@@ -980,3 +980,21 @@ question wasn't answered, so the recommended option was taken.
   after acceptance, price spotting, /try line, demo lists price the long message within $100). Browser
   `tests/browser/pricing_rules.py` 390 + 1440: problems none, no JS errors; shots in `docs/screenshots/pricing/`.
   **Tests: 903 passed, 3 skipped.**
+
+## Rebuild from PayPal (11 Nov, before the 18:00 freeze; read-only)
+- "Rebuild from PayPal" on the deal page's PayPal spine and in the object map (`amend/rebuild.py`). PayPal sandbox
+  GETs only (orders, authorizations, captures, refunds, payout batches → the item with Amend's sender_item_id), each
+  object asked once; the timeline per version is built from PayPal's answers only: Held, Collected, Released back
+  (PayPal's authorised amount − PayPal's captures, once PayPal says it's closed), Paid out, Refunded.
+- Each line: PayPal's amount + status next to Amend's, matches / doesn't match, the endpoint that answered and when.
+  Receipt hash: the hash in PayPal's custom_id must be Amend's receipt hash for the version it names, for this deal
+  (a capture carries its hold's custom_id, so the $70 collected at v2 carries v1's receipt: shown as a note).
+  Overall: "Rebuilt from PayPal: matches Amend ✓" or the mismatches; a timeout or refused GET is "not checked",
+  never a pass; a 404 is a mismatch ("PayPal has no such object"). Lines never sent to PayPal are listed apart.
+- Demo history (DEMO ids or a demo deal): "Demo history: not at PayPal", no GETs. Once per deal per minute
+  ("Rebuilt less than a minute ago"). No AI, no PayPal writes, nothing saved in Amend.
+- New read-only `get_refund`. The local fake PayPal now remembers amounts, custom_id and statuses (local tests only).
+- Tests: `tests/test_rebuild.py` (8: match, amount mismatch, missing object, timeout, tampered hash, once a minute +
+  brand, demo history, a capture carrying its hold's version). Browser `tests/browser/rebuild_flow.py` 390 + 1440
+  after try_path: "matches Amend", every line names its endpoint, second tap refused, map has the button, judges'
+  demo history says "not at PayPal". Shots in `docs/screenshots/rebuild/`. **Tests: 911 passed, 3 skipped.**

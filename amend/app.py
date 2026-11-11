@@ -711,6 +711,27 @@ async def creator_spine_refresh(deal_id: str, c: dict = Depends(require_creator)
     return await spine.refresh(get_db(), rail().pp, deal_id)
 
 
+async def _rebuild(deal_id: str) -> dict:
+    """Rebuild from PayPal: GETs only, nothing saved, once per deal per minute."""
+    from amend import rebuild
+    try:
+        rate_limit(f"rebuild:{deal_id}", 1, 60)
+    except HTTPException:
+        raise HTTPException(429, "Rebuilt less than a minute ago. Try again in a minute.") from None
+    return await rebuild.rebuild(get_db(), rail().pp, deal_id)
+
+
+@app.post("/api/deals/{deal_id}/rebuild")
+async def creator_rebuild(deal_id: str, c: dict = Depends(require_creator)):
+    own_deal(deal_id, c)
+    return await _rebuild(deal_id)
+
+
+@app.post("/api/d/{token}/rebuild")
+async def brand_rebuild(token: str):
+    return await _rebuild(deals.open_link(get_db(), token)["deal"]["id"])
+
+
 @app.get("/api/d/{token}/spine")
 def brand_spine(token: str):
     return _spine_with_why(spine.view(get_db(), deals.open_link(get_db(), token)["deal"]["id"]))
