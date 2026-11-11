@@ -59,6 +59,12 @@ function fmtDate(v) {
 }
 // ISO dates inside a sentence ("Posted on Instagram on 2026-11-10") → "Tue 10 Nov"
 function humanDates(s) { return String(s == null ? "" : s).replace(/\b\d{4}-\d{2}-\d{2}\b/g, m => fmtDate(m)); }
+// "Instagram read · updated 2 h ago · 14 posts · typical 31 likes, 4 comments" (numbers read from Instagram by Amend)
+function igReadLine(ig) {
+  if (!ig) return "";
+  const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
+  return `Instagram read · updated ${ago(ig.read_at)} · ${n(ig.posts)} posts · typical ${n(ig.median_likes)} likes, ${n(ig.median_comments)} comments (median of the last ${n(ig.posts_used)} posts)`;
+}
 function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""; }
 function dateStr(iso) { return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""; }
 

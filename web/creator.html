@@ -12,7 +12,7 @@ const handle = decodeURIComponent(location.pathname.split("/")[2] || "");
 function unitText(p) { return { month: " / month", change: " per change", revision: " each" }[p.unit] || ""; }
 function fmtN(n) { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n); }
 function fmtMin(m) { return m < 60 ? Math.round(m) + " min" : m < 1440 ? Math.round(m / 60) + " h" : Math.round(m / 1440) + " d"; }
-const SRC = { verified: "Verified (connected account)", instagram_public: "From Instagram (public numbers), confirmed by the creator", insights_screenshot: "Read from an insights screenshot · checked by the creator, not verified", demo: "Demo data", self_reported: "Self-reported" };
+const SRC = { verified: "Verified (connected account)", instagram_read: "Instagram read (her connected account), worked out by Amend", instagram_public: "From Instagram (public numbers), confirmed by the creator", insights_screenshot: "Read from an insights screenshot · checked by the creator, not verified", demo: "Demo data", self_reported: "Self-reported" };
 function bars(obj) {
   // by %, biggest first; "Other" always last (it's a remainder, not a place)
   const all = Object.entries(obj || {}), other = all.filter(([k]) => k.toLowerCase() === "other");
@@ -40,6 +40,7 @@ function metricsHtml(c) {
     <div class="row between"><h2 style="margin:0">${esc(m.platform[0].toUpperCase() + m.platform.slice(1))}</h2>
       <span class="tiny muted">Updated ${m.age_days === 0 ? "today" : m.age_days + " days ago"}</span></div>
     <p class="tiny muted" style="margin:4px 0 0">${esc(SRC[m.source] || m.source)}</p>
+    ${m.ig ? `<p class="small ig-read" style="margin:4px 0 0">${esc(igReadLine(m.ig))}</p>` : ""}
     ${m.stale ? '<div class="banner wait small" style="margin-top:8px">Data may be outdated (older than 60 days)</div>' : ""}
     <div class="stats"><div><b>${fmtN(m.followers)}</b><span>followers</span></div><div><b>${fmtN(m.avg_views)}</b><span>avg views</span></div>
       <div><b>${m.engagement_rate}%</b><span>engagement</span></div><div><b>${m.view_rate}%</b><span>view rate</span></div></div>

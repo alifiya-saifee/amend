@@ -19,7 +19,7 @@ from datetime import date, datetime, timezone
 from amend import ai, engine
 from amend.db import Database, new_id, now
 
-SOURCES = ("self_reported", "insights_screenshot", "verified", "demo", "instagram_public")  # instagram_public: Business Discovery numbers she confirmed by joining
+SOURCES = ("self_reported", "insights_screenshot", "verified", "demo", "instagram_public", "instagram_read")  # instagram_public: Business Discovery numbers she confirmed by joining
 PLATFORMS = ("instagram", "tiktok", "youtube")
 NICHES = ["food", "coffee", "beauty", "fashion", "fitness", "family", "tech", "travel", "automotive", "real estate",
           "gaming", "home", "pets", "finance", "comedy"]
@@ -127,9 +127,15 @@ def latest_metrics(db: Database, creator_id: str) -> list[dict]:
         out.append({"platform": r["platform"], "followers": r["followers"], "avg_views": r["avg_views"],
                     "avg_likes": r["avg_likes"], "avg_comments": r["avg_comments"], "posts_per_week": r["posts_per_week"],
                     **rates(r), "audience": aud, "source": r["source"], "as_of": r["as_of"][:10], "age_days": age_days,
-                    "stale": age_days > STALE_DAYS})
+                    "stale": age_days > STALE_DAYS,
+                    **({"ig": _ig_facts(db, creator_id)} if r["source"] == "instagram_read" else {})})
     order = {p: i for i, p in enumerate(PLATFORMS)}
     return sorted(out, key=lambda m: order.get(m["platform"], 9))
+
+
+def _ig_facts(db: Database, creator_id: str) -> dict | None:
+    from amend import iglookup
+    return iglookup.read_facts(db, creator_id)
 
 
 def save_metrics(db: Database, creator_id: str, m: dict, *, source: str, actor: str) -> dict:
@@ -252,7 +258,8 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
             if privacy_of(c) == "public" else None,
             "reel_standard_cents": (reel or {}).get("standard_cents") if privacy_of(c) == "public" else None,
             "rating": record["rating"], "reviews": record["reviews"], "completed": record["completed"],
-            "source": next((x for x in ("verified", "instagram_public", "insights_screenshot", "demo") if x in sources),
+            "ig": (main or {}).get("ig"),  # Instagram read: posts, typical likes / comments, read time
+            "source": next((x for x in ("verified", "instagram_read", "instagram_public", "insights_screenshot", "demo") if x in sources),
                            "self_reported" if sources else None),
             "stale": bool(main and main["stale"]), "as_of": (main or {}).get("as_of"),
             "permit": permit_check(c.get("permit_no"), c.get("permit_expiry")), "is_demo": bool(c.get("is_demo")),

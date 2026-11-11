@@ -136,3 +136,50 @@ def adopt(db: Database, creator_id: str, handle: str, actor: str) -> bool:
                                   "source": "instagram_public", "as_of": row["fetched_at"][:10], "created_at": now()})
     db.log_event("metrics.saved", actor=actor, payload={"creator": creator_id, "platform": "instagram", "source": "instagram_public"})
     return True
+
+
+SYNC_ACCOUNT = {"id": "system:ig-sync", "party_id": "system"}
+
+
+def sync_connected(db: Database, *, transport: httpx.BaseTransport | None = None, force: bool = False) -> int:
+    """A real creator with her Instagram handle set (never demo data): read her public numbers with the same Business
+    Discovery call and save them as her Instagram metrics, source "instagram_read" ("Instagram read · updated X ago").
+    At most once a day per creator (the lookup itself is cached 24 h). Her audience (age, city, gender) isn't public,
+    so it's carried over from her last Instagram numbers. Code does the maths; no AI. Returns how many were updated."""
+    if not enabled():
+        return 0
+    n = 0
+    since = (datetime.now(timezone.utc) - timedelta(hours=CACHE_HOURS)).isoformat()
+    for c in db.all("select id, ig_handle from creators where is_demo = 0 and ig_handle is not null and ig_handle <> ''"):
+        handle = c["ig_handle"].lstrip("@").lower()
+        if not force and db.one("select id from creator_metrics where creator_id = :c and source = 'instagram_read' and created_at >= :s",
+                                {"c": c["id"], "s": since}):
+            continue
+        r = lookup(db, SYNC_ACCOUNT, handle, transport=transport)
+        if r["status"] != "ok" or not r["numbers"].get("followers"):
+            continue
+        nums = r["numbers"]
+        prev = db.one("select audience_json from creator_metrics where creator_id = :c and platform = 'instagram' "
+                      "order by as_of desc, created_at desc limit 1", {"c": c["id"]})
+        db.insert("creator_metrics", {"id": new_id("cm"), "creator_id": c["id"], "platform": "instagram",
+                                      "followers": nums["followers"], "avg_views": None, "avg_likes": nums.get("median_likes"),
+                                      "avg_comments": nums.get("median_comments"), "posts_per_week": None,
+                                      "audience_json": (prev or {}).get("audience_json") or "{}", "source": "instagram_read",
+                                      "as_of": r["fetched_at"][:10], "created_at": now()})
+        db.log_event("metrics.saved", actor="system", payload={"creator": c["id"], "platform": "instagram", "source": "instagram_read"})
+        n += 1
+    return n
+
+
+def read_facts(db: Database, creator_id: str) -> dict | None:
+    """What Instagram returned for her handle (from the 24 h cache, no call): posts, typical likes and comments,
+    engagement, and when it was read."""
+    c = db.one("select ig_handle, is_demo from creators where id = :c", {"c": creator_id})
+    if not c or c["is_demo"] or not c["ig_handle"]:
+        return None
+    row = db.one("select * from ig_lookups where handle = :h", {"h": c["ig_handle"].lstrip("@").lower()})
+    if not row:
+        return None
+    n = json.loads(row["json"])
+    return {"posts": n.get("posts"), "median_likes": n.get("median_likes"), "median_comments": n.get("median_comments"),
+            "engagement_pct": n.get("engagement_pct"), "posts_used": n.get("posts_used"), "read_at": row["fetched_at"]}

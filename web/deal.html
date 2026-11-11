@@ -702,7 +702,7 @@ async function spineTable() {
   d.querySelector("[data-close]").onclick = () => d.close();
   d.showModal ? d.showModal() : d.setAttribute("open", "");
   await AGrid.mount($("#spine-grid"), { narrowFirst: ["amount_cents", "status"], narrowHide: ["deal_name"], rows, file: `amend-paypal-${KEY}.csv`.replace(/[^\w.-]/g, ""), placeholder: "Search PayPal ID, step…", label: "PayPal objects", pageSize: 10,
-    onRow: r => AGrid.detail(r.step, [["Receipt hash (version " + r.version + ")", r.receipt_hash, true], ["Amount", usd(r.amount_cents)],
+    onRow: r => AGrid.detail(r.step, [["Why", r.why], ["Receipt hash (version " + r.version + ")", r.receipt_hash, true], ["Amount", usd(r.amount_cents)],
       ["Status in Amend", r.status], ["PayPal-Request-Id", r.request_id, true], ["custom_id", r.custom_id, true], ["invoice_id", r.invoice_id, true],
       ...r.objects.map(o => [`${o.type} (${o.api})`, `${o.id}${o.seen ? ` · ${o.seen.status} · from ${o.seen.source === "get" ? "GET" : o.seen.source === "response" ? "reply" : o.seen.source}` : " · not checked yet"}`, true])]),
     columns: [
@@ -711,6 +711,7 @@ async function spineTable() {
       { field: "version", width: 95, sort: "asc", filter: "agNumberColumnFilter" },
       { field: "step", headerName: "PayPal step", flex: 2, minWidth: 220, tooltipField: "step" },
       { field: "paypal_id", headerName: "PayPal ID", width: 170 },
+      { field: "why", headerName: "Why", flex: 2, minWidth: 260, tooltipField: "why", valueFormatter: p => (p.value || "").length > 70 ? p.value.slice(0, 68) + "…" : p.value },
       { field: "amount_cents", headerName: "Amount", width: 110, valueFormatter: p => usd(p.value), filter: "agNumberColumnFilter", type: "rightAligned" },
       { field: "status", width: 120, cellRenderer: p => moneyPill(p.value) },
       { field: "source", width: 200, cellRenderer: AGrid.source },

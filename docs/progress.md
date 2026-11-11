@@ -883,3 +883,18 @@ question wasn't answered, so the recommended option was taken.
   only (it promises no writes). Failed calls are recorded with ok=false, including timeouts on transcription.
 - Hidden from the deal timeline and "last activity"; still in the receipt chain.
 - Tests: `tests/test_ai_called.py` (6). **Tests: 869 passed, 3 skipped.**
+
+## Freeze fixes from the live walk (11 Nov)
+- **Maya's real Instagram numbers (1.4):** a real (non-demo) creator with her Instagram handle set gets her numbers
+  read with the same Business Discovery call (followers, posts, median likes / comments of the last posts; engagement
+  worked out by code). Saved as her Instagram metrics, source "instagram_read", at start-up and in the tick, at most
+  once a day; audience carried over from her last numbers. Card, quick view and profile show "Instagram read · updated
+  X ago · N posts · typical X likes, Y comments". Demo creators are never read. Lookup off or refused → card unchanged.
+  Discover "@clinicrobotest" shows her Amend card with those numbers.
+- **Logged-out handle search (1.5):** anyone not signed in as a brand sees "Sign in as a brand to look up Instagram
+  numbers" with a "Sign in as a brand" button (back to the same search), not "isn't on Amend yet".
+- **Deal page Table (2.11):** a "Why" column and a Why line in the row details: version · quote · who confirmed, the
+  same helper and words as the Ledger, on the creator's and the brand's Table.
+- Tests: `tests/test_freeze_fixes.py` (7) + test_invites empty states (logged out / creator). Browser
+  `tests/browser/freeze_fixes.py` 390 + 1440 after `try_path.py`: problems none, no JS errors; shots in
+  `docs/screenshots/freeze-fixes/`. **Tests: 876 passed, 3 skipped.**

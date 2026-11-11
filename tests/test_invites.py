@@ -85,11 +85,13 @@ def test_no_instagram_call_is_ever_made(client, mocks):
 
 # ---------- empty states (item 2): the page's own JS, run in Node ----------
 
-def run_empty(q: dict) -> str:
+def run_empty(q: dict, who: str | None = "brand") -> str:
     html = (WEB / "creators.html").read_text()
     funcs = "\n".join(re.search(rf"(?:const {n} = .*?;|function {n}\(.*?\n}})", html, re.S).group(0)
                       for n in ("NOT_FILTERS", "filtersActive", "handleOf", "emptyHtml"))
-    js = f"const esc = s => String(s); let Q = {json.dumps(q)};\n{funcs}\nprocess.stdout.write(emptyHtml());"
+    win = json.dumps({"WHO": {"kind": who}} if who else {})
+    js = (f"const esc = s => String(s); const window = {win}; const WHO = window.WHO; "
+          f"const location = {{pathname: '/creators', search: ''}}; let Q = {json.dumps(q)};\n{funcs}\nprocess.stdout.write(emptyHtml());")
     return subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout
 
 
@@ -103,6 +105,10 @@ def test_empty_states():
     assert "@noone.here isn't on Amend yet." in run_empty({"q": "noone.here", "budget": "500"})  # a budget isn't a filter
     plain = run_empty({"q": "iced coffee"})
     assert "No creators found for “iced coffee”" in plain and "Invite" not in plain
+    for who in (None, "creator"):  # logged out, or signed in as a creator: sign in as a brand to look up
+        out = run_empty({"q": "@noone.here"}, who)
+        assert "Sign in as a brand to look up Instagram numbers" in out and "isn't on Amend yet" not in out
+        assert "/login?tab=brand" in out and "Invite them" not in out
 
 
 def test_search_with_at_sign_finds_the_creator(client):

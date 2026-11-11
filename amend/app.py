@@ -61,6 +61,11 @@ async def lifespan(_app):
     except Exception as e:  # never stops the app starting
         log.warning("judge demo history not seeded: %s", type(e).__name__)
     ensure_test_creator(d)  # "Test creator · @clinicrobotest": real Instagram numbers only; Sara stays demo-only
+    try:  # connected real creators (Maya): her Instagram numbers on her card, once a day (never blocks start-up)
+        from amend import iglookup as _igl
+        _igl.sync_connected(d)
+    except Exception as e:  # noqa: BLE001
+        log.warning("instagram numbers not synced at start: %s", type(e).__name__)
     from amend import fakes
     if fakes.enabled():  # local browser tests only (never on Render: BASE_URL must be localhost)
         import sys
@@ -677,10 +682,24 @@ def edit_term(deal_id: str, term_id: str, body: PriceEditIn, c: dict = Depends(r
 
 # ---------- PayPal spine: the PayPal objects behind each deal version ----------
 
+def _spine_with_why(v: dict) -> dict:
+    """The deal page's Table gets the Ledger's "Why" (version · quote · who confirmed), same words, same helper."""
+    d = get_db()
+    for ver in v.get("versions", []):
+        for line in ver["lines"]:
+            it = d.one("select * from money_items where id = :i", {"i": line["item"]})
+            if not it:
+                continue
+            facts = json.loads(it["depends_on_fact_ids"] or "[]")
+            q = d.one("select quote from facts where id = :f", {"f": facts[0]}) if facts else None
+            line["why"] = _why(d, it, (q or {}).get("quote"), line.get("version") or ver["version"])
+    return v
+
+
 @app.get("/api/deals/{deal_id}/spine")
 def creator_spine(deal_id: str, c: dict = Depends(require_creator)):
     own_deal(deal_id, c)
-    return spine.view(get_db(), deal_id)
+    return _spine_with_why(spine.view(get_db(), deal_id))
 
 
 @app.post("/api/deals/{deal_id}/spine/refresh")
@@ -692,7 +711,7 @@ async def creator_spine_refresh(deal_id: str, c: dict = Depends(require_creator)
 
 @app.get("/api/d/{token}/spine")
 def brand_spine(token: str):
-    return spine.view(get_db(), deals.open_link(get_db(), token)["deal"]["id"])
+    return _spine_with_why(spine.view(get_db(), deals.open_link(get_db(), token)["deal"]["id"]))
 
 
 @app.post("/api/d/{token}/spine/refresh")
@@ -3135,6 +3154,11 @@ async def tick(request: Request):  # S59: protected by the secret header, not th
     result.update(await _bn.tick_unverified(d, rail()))  # D+7 and not agreed by hand: back to the brand
     from amend import igdata, team as _team
     result.update(await igdata.tick(d))  # Instagram refresh policy: only what's due
+    try:  # connected real creators (Maya): her Instagram numbers, once a day
+        from amend import iglookup as _igl
+        result["ig_numbers_synced"] = _igl.sync_connected(d)
+    except Exception as e:  # noqa: BLE001
+        log.warning("instagram numbers not synced: %s", type(e).__name__)
     synced = 0
     for row in d.all("select distinct deal_id from money_items where kind = 'payout' and status = 'sent' and note like 'release:%'"):
         try:

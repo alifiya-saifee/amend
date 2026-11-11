@@ -19,7 +19,7 @@ const LS = "amend.shortlist";
 let Q = Object.fromEntries(new URLSearchParams(location.search)), PAGE = 0, SHORT = new Set(), CMP = new Set();
 
 function fmtN(n) { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n); }
-const SRC = { verified: ["Verified", "collected"], instagram_public: ["From Instagram, confirmed by creator", "held"], insights_screenshot: ["From insights screenshot", "held"], demo: ["Demo data", "planned"], self_reported: ["Self-reported", "waiting"] };
+const SRC = { verified: ["Verified", "collected"], instagram_read: ["Instagram read", "collected"], instagram_public: ["From Instagram, confirmed by creator", "held"], insights_screenshot: ["From insights screenshot", "held"], demo: ["Demo data", "planned"], self_reported: ["Self-reported", "waiting"] };
 function srcBadge(s) { if (!s) return ""; const [t, c] = SRC[s] || [s, ""]; return `<span class="pill ${c}" title="Where these numbers come from">${t}</span>`; }
 
 async function loadShort() {
@@ -108,6 +108,7 @@ function cardHtml(c) {
       <div><b>${c.engagement_rate != null ? c.engagement_rate + "%" : "–"}</b><span>engagement</span></div>
       <div><b>${c.top_country ? Math.round(c.top_country.pct) + "%" : "–"}</b><span>${c.top_country ? esc(c.top_country.name) : "audience"}</span></div>
     </div>
+    ${c.ig ? `<p class="tiny muted ig-read" style="margin:-4px 0 8px">${esc(igReadLine(c.ig))}</p>` : ""}
     <div class="row between wrapx" style="gap:6px">
       <span>${c.reel_standard_cents ? `Reel from <b>${usd(c.reel_from_cents || c.reel_standard_cents)}</b>`
         : c.price && c.price.label ? `Reel <b>${esc(c.price.label)}</b>` : '<span class="muted small">No Reel price</span>'}${fitBadge(c.budget_fit)}</span>
@@ -121,7 +122,7 @@ function cardHtml(c) {
   </div>`;
 }
 /* ---------- quick view drawer (Block 6) ---------- */
-const SRC_LABEL = { verified: "Verified", instagram_public: "From Instagram (public numbers), confirmed by the creator", insights_screenshot: "From an insights screenshot, not verified", demo: "Demo data", self_reported: "Self-reported" };
+const SRC_LABEL = { verified: "Verified", instagram_read: "Instagram read (her connected account)", instagram_public: "From Instagram (public numbers), confirmed by the creator", insights_screenshot: "From an insights screenshot, not verified", demo: "Demo data", self_reported: "Self-reported" };
 async function quickView(handle) {
   const sh = sheet(`<div class="skeleton"></div><div class="skeleton"></div>`, { drawer: true });
   let p;
@@ -138,7 +139,7 @@ async function quickView(handle) {
     <div class="row wrapx" style="gap:6px">${(p.niches || []).map(n => `<span class="pill">${esc(n)}</span>`).join("")}</div>
     <h3 style="margin-top:16px">Reach</h3>
     ${(p.metrics || []).map(m => `<div class="stats"><div><b>${fmtN(m.followers)}</b><span>${esc(m.platform)} followers</span></div><div><b>${fmtN(m.avg_views)}</b><span>avg views</span></div>
-      <div><b>${m.engagement_rate}%</b><span>engagement</span></div></div><p class="tiny muted" style="margin-top:-4px">${esc(SRC_LABEL[m.source] || m.source)} · as of ${esc(m.as_of)}${m.stale ? " · may be outdated" : ""}</p>`).join("") || '<p class="small muted">No numbers shared yet.</p>'}
+      <div><b>${m.engagement_rate}%</b><span>engagement</span></div></div><p class="tiny muted" style="margin-top:-4px">${m.ig ? esc(igReadLine(m.ig)) : `${esc(SRC_LABEL[m.source] || m.source)} · as of ${esc(m.as_of)}`}${m.stale ? " · may be outdated" : ""}</p>`).join("") || '<p class="small muted">No numbers shared yet.</p>'}
     <h3>Prices</h3><div class="list">${p.items.filter(i => i.standard_cents != null).slice(0, 6).map(i => `<div class="line"><div class="grow">${esc(i.name)}</div><div class="amt">${usd(i.standard_cents)}<div class="aed">${esc(i.aed)}</div></div></div>`).join("")}</div>
     <p class="small muted" style="margin-top:10px">On Amend: ${tr.completed || 0} deals completed${tr.rating ? ` · rating ${tr.rating} (${tr.reviews})` : ""}</p>
     ${brand && lists.length ? `<label for="qv-list">Add to a shortlist</label><div class="row" style="gap:8px"><select id="qv-list">${lists.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>
@@ -212,6 +213,9 @@ function emptyHtml() {
   const icon = "<div class='ic'><i data-lucide='search' aria-hidden='true'></i></div>";
   if (filtersActive()) return `<div class="empty">${icon}<h2>No creators match these filters</h2><button class="btn primary" id="clear2">Clear filters</button></div>`;
   const h = handleOf(Q.q);
+  if (h && !(window.WHO && WHO.kind === "brand")) return `<div class="empty" id="invite-box">${icon}<h2>Sign in as a brand to look up Instagram numbers</h2>
+    <p class="small muted" style="max-width:440px;margin:0 auto 12px">No Amend profile has the handle @${esc(h)}. Brands can see a professional account's public Instagram numbers and invite the creator.</p>
+    <a class="btn primary" id="brand-signin" href="/login?tab=brand&next=${encodeURIComponent(location.pathname + location.search)}">Sign in as a brand</a></div>`;
   if (h) return `<div class="empty" id="invite-box">${icon}<h2>@${esc(h)} isn't on Amend yet.</h2>
     <div id="ig-card"></div>
     <div class="row" style="gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn primary" id="invite-go" data-handle="${esc(h)}">Invite them</button>
