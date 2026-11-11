@@ -48,9 +48,7 @@ const KIND_LABEL = { hold: "Hold", capture: "Collected", release: "Release", ref
   owed_by_creator: "Owed", platform_cost: "Platform cost" };
 // same chips as Earnings; "paid" means different things per kind (collected, paid out, refunded, settled)
 function ledgerPill(r) {
-  return r.status === "approved" && r.kind === "payout" && /^Holdback/.test(r.item || "") ? `<span class="pill held">Scheduled</span>`
-    : r.status !== "paid" ? moneyPill(r.status)
-    : moneyPill(r.status, r.kind);
+  return moneyPill(r.status, r.kind, /^Holdback/.test(r.item || "") ? "holdback" : r.note);
 }
 function moneyRowDetail(r, title) {
   AGrid.detail(title || r.item || "Payment", [

@@ -119,19 +119,21 @@ def test_page_words():
       pct(null), pct(8.5),
       moneyWord("paid", "capture"), moneyWord("paid", "hold"), moneyWord("paid", "payout"), moneyWord("paid", "refund"),
       moneyWord("authorized", "hold"), moneyWord("voided", "hold"),
+      moneyWord("approved", "payout", "holdback:30 days"), moneyWord("approved", "payout", "release:creator payout"),
       igReadLine({posts: 14, median_likes: 31, median_comments: 4, posts_used: 12, read_at: new Date().toISOString()}),
       igReadLine({posts: 3, median_likes: 31, median_comments: 4, posts_used: 3, read_at: new Date().toISOString()})]))"""))
     assert out[:2] == ["–", "8.5%"]
     assert out[2:8] == ["Collected", "Collected", "Paid out", "Refunded", "Held", "Released"]
-    assert out[8].endswith("(median of the last 12 posts)")
-    assert out[9].endswith("(median of 3 posts: only 3 available)")
+    assert out[8:10] == ["Scheduled", "Waiting for PayPal"]  # the holdback reads the same as the Ledger
+    assert out[10].endswith("(median of the last 12 posts)")
+    assert out[11].endswith("(median of 3 posts: only 3 available)")
 
 
 def test_detail_and_table_use_the_same_word_and_quick_view_does_not_wrap():
     from pathlib import Path
     web = Path(__file__).resolve().parents[1] / "web"
     deal = (web / "deal.html").read_text()
-    assert '["Status in Amend", moneyWord(r.status, r.kind)]' in deal and "moneyPill(p.value, p.data.kind)" in deal
+    assert '["Status in Amend", moneyWord(r.status, r.kind, r.note)]' in deal and "moneyPill(p.value, p.data.kind, p.data.note)" in deal
     assert 'data-qv="${esc(c.handle)}" style="white-space:nowrap"' in (web / "creators.html").read_text()
 
 

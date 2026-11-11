@@ -78,11 +78,16 @@ const MONEY_PILL = {
 };
 // "paid" means different things per kind of money line: one word everywhere (Table, row details, Ledger)
 const PAID_WORD = { payout: "Paid out", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" };
-function moneyWord(status, kind) {
+function moneyWord(status, kind, note) {
   if (status === "paid") return PAID_WORD[kind] || "Collected";
+  if (status === "approved" && kind === "payout" && /^holdback/i.test(note || "")) return "Scheduled";  // the holdback, paid on day N
   return (MONEY_PILL[status] || [status])[0];
 }
-function moneyPill(status, kind) { if (!status) return ""; const c = (MONEY_PILL[status] || ["", ""])[1]; return `<span class="pill ${c}">${moneyWord(status, kind)}</span>`; }
+function moneyPill(status, kind, note) {
+  if (!status) return "";
+  const w = moneyWord(status, kind, note), c = w === "Scheduled" ? "held" : (MONEY_PILL[status] || ["", ""])[1];
+  return `<span class="pill ${c}">${w}</span>`;
+}
 const DEAL_LABEL = { draft: "Waiting for brief", offered: "Offer to accept", accepted: "Accepted", in_progress: "In progress",
   delivered: "Delivered", completed: "Done", paused: "Paused", cancelled: "Cancelled" };
 function dealPill(s) { return `<span class="pill status">${DEAL_LABEL[s] || s}</span>`; }

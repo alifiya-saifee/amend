@@ -918,3 +918,14 @@ question wasn't answered, so the recommended option was taken.
   **Tests: 880 passed, 3 skipped.**
 - JUDGE_PASSWORD is set on Render (judge logins work) but has the same value as the demo password, so /try can't
   refuse the demo password. Open question: choose a different JUDGE_PASSWORD?
+
+## Live demo walk (11 Nov, after deploying 9395ce9)
+- `tests/browser/live_demo.py` (visible browser, real PayPal sandbox buyer): 2.1–2.11 all PASS, no JS errors.
+  $70 held → +$20 card → v2 $90 → extra hold → draft (caption pre-filled "#ad") → approve → posted today (no date card,
+  no ISO dates) → signed verdict Pass → $90 collected, $81 paid out, $9 held back, both holds balance → map (7 IDs),
+  Table with Why, CSV. Shots in `docs/screenshots/live-demo/`.
+- Who paid on /try: "Paid by Nadia DuneRoast: the brief says Judge Brand. Check before you start." (the sandbox
+  buyer's name). Open question: keep on /try deals or hide there?
+- Fixed: the $9 holdback read "Waiting for PayPal" in the deal Table (Ledger: "Scheduled"); now "Scheduled" in both.
+- Note: a WebM test file gets "Couldn't read the file's Content Credentials in this browser" (WebM can't carry
+  them); phone videos (MP4 / MOV) are read. Not changed.
