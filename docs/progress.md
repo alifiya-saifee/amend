@@ -1044,3 +1044,13 @@ question wasn't answered, so the recommended option was taken.
   wording is a shortened version of the transcript, not word for word. Then the change card as before.
 - Draft 5 update 2: the voice-note quote is the exact transcript (2 lines, 50 px, 2.5 s); a 4 s "Also in Amend" card
   before "Same engine". devpost.md: "Every place AI meets PayPal" (12 rows) and "Agentic Commerce".
+
+## Creator blocked days (11 Nov)
+- Spec `docs/spec-blocked-days.md`. New `amend/availability.py` and table `blocked_days`; API `GET/POST/DELETE
+  /api/studio/blocked`. Calendar: tap a day → block it (optional range, private note) → grey "Unavailable" chip; tap the
+  chip → note + Unblock. "Next available" (profile hint, public page, Find creators + its filter) skips blocked days.
+  Warning lines only ("Maya is unavailable on Thu 12 Nov.") on change cards with a posting date, the brief's post date
+  and the mandate's post-date window. Brands get days only, never the note. Legend: "Usage rights end" has a colour;
+  chips show the event type ("Hold expires · Dune Roast Coffee"). No money code touched.
+- Tests: `tests/test_blocked_days.py` (7). Browser walk `tests/browser/blocked_days.py` at 390 and 1440: no problems,
+  no page errors; screenshots in `docs/screenshots/blocked-days/`.

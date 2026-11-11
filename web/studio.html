@@ -330,7 +330,8 @@ async function profile() {
       <label>Content styles</label>${chipsSel("style", P.all_styles, P.styles)}
       <label>Languages (comma separated)</label><input name="languages" value="${esc(P.languages.join(", "))}">
       <div class="row"><div class="grow"><label>Days to first draft</label><input name="turnaround_days" type="number" min="0" max="90" value="${P.turnaround_days ?? ""}"></div>
-        <div class="grow"><label>Next available</label><input name="next_available" type="date" value="${esc(P.next_available || "")}"></div></div>
+        <div class="grow"><label>Next available</label><input name="next_available" type="date" value="${esc(P.next_available || "")}">
+          ${P.next_available_shown && P.next_available_shown !== P.next_available ? `<p class="hint">Brands see ${esc(fmtDate(P.next_available_shown))}: your blocked days are skipped.</p>` : ""}</div></div>
       <label>Past brands (comma separated, shown as self-reported)</label><input name="past_brands" value="${esc((P.past_brands || []).join(", "))}">
       <label>Search keywords</label><input name="keywords" maxlength="200" value="${esc(P.keywords || "")}">
       <button class="btn primary block" id="pf-go" style="margin-top:14px">Save profile</button></form>

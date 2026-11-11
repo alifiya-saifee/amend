@@ -20,6 +20,7 @@ from typing import Any, Iterator
 
 EVENT_TYPES = {
     # parties, creators, prices
+    "calendar.blocked", "calendar.unblocked",
     "creator.created", "prices.saved", "limits.saved", "permit.saved", "price.retired",
     # deals and links
     "deal.created", "link.created", "link.opened", "link.refused", "link.expired_open", "link.expired",
@@ -212,6 +213,8 @@ create table if not exists accounts (
   website text, about text, password_hash text, party_id text, creator_id text, created_at text not null);
 create table if not exists shortlist (
   account_id text not null, creator_id text not null, at text not null, primary key (account_id, creator_id));
+create table if not exists blocked_days (
+  creator_id text not null, day text not null, note text, created_at text not null, primary key (creator_id, day));
 create table if not exists saved_searches (
   id text primary key, account_id text not null, name text not null, query text not null, at text not null);
 create table if not exists team_members (

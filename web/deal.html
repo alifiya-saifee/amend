@@ -514,6 +514,7 @@ function mandateHtml() {
       PayPal holds the deal plus the extras you allow, and releases whatever isn't used.</p>
     <label class="chk"><input type="checkbox" id="m-x"> <span>Extra <select id="m-item" aria-label="Item"></select> up to $<input id="m-max" type="number" value="150" min="1" max="1000" step="1" aria-label="Limit in dollars"> in total</span></label>
     <label class="chk"><input type="checkbox" id="m-w"> <span>The post date can move between <input type="date" id="m-from" aria-label="From"> and <input type="date" id="m-to" aria-label="To"></span></label>
+    <div class="date-warn" id="m-unavail" hidden></div>
     <label class="chk"><input type="checkbox" id="m-ad"> <span>Every post carries #ad</span></label>
     <label class="chk"><input type="checkbox" id="m-ai"> <span>AI content: <select id="m-ai-rule" aria-label="AI content rule"><option value="labelled">only with Instagram's AI label</option><option value="not_allowed">not allowed</option></select></span></label>
     <label class="chk"><input type="checkbox" id="m-bn"> <span>Performance bonus, read from Instagram on day <input id="m-bn-day" type="number" value="7" min="1" max="21" style="width:64px" aria-label="Read on day"> after posting:</span></label>
@@ -530,6 +531,15 @@ async function setupMandate() {
   const dl = V.deal.deadline && /^\d{4}-\d{2}-\d{2}/.test(V.deal.deadline) ? new Date(V.deal.deadline.slice(0, 10) + "T12:00:00Z") : new Date(Date.now() + 7 * 864e5);
   const iso = x => x.toISOString().slice(0, 10);
   $("#m-from").value = iso(new Date(dl - 2 * 864e5)); $("#m-to").value = iso(new Date(+dl + 2 * 864e5));
+  // the creator's blocked days inside the window: a note only ("Unavailable"; never her reason), nothing is disabled
+  const showUnavail = () => {
+    const a = $("#m-from").value, z = $("#m-to").value, el = $("#m-unavail");
+    const hit = (V.unavailable || []).filter(d => a && z && d >= a && d <= z);
+    el.hidden = !hit.length;
+    el.innerHTML = hit.length ? `<i data-lucide='calendar-x' aria-hidden='true'></i> ${esc(V.creator.name.split(" ")[0])} is unavailable on ${hit.map(d =>
+      new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")).map(esc).join(", ")}.` : "";
+  };
+  $("#m-from").addEventListener("change", showUnavail); $("#m-to").addEventListener("change", showUnavail); showUnavail();
   let ok = false;
   try { ok = !!(window.crypto && crypto.subtle && window.indexedDB && await brandKey()); } catch { ok = false; }
   if (!ok) {

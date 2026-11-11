@@ -951,8 +951,10 @@ def compare(ids: str):
 @app.get("/api/studio/profile")
 def my_profile(c: dict = Depends(require_creator)):
     raw = get_db().one("select * from creators where id = :id", {"id": c["id"]})
-    return discovery.profile(get_db(), raw) | {"keywords": raw.get("keywords"), "all_niches": discovery.NICHES,
-                                               "all_styles": discovery.STYLES}
+    prof = discovery.profile(get_db(), raw)
+    # the edit form keeps the date she typed; brands see it moved over her blocked days ("next_available_shown")
+    return prof | {"keywords": raw.get("keywords"), "all_niches": discovery.NICHES, "all_styles": discovery.STYLES,
+                   "next_available": raw.get("next_available"), "next_available_shown": prof.get("next_available")}
 
 
 class ProfileIn(BaseModel):
@@ -1452,9 +1454,42 @@ def studio_receipt(deal_id: str, c: dict = Depends(require_creator)):
                     headers={"Content-Disposition": f'attachment; filename="amend-receipt-{deal_id}.pdf"'})
 
 
+class BlockIn(BaseModel):
+    start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    note: str | None = Field(None, max_length=200)
+
+
+@app.get("/api/studio/blocked")
+def studio_blocked(c: dict = Depends(require_creator)):
+    from amend import availability
+    return {"days": availability.for_creator(get_db(), c["id"])}
+
+
+@app.post("/api/studio/blocked")
+def studio_block(body: BlockIn, c: dict = Depends(require_creator)):
+    from amend import availability
+    try:
+        days = availability.block(get_db(), c["id"], body.start, body.end, body.note, actor=c["party_id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"blocked": days}
+
+
+@app.delete("/api/studio/blocked/{day}")
+def studio_unblock(day: str, c: dict = Depends(require_creator)):
+    from amend import availability
+    try:
+        return {"unblocked": availability.unblock(get_db(), c["id"], day, actor=c["party_id"])}
+    except ValueError:
+        raise HTTPException(400, "Not a date.")
+
+
 @app.get("/api/studio/calendar")
 def studio_calendar(c: dict = Depends(require_creator)):
-    return {"events": studio.calendar_events(get_db(), c["id"])}
+    from amend import availability
+    return {"events": studio.calendar_events(get_db(), c["id"]), "blocked": availability.for_creator(get_db(), c["id"]),
+            "today": availability.today().isoformat()}
 
 
 @app.get("/api/studio/calendar.ics")

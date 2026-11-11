@@ -9,6 +9,7 @@
   --primary: #15171A; --on-primary: #FFFFFF; --focus: #8A6414;
   --held: #9A5B00; --held-bg: #FDF1DD; --ok: #1D6F3F; --ok-bg: #E3F3E8; --teal: #0D6B63; --teal-bg: #DFF2EF;
   --blue: #2A50AD; --blue-bg: #E5EBFA; --wait: #5B616B; --wait-bg: #EEEEEA; --bad: #B3261E; --bad-bg: #FBE7E5;
+  --usage: #6B3FA0; --usage-bg: #EFE6FB; --blocked: #5C5F66; --blocked-bg: #E8E8E6;
   --paypal: #0070BA; --chip: rgba(21,23,26,.06); --shadow: 0 8px 24px rgba(21,23,26,.10); --top-bg: rgba(250,250,247,.92);
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r: 14px; --r-sm: 10px;
@@ -27,6 +28,7 @@
     --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C; --hero-v: #7A580F;
     --held: #F0B35E; --held-bg: rgba(240,179,94,.14); --ok: #82D99F; --ok-bg: rgba(130,217,159,.13); --teal: #5CCFB5; --teal-bg: rgba(92,207,181,.13);
     --blue: #93B4FA; --blue-bg: rgba(126,166,248,.14); --wait: #A0A6AE; --wait-bg: rgba(255,255,255,.07); --bad: #F58A8A; --bad-bg: rgba(242,125,125,.13);
+    --usage: #C9A8F5; --usage-bg: rgba(186,146,240,.15); --blocked: #B4B8BF; --blocked-bg: rgba(255,255,255,.09);
     --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
   }
 }
@@ -38,6 +40,7 @@ html.theme-dark body:not(.marketing) {
     --gold-ink: #E2B35C; --gold-soft: rgba(217,164,65,.16); --primary: #ECEDEE; --on-primary: #0E1013; --focus: #E2B35C; --hero-v: #7A580F;
     --held: #F0B35E; --held-bg: rgba(240,179,94,.14); --ok: #82D99F; --ok-bg: rgba(130,217,159,.13); --teal: #5CCFB5; --teal-bg: rgba(92,207,181,.13);
     --blue: #93B4FA; --blue-bg: rgba(126,166,248,.14); --wait: #A0A6AE; --wait-bg: rgba(255,255,255,.07); --bad: #F58A8A; --bad-bg: rgba(242,125,125,.13);
+    --usage: #C9A8F5; --usage-bg: rgba(186,146,240,.15); --blocked: #B4B8BF; --blocked-bg: rgba(255,255,255,.09);
     --chip: rgba(255,255,255,.07); --shadow: 0 8px 24px rgba(0,0,0,.45); --top-bg: rgba(14,16,19,.92);
   }
 
@@ -239,6 +242,12 @@ table.data tr:hover td { background: var(--surface-2); }
 .ev.draft { background: var(--blue-bg); color: var(--blue); } .ev.post { background: var(--gold-soft); color: var(--gold-ink); }
 .ev.product { background: var(--teal-bg); color: var(--teal); } .ev.review { background: var(--wait-bg); color: var(--ink); }
 .ev.holdback { background: var(--ok-bg); color: var(--ok); } .ev.expiry { background: var(--bad-bg); color: var(--bad); }
+.date-warn { display: flex; gap: 6px; align-items: center; margin-top: 8px; padding: 6px 10px; border-radius: var(--r-sm); background: var(--held-bg); color: var(--held); font-size: 13px; font-weight: 600; }
+.date-warn svg, .date-warn i { width: 15px; height: 15px; flex: none; }
+.ev.usage { background: var(--usage-bg); color: var(--usage); }
+.ev.blocked { background: var(--blocked-bg); color: var(--blocked); border: 0; width: 100%; text-align: left; cursor: pointer; font-family: inherit; }
+.cal .cell.blocked { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(120,120,120,.08) 6px 12px); }
+.cal .cell[data-day] { cursor: pointer; }
 @media (max-width: 600px) { .cal .cell { min-height: 54px; } .cal .cell .ev { font-size: 0; padding: 0; height: 6px; } }
 .legend { display: flex; gap: 8px; flex-wrap: wrap; } .legend .ev { display: inline-block; }
 .tabsbar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: var(--s4); overflow-x: auto; }

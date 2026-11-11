@@ -235,6 +235,12 @@ def _json(v, default):
         return default
 
 
+def _next_free(db: Database, c: dict) -> str | None:
+    """Her "Next available" date as brands see it: moved forward over her blocked days."""
+    from amend import availability
+    return availability.next_available(db, c["id"], c.get("next_available"))
+
+
 def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: dict | None = None) -> dict:
     """What a brand sees for one creator. Never phone, email or address."""
     from amend.deals import permit_check
@@ -249,7 +255,7 @@ def card(db: Database, c: dict, *, metrics: list[dict] | None = None, record: di
     return {"id": c["id"], "handle": c["handle"], "display_name": c["display_name"], "bio": c.get("bio"),
             "niches": _json(c.get("niches_json"), []), "city": c.get("city"), "country": c.get("country"),
             "languages": _json(c.get("languages_json"), []), "styles": _json(c.get("styles_json"), []),
-            "turnaround_days": c.get("turnaround_days"), "next_available": c.get("next_available"),
+            "turnaround_days": c.get("turnaround_days"), "next_available": _next_free(db, c),
             "followers": (main or {}).get("followers") or c.get("followers") or 0,
             "avg_views": (main or {}).get("avg_views"), "engagement_rate": (main or {}).get("engagement_rate"),
             "view_rate": (main or {}).get("view_rate"), "platform": (main or {}).get("platform"),

@@ -3,6 +3,7 @@
 const I = (n, cls = "") => `<i data-lucide="${n}" class="${cls}" aria-hidden="true"></i>`;
 const STAGE_LABEL = { brief: "Brief", accepted: "Accepted", held: "Held", production: "In production", delivered: "Delivered", paid: "Paid" };
 const EV_LABEL = { draft: "Draft due", post: "Posting date", product: "Product", review: "Brand review due", holdback: "Holdback release", expiry: "Hold expires", usage: "Usage rights end" };
+const CAL_LEGEND = { ...EV_LABEL, blocked: "Unavailable" };
 const fmtDay = fmtDate;  // one formatter (app.js)
 function emptyState(icon, title, text, action = "") { return `<div class="empty">${I(icon)}<h2>${esc(title)}</h2><p>${esc(text)}</p>${action}</div>`; }
 function errorState(e, retry) { return `<div class="empty">${I("triangle-alert")}<h2>Something went wrong</h2><p>${esc(friendlyError(e))}</p><button class="btn" onclick="${retry}">${I("rotate-cw")} Try again</button></div>`; }
@@ -374,9 +375,9 @@ async function settingsTab() {
 let CAL = { month: new Date(), view: "month" };
 async function calendarTab() {
   const r = await api("/api/studio/calendar");
-  const ev = r.events;
+  const ev = r.events, blocked = Object.fromEntries((r.blocked || []).map(b => [b.day, b.note || ""]));
   const y = CAL.month.getFullYear(), m = CAL.month.getMonth();
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = r.today || new Date().toISOString().slice(0, 10);
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   let days = [];
   if (CAL.view === "month") {
@@ -394,15 +395,43 @@ async function calendarTab() {
         <a class="btn small" href="/api/studio/calendar.ics">${I("calendar-plus")} Export .ics</a></div></div>
     <div class="row between" style="margin:12px 0"><button class="iconbtn" id="c-prev" aria-label="Previous">${I("chevron-left")}</button>
       <h2 style="margin:0">${esc(title)}</h2><button class="iconbtn" id="c-next" aria-label="Next">${I("chevron-right")}</button></div>
-    <div class="legend" style="margin-bottom:10px">${Object.entries(EV_LABEL).map(([k, l]) => `<span class="ev ${k}">${l}</span>`).join("")}</div>
+    <div class="legend" style="margin-bottom:10px">${Object.entries(CAL_LEGEND).map(([k, l]) => `<span class="ev ${k}">${l}</span>`).join("")}</div>
+    <p class="tiny muted" style="margin:0 0 8px">Tap a day to block it. Brands see "Unavailable", never your note.</p>
     <div class="cal">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => `<div class="dow">${d}</div>`).join("")}
       ${days.map(d => { const k = iso(d); const es = ev.filter(e => e.date === k);
-        return `<div class="cell ${d.getMonth() !== m && CAL.view === "month" ? "other" : ""} ${k === todayIso ? "today" : ""}" ${CAL.view === "week" ? 'style="min-height:180px"' : ""}>
-          <div class="d">${d.getDate()}</div>${es.map(e => `<a class="ev ${e.kind}" href="/studio/deals/${e.deal}" title="${esc(e.label)}">${esc(CAL.view === "week" ? e.label : e.brand)}</a>`).join("")}</div>`; }).join("")}</div>
+        const bl = k in blocked;
+        return `<div class="cell ${d.getMonth() !== m && CAL.view === "month" ? "other" : ""} ${k === todayIso ? "today" : ""} ${bl ? "blocked" : ""}" data-day="${k}" ${CAL.view === "week" ? 'style="min-height:180px"' : ""}>
+          <div class="d">${d.getDate()}</div>${bl ? `<button type="button" class="ev blocked" data-blocked="${k}" title="${esc(blocked[k] ? "Unavailable · " + blocked[k] : "Unavailable")}">Unavailable${CAL.view === "week" && blocked[k] ? ` · ${esc(blocked[k])}` : ""}</button>` : ""}
+          ${es.map(e => `<a class="ev ${e.kind}" href="/studio/deals/${e.deal}" title="${esc(e.label)}">${esc(e.label)}</a>`).join("")}</div>`; }).join("")}</div>
     <section class="card" style="margin-top:16px"><h2>Next up</h2>${(() => { const up = ev.filter(e => e.date >= todayIso).slice(0, 8);
       return up.length ? `<ul class="events">${up.map(e => `<li><span class="ev ${e.kind}" style="margin:0">${esc(EV_LABEL[e.kind])}</span><a class="grow" href="/studio/deals/${e.deal}" style="color:var(--ink);text-decoration:none">${esc(e.brand)}</a><span class="small muted">${fmtDay(e.date)}</span></li>`).join("")}</ul>`
         : '<p class="muted small">Nothing coming up.</p>'; })()}</section>`;
   $$("[data-cv]").forEach(b => b.onclick = () => { CAL.view = b.dataset.cv; calendarTab(); });
+  // blocked days: tap a free day → block it (or a range); tap "Unavailable" → see the note, unblock
+  const dayName = k => new Date(k + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  $$(".cal .cell[data-day]").forEach(cell => cell.onclick = e => {
+    if (e.target.closest("a.ev")) return;  // an event chip opens its deal
+    const k = cell.dataset.day;
+    if (k in blocked) {
+      sheet(`<h2>Unavailable · ${esc(dayName(k))}</h2>${blocked[k] ? `<p class="small">Your note: ${esc(blocked[k])}</p>` : ""}
+        <p class="tiny muted">Brands see this day as unavailable, never your note. Nothing about money or your deals changes.</p>
+        <button class="btn primary block" id="bl-un">Unblock this day</button>`);
+      $("#bl-un").onclick = async () => { await api(`/api/studio/blocked/${k}`, { method: "DELETE" }); closeSheet(); toast("Day unblocked"); calendarTab(); };
+      return;
+    }
+    if (k < todayIso) { toast("Past days can't be blocked"); return; }
+    sheet(`<h2>Block ${esc(dayName(k))}</h2>
+      <label>Until (optional, for a range)</label><input id="bl-to" type="date" min="${k}" value="${k}">
+      <label>Private note (optional)</label><input id="bl-note" maxlength="120" placeholder="e.g. travel">
+      <p class="tiny muted">Brands see "Unavailable" only, never the note. A warning shows if a deal date falls on it; prices and holds never change.</p>
+      <button class="btn primary block" id="bl-go">Block this day</button>`);
+    $("#bl-go").onclick = async () => {
+      const to = $("#bl-to").value || k;
+      try { const res = await api("/api/studio/blocked", { method: "POST", body: { start: k, end: to, note: $("#bl-note").value || null } });
+        closeSheet(); toast(res.blocked.length > 1 ? `${res.blocked.length} days blocked` : "Day blocked"); calendarTab(); }
+      catch (err) { toast(err.message || "Couldn't block that", "bad"); }
+    };
+  });
   $("#c-prev").onclick = () => { CAL.view === "month" ? CAL.month.setMonth(CAL.month.getMonth() - 1) : CAL.month.setDate(CAL.month.getDate() - 7); calendarTab(); };
   $("#c-next").onclick = () => { CAL.view === "month" ? CAL.month.setMonth(CAL.month.getMonth() + 1) : CAL.month.setDate(CAL.month.getDate() + 7); calendarTab(); };
 }

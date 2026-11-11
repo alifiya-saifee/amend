@@ -460,6 +460,8 @@ def deal_view(db: Database, deal_id: str) -> dict:
                                    .get("result") or {}).get("ig") or {}).get("status") == "found"),
         "offers": offers_for(db, deal_id),  # "submitted" (waiting for review) | "approved" | None: drives "Next step"
         "usage": _usage_view(db, deal),
+        # the creator's blocked days ahead: days only, never her private note (both sides see "Unavailable")
+        "unavailable": __import__("amend.availability", fromlist=["days"]).days(db, deal["creator_id"]),
     }
 
 

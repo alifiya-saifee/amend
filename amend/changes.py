@@ -328,8 +328,14 @@ def _brief_card(db: Database, deal_id: str, who: dict) -> dict:
     from amend.deals import deal_terms
     row = db.one("select min(version) as v from terms where deal_id = :d", {"d": deal_id})
     lines = deal_terms(db, deal_id, row["v"]) if row and row["v"] is not None else []
-    deal = db.one("select deadline, brief from deals where id = :d", {"d": deal_id}) or {}
-    return {"from": who.get("name") or "The brand", "post_date": deal.get("deadline"),
+    deal = db.one("select deadline, brief, creator_id, created_at from deals where id = :d", {"d": deal_id}) or {}
+    warnings = []
+    if deal.get("deadline") and deal.get("creator_id"):  # a warning only: nothing about the deal changes
+        from amend import availability
+        day = to_date(deal["deadline"], date.fromisoformat(deal["created_at"][:10]))
+        w = availability.warning(db, deal["creator_id"], _creator_first(db, deal), day)
+        warnings = [w] if w else []
+    return {"from": who.get("name") or "The brand", "post_date": deal.get("deadline"), "warnings": warnings,
             "lines": [{"name": t["name"], "qty": t["qty"], "amount_cents": t["amount_cents"], "quote": t.get("quote")} for t in lines],
             "total_cents": sum(t["amount_cents"] for t in lines)}
 
@@ -568,6 +574,7 @@ def card(db: Database, c: dict) -> dict:
     if not money_line:
         money_line.append("no money changes")
     return {"id": c["id"], "status": c["status"], "kind": c["kind"], "lines": lines, "conflicts": rip.get("conflicts", []),
+            "warnings": _date_warnings(db, c, lines),
             "untouched": c["untouched_count"], "delta_cents": c["delta_cents"], "money": money_line,
             "quote": c["quote"], "source": c["source"], "proposed_by": who.get("name"),
             "suggestion": c["status"] == "detected", "brand_ok": bool(c["confirmed_brand_at"]),
@@ -577,6 +584,20 @@ def card(db: Database, c: dict) -> dict:
             "only_unpriced": bool(lines) and all(l.get("unpriced") for l in lines),
             "message_body": ((db.one("select body from messages where id = :m", {"m": c["message_id"]}) or {}).get("body")
                              if c.get("status") == "asked" and c.get("message_id") else None)}
+
+
+def _date_warnings(db: Database, c: dict, lines: list[dict]) -> list[str]:
+    """'Maya is unavailable on Thu 12 Nov.' for a proposed posting date on one of her blocked days. A warning only:
+    prices, holds and confirmations are untouched."""
+    days = [l["value"] for l in lines if l.get("field") == "post_date" and l.get("value")]
+    if not days:
+        return []
+    deal = db.one("select creator_id from deals where id = :d", {"d": c["deal_id"]})
+    if not deal:
+        return []
+    from amend import availability
+    first = _creator_first(db, deal)
+    return [w for w in (availability.warning(db, deal["creator_id"], first, d) for d in days) if w]
 
 
 def _pending_hold(db: Database, c: dict) -> dict | None:

@@ -100,6 +100,7 @@ const Chat = (() => {
       <div class="bc-lines">${(b.lines || []).map(l => `<div class="bc-line"><span class="grow">${esc(l.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}</span>
         ${l.quote ? `<button class="q-chip" data-quote="${esc(l.quote)}" data-who="${esc(b.from)}" data-where="the brief" title="The words this came from"><i data-lucide='quote' aria-hidden='true'></i> Quote</button>` : ""}
         <b>${l.amount_cents == null ? '<span class="small muted">On request</span>' : usd(l.amount_cents)}</b></div>`).join("") || '<p class="small muted">No priced lines yet.</p>'}</div>
+      ${(b.warnings || []).map(w => `<div class="date-warn"><i data-lucide='calendar-x' aria-hidden='true'></i> ${esc(w)}</div>`).join("")}
       <div class="bc-foot">${b.post_date ? `<span><i data-lucide='calendar' aria-hidden='true'></i> Post ${esc(fmtDate(b.post_date))}</span>` : "<span></span>"}<span>Total <b>${b.total_cents == null ? "on request" : usd(b.total_cents)}</b></span></div>
       <div class="bc-src">${isBrand ? "Priced from the creator's list" : "Priced from your list"} · the brand's words are on the Quote chips</div></div>`;  // prices are the creator's, not the brand's
   }
@@ -127,6 +128,7 @@ const Chat = (() => {
         <button class="q" data-quote="${esc(l.quote)}" data-who="You" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       <div class="row between" style="margin-top:6px"><span class="small">Total change</span><b class="num">${c.delta_cents ? total : "$0"}</b></div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
+      ${(c.warnings || []).map(w => `<div class="date-warn"><i data-lucide='calendar-x' aria-hidden='true'></i> ${esc(w)}</div>`).join("")}
       ${c.lines.some(l => l.unpriced) ? `<p class="small" style="margin:8px 0 0">Lines with no price: ${isBrand ? "the creator adds a price after you send it" : "you add a price after you send it"}; then you both confirm.</p>` : ""}
       <div class="row wrapx" style="margin-top:10px;gap:8px">
         <button class="btn primary small" data-act="send" data-id="${c.id}">Send change card</button>
@@ -157,6 +159,7 @@ const Chat = (() => {
           <div class="amt cc-amt ${l.unpriced ? "" : l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${lineAmt(l)}</div>
      <button class="q" data-quote="${esc(l.quote)}" data-who="${esc(c.proposed_by || "")}" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
+      ${(c.warnings || []).map(w => `<div class="date-warn"><i data-lucide='calendar-x' aria-hidden='true'></i> ${esc(w)}</div>`).join("")}
       ${c.override_reason ? `<div class="tiny muted">Creator's override: “${esc(c.override_reason)}”</div>` : ""}
       <div class="cc-foot"><span><i data-lucide='lock' aria-hidden='true'></i> ${c.untouched} other item${c.untouched === 1 ? "" : "s"} unchanged</span>
         <span><i data-lucide='wallet' aria-hidden='true'></i> ${c.money.map(esc).join(" · ")}</span></div>
