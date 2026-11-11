@@ -1036,3 +1036,7 @@ question wasn't answered, so the recommended option was taken.
   Payouts batch 5RWB27Q7XNYYS (Maya $324, editor $81, $45 not sent yet) → $450 held = $450 collected ✓. Change card
   ~4 s (priced lines, then "Confirmed by both · applied"). Rebuild close-up: banner + the first three "matches" lines.
   Scene F says "Resolved" only when `DISPUTE_RESOLVED = True` in `build_cut3.py` (after the live run reaches RESOLVED).
+- Draft 5 (`amend-draft-5.mp4`, 1:51 silent): no deal-history shot and no wide page shot; the voice-note shot is the
+  bubble from just under its transcript ("voice note · transcribed" → "Checking the message…"), so the repeated first
+  sentence of that take never shows; mandate → "$680 held" close-up; rebuild sheet 1 s → close-up 2 s.
+  Holding for: motion clips, Scene E, Scene F, the voiceover, her phone clip (re-film the voice note with the loop fix).

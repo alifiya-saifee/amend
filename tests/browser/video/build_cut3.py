@@ -73,13 +73,13 @@ T = [
     ("clip", "A-mandate-hold", 5.0, 10.9, (343, 140, 726, 880), "Before any work starts, Nadia signs what she’s willing to pre-approve…", LA, (140, 140)),
     ("still", "A-mandate-hold", 10.9, (370, 365, 674, 262), 1.6, "…an extra Story up to $150, and #ad on every post.", LA),
     ("clip", "A-mandate-hold", 11.0, 13.3, (343, 140, 726, 880), "…so the hold is the $530 deal plus $150 of extras: $680.", LA, (300, 560)),
-    ("clip", "A-mandate-hold", 47.0, 50.5, (340, 80, 1240, 760), "…and PayPal places an authorization hold on her account. Nothing is collected yet.", LA),
-    ("img", "A_old-money.png", 1.6, "$680 held by PayPal, with a real authorization ID.", LA),
+    ("img", "A_old-money.png", 2.0, "PayPal places an authorization hold: $680 held, with a real authorization ID. Nothing is collected yet.", LA),
     ("img", "A_old-clock.png", 1.6, "PayPal gives a hold twenty-nine days: Amend shows the clock…", LA),
     ("img", "A_old-ver1.png", 1.8, "…and the authorization behind this version of the deal.", LA),
     # B · the voice note → a priced change card
-    ("clip", "B-voice-change-card", 2.5, 5.5, (282, 242, 797, 718), "Then the brand sends a voice note with four changes.", LB),
-    ("clip", "B-voice-change-card", 21.5, 25.0, (282, 665, 797, 270), "Then the brand sends a voice note with four changes.", LB),
+    # the voice note bubble from just under its transcript (this take's transcript repeats its first sentence: the
+    # fake microphone looped; fixed since) down to "Checking the message for deal changes…"
+    ("clip", "B-voice-change-card", 23.5, 25.5, (310, 791, 744, 141), "Then the brand sends a voice note with four changes.", LB),
     # the change card, ~4 s: its priced lines, then "Confirmed by both · applied"
     ("clip", "B-voice-change-card", 35.5, 37.7, (313, 375, 737, 496), "The AI quotes her words; code prices each line from Maya’s list: +$240.", LB),
     ("clip", "B2-maya-confirms", 10.0, 12.0, (318, 336, 744, 488), "Both confirm, and the extra comes out of the hold Nadia signed.", LB, (336, 336)),
@@ -102,7 +102,7 @@ T = [
     ("card", "F-placeholder", 15.0, "And if a brand disputes later, Amend answers PayPal with signed evidence from the deal’s receipt chain."
      + (" Resolved." if DISPUTE_RESOLVED else "")),
     # G · the proof
-    ("clip", "G-rebuild-from-paypal", 10.9, 17.0, (300, 156, 1320, 766), "Amend’s money doesn’t live in Amend. Here’s the whole deal, rebuilt from PayPal alone.", LG),
+    ("clip", "G-rebuild-from-paypal", 13.0, 14.0, (300, 156, 1320, 766), "The whole deal, rebuilt from PayPal alone…", LG),
     ("img", "B-rebuild-3.png", 2.0, "Rebuilt from PayPal: every line matches Amend.", LG),
     ("card", "07-same-engine", 6.0, None), ("card", "08-end", 6.0, None),
 ]
@@ -221,7 +221,7 @@ def render_assets(pg):
         pg.screenshot(path=str(LOOK / f"shadow-{ow}x{oh}.png"), omit_background=True)
 
 
-def build(out_name="amend-draft-4"):
+def build(out_name="amend-draft-5"):
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})

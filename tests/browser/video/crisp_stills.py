@@ -43,7 +43,7 @@ def run(only=None):
             # the card down to the authorization line (the who-paid hint below it isn't part of this shot)
             bb = m.bounding_box(); a = m.locator("text=PayPal authorisation").first.bounding_box()
             pg.screenshot(path=str(OUT / f"{key}-money.png"),
-                          clip={"x": bb["x"], "y": bb["y"], "width": bb["width"], "height": a["y"] + a["height"] + 18 - bb["y"]})
+                          clip={"x": bb["x"], "y": bb["y"], "width": bb["width"], "height": a["y"] + a["height"] + 10 - bb["y"]})
             # Version 1: its first PayPal line down to the authorization lineage (not the webhook rows under it)
             v = pg.locator(".sp-ver:visible").first; v.scroll_into_view_if_needed(); pg.wait_for_timeout(300)
             lin = v.locator("div.tiny.muted", has_text="honour period").first
