@@ -898,3 +898,14 @@ question wasn't answered, so the recommended option was taken.
 - Tests: `tests/test_freeze_fixes.py` (7) + test_invites empty states (logged out / creator). Browser
   `tests/browser/freeze_fixes.py` 390 + 1440 after `try_path.py`: problems none, no JS errors; shots in
   `docs/screenshots/freeze-fixes/`. **Tests: 876 passed, 3 skipped.**
+
+## Small fixes from the local screenshots (11 Nov)
+- Rates: unknown shows "–", never 0%. View rate needs avg views; both rates need followers (`discovery.rates` returns
+  None; card, quick view, profile and the media-kit PDF show "–"). A real 0 stays 0%.
+- Maya's typical likes / comments: median of the last 12 posts (Instagram returns at most 12); fewer → "median of N
+  posts: only N available".
+- One status word per money line, by kind, everywhere (deal Table, its row details, the Ledger): Held, Collected
+  (captures and collected holds), Released, Paid out (payouts; the Ledger said "Paid"), Refunded.
+- "Quick view" stays on one line on narrow cards.
+- Tests: `tests/test_freeze_fixes.py` +3 (page words run in Node), test_discovery rates. Browser
+  `tests/browser/freeze_fixes.py` 390 + 1440: problems none, no JS errors. **Tests: 879 passed, 3 skipped.**

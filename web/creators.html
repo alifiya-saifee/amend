@@ -116,7 +116,7 @@ function cardHtml(c) {
     <div class="row wrapx" style="gap:6px;margin-top:8px">${srcBadge(c.source)}${c.stale ? '<span class="pill failed">Data may be outdated</span>' : ""}
       <span class="pill ${c.permit.state === "ok" ? "collected" : c.permit.state === "soon" ? "waiting" : ""}">${c.permit.state === "ok" ? "Permit <i data-lucide='check' aria-hidden='true'></i>" : c.permit.state === "missing" ? "No permit" : "Permit: " + esc(c.permit.label)}</span></div>
     <div class="row" style="gap:8px;margin-top:10px">
-      <button class="btn small primary grow" data-qv="${esc(c.handle)}"><i data-lucide='panel-right-open' aria-hidden='true'></i> Quick view</button>
+      <button class="btn small primary grow" data-qv="${esc(c.handle)}" style="white-space:nowrap"><i data-lucide='panel-right-open' aria-hidden='true'></i> Quick view</button>
       <a class="btn small" href="/c/${esc(c.handle)}">Full page</a>
       <label class="btn small" style="gap:6px"><input type="checkbox" data-cmp="${c.id}" ${CMP.has(c.id) ? "checked" : ""} style="width:auto"> Compare</label></div>
   </div>`;
@@ -139,7 +139,7 @@ async function quickView(handle) {
     <div class="row wrapx" style="gap:6px">${(p.niches || []).map(n => `<span class="pill">${esc(n)}</span>`).join("")}</div>
     <h3 style="margin-top:16px">Reach</h3>
     ${(p.metrics || []).map(m => `<div class="stats"><div><b>${fmtN(m.followers)}</b><span>${esc(m.platform)} followers</span></div><div><b>${fmtN(m.avg_views)}</b><span>avg views</span></div>
-      <div><b>${m.engagement_rate}%</b><span>engagement</span></div></div><p class="tiny muted" style="margin-top:-4px">${m.ig ? esc(igReadLine(m.ig)) : `${esc(SRC_LABEL[m.source] || m.source)} · as of ${esc(m.as_of)}`}${m.stale ? " · may be outdated" : ""}</p>`).join("") || '<p class="small muted">No numbers shared yet.</p>'}
+      <div><b>${pct(m.engagement_rate)}</b><span>engagement</span></div></div><p class="tiny muted" style="margin-top:-4px">${m.ig ? esc(igReadLine(m.ig)) : `${esc(SRC_LABEL[m.source] || m.source)} · as of ${esc(m.as_of)}`}${m.stale ? " · may be outdated" : ""}</p>`).join("") || '<p class="small muted">No numbers shared yet.</p>'}
     <h3>Prices</h3><div class="list">${p.items.filter(i => i.standard_cents != null).slice(0, 6).map(i => `<div class="line"><div class="grow">${esc(i.name)}</div><div class="amt">${usd(i.standard_cents)}<div class="aed">${esc(i.aed)}</div></div></div>`).join("")}</div>
     <p class="small muted" style="margin-top:10px">On Amend: ${tr.completed || 0} deals completed${tr.rating ? ` · rating ${tr.rating} (${tr.reviews})` : ""}</p>
     ${brand && lists.length ? `<label for="qv-list">Add to a shortlist</label><div class="row" style="gap:8px"><select id="qv-list">${lists.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>

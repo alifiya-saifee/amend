@@ -91,3 +91,44 @@ def test_spine_lines_carry_the_ledgers_why(client, mocks, held):
             assert l["why"] == ledger[l["paypal_id"]]  # same words as the Ledger
     b = client.get(f"/api/d/{tok}/spine").json()
     assert all(l.get("why") for ver in b["versions"] for l in ver["lines"])
+
+
+# ---------- small fixes (11 Nov): unknown is "–", 12-post basis, one status word, Quick view on one line ----------
+
+def test_rates_unknown_never_zero():
+    from amend.discovery import rates
+    assert rates({"followers": 412, "avg_likes": 31, "avg_comments": 4, "avg_views": None}) == {"engagement_rate": 8.5, "view_rate": None}
+    assert rates({"followers": 0, "avg_likes": 31, "avg_comments": 4, "avg_views": 900}) == {"engagement_rate": None, "view_rate": None}
+    assert rates({"followers": 1000, "avg_views": 0, "avg_likes": 0, "avg_comments": 0}) == {"engagement_rate": 0.0, "view_rate": 0.0}  # a real 0 stays 0
+
+
+def _node(js: str) -> str:
+    import subprocess
+    from pathlib import Path
+    app = (Path(__file__).resolve().parents[1] / "web/static/app.js").read_text()
+    import re
+    one_line = lambda name: re.search(rf"^(?:const|function) {name}\b.*$", app, re.M).group(0)          # single-line definitions
+    block = lambda name: re.search(rf"^(?:const {name} = \{{|function {name}\().*?^}};?$", app, re.S | re.M).group(0)  # multi-line
+    src = "\n".join([block("MONEY_PILL"), one_line("PAID_WORD"), block("moneyWord"), one_line("pct"), block("ago"), block("igReadLine")])
+    return subprocess.run(["node", "-e", src + "\n" + js], capture_output=True, text=True, check=True).stdout
+
+
+def test_page_words():
+    out = json.loads(_node("""console.log(JSON.stringify([
+      pct(null), pct(8.5),
+      moneyWord("paid", "capture"), moneyWord("paid", "hold"), moneyWord("paid", "payout"), moneyWord("paid", "refund"),
+      moneyWord("authorized", "hold"), moneyWord("voided", "hold"),
+      igReadLine({posts: 14, median_likes: 31, median_comments: 4, posts_used: 12, read_at: new Date().toISOString()}),
+      igReadLine({posts: 3, median_likes: 31, median_comments: 4, posts_used: 3, read_at: new Date().toISOString()})]))"""))
+    assert out[:2] == ["–", "8.5%"]
+    assert out[2:8] == ["Collected", "Collected", "Paid out", "Refunded", "Held", "Released"]
+    assert out[8].endswith("(median of the last 12 posts)")
+    assert out[9].endswith("(median of 3 posts: only 3 available)")
+
+
+def test_detail_and_table_use_the_same_word_and_quick_view_does_not_wrap():
+    from pathlib import Path
+    web = Path(__file__).resolve().parents[1] / "web"
+    deal = (web / "deal.html").read_text()
+    assert '["Status in Amend", moneyWord(r.status, r.kind)]' in deal and "moneyPill(p.value, p.data.kind)" in deal
+    assert 'data-qv="${esc(c.handle)}" style="white-space:nowrap"' in (web / "creators.html").read_text()

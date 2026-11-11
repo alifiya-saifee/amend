@@ -108,10 +108,12 @@ def tier(followers: int) -> str:
 
 
 def rates(m: dict) -> dict:
+    """Unknown stays unknown (None, shown "–"), never 0%: no followers → no rates; no avg views → no view rate."""
     f = m.get("followers") or 0
-    er = ((m.get("avg_likes") or 0) + (m.get("avg_comments") or 0)) / f if f else 0.0
-    vr = (m.get("avg_views") or 0) / f if f else 0.0
-    return {"engagement_rate": round(er * 100, 2), "view_rate": round(vr * 100, 1)}
+    likes, comments, views = m.get("avg_likes"), m.get("avg_comments"), m.get("avg_views")
+    er = ((likes or 0) + (comments or 0)) / f if f and (likes is not None or comments is not None) else None
+    vr = views / f if f and views is not None else None
+    return {"engagement_rate": None if er is None else round(er * 100, 2), "view_rate": None if vr is None else round(vr * 100, 1)}
 
 
 def latest_metrics(db: Database, creator_id: str) -> list[dict]:

@@ -72,8 +72,10 @@ def mediakit_pdf(db: Database, creator: dict) -> bytes:
            "demo": "demo data", "self_reported": "self-reported"}
     doc.text("Reach and engagement", 13, bold=True)
     for m in prof["metrics"]:
-        doc.text(f"{m['platform'].title()}: {m['followers']:,} followers · avg views {m['avg_views'] or 0:,} · engagement {m['engagement_rate']}% · "
-                 f"view rate {m['view_rate']}%", 10)
+        pct = lambda v: "–" if v is None else f"{v}%"  # unknown, never 0%
+        views = "–" if m["avg_views"] is None else f"{m['avg_views']:,}"
+        doc.text(f"{m['platform'].title()}: {m['followers']:,} followers · avg views {views} · engagement {pct(m['engagement_rate'])} · "
+                 f"view rate {pct(m['view_rate'])}", 10)
         doc.text(f"   Source: {src.get(m['source'], m['source'])} · as of {m['as_of']}{' (may be outdated)' if m['stale'] else ''}", 9,
                  color=(0.36, 0.38, 0.42))
         aud = m.get("audience") or {}

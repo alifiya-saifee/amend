@@ -50,7 +50,7 @@ const KIND_LABEL = { hold: "Hold", capture: "Collected", release: "Release", ref
 function ledgerPill(r) {
   return r.status === "approved" && r.kind === "payout" && /^Holdback/.test(r.item || "") ? `<span class="pill held">Scheduled</span>`
     : r.status !== "paid" ? moneyPill(r.status)
-    : `<span class="pill collected">${{ payout: "Paid", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" }[r.kind] || "Collected"}</span>`;
+    : moneyPill(r.status, r.kind);
 }
 function moneyRowDetail(r, title) {
   AGrid.detail(title || r.item || "Payment", [

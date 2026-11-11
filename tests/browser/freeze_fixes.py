@@ -38,10 +38,16 @@ with sync_playwright() as p:
         t = card.inner_text()
         check("412" in t and "Instagram read · updated" in t and "14 posts" in t and "typical 31 likes, 4 comments" in t,
               f"{w}: card {' '.join(t.split())[:200]!r}")
+        qv = card.locator("[data-qv]")
+        lh = float(qv.evaluate("e => parseFloat(getComputedStyle(e).lineHeight) || 20"))
+        check(qv.evaluate("e => e.getBoundingClientRect().height") < 2 * lh + 16, f"{w}: Quick view wraps")
+        check("(median of 3 posts: only 3 available)" in t or "(median of the last 12 posts)" in t, f"{w}: basis")
         card.screenshot(path=str(OUT / f"1-maya-card-{w}.png"))
         pg.goto(f"{BASE}/c/clinicrobotest"); pg.wait_for_selector(".ig-read", timeout=20000)
         t = pg.inner_text("body")
         check("Instagram read · updated" in t and "412" in t, f"{w}: profile")
+        sec = pg.locator(".card", has=pg.locator(".ig-read")).first.inner_text()
+        check("0%" not in sec.replace("8.5%", "") and "–\nview rate" in sec, f"{w}: view rate not '–': {' '.join(sec.split())[:160]!r}")
         pg.locator(".card", has=pg.locator(".ig-read")).first.screenshot(path=str(OUT / f"1-maya-profile-{w}.png"))
         # 2. logged-out handle search
         pg.goto(f"{BASE}/creators?q=%40thishandledoesnotexist123"); pg.wait_for_selector("#invite-box", timeout=20000)
@@ -57,8 +63,15 @@ with sync_playwright() as p:
         if w == 1440:
             check("Why" in heads, f"{w}: no Why header")
             check(cells and all(c.startswith("v") for c in cells) and any("confirmed by" in c for c in cells), f"{w}: why cells {cells[:3]}")
-        pg.locator("#spine-grid .ag-row").first.click(); pg.wait_for_timeout(600)
-        check("Why" in pg.inner_text("body"), f"{w}: row details have no Why")
+        words = [x.inner_text().strip() for x in pg.query_selector_all("#spine-grid .ag-cell[col-id=status]")]
+        if w == 1440:
+            check("Paid out" in words and "Collected" in words, f"{w}: table words {words}")
+        row = pg.locator("#spine-grid .ag-row", has_text="$81").first
+        table_word = row.locator(".ag-cell[col-id=status]").inner_text().strip() if w == 1440 else "Paid out"
+        row.click(); pg.wait_for_timeout(600)
+        body = pg.inner_text("body")
+        check("Why" in body, f"{w}: row details have no Why")
+        check(f"Status in Amend\n{table_word}" in body or f"Status in Amend\t{table_word}" in body, f"{w}: details word != table word {table_word!r}")
         pg.screenshot(path=str(OUT / f"3-table-why-{w}.png"))
         check(pg.evaluate("document.documentElement.scrollWidth") <= w, f"{w}: sideways scroll")
         pg.close()

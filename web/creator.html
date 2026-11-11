@@ -43,7 +43,7 @@ function metricsHtml(c) {
     ${m.ig ? `<p class="small ig-read" style="margin:4px 0 0">${esc(igReadLine(m.ig))}</p>` : ""}
     ${m.stale ? '<div class="banner wait small" style="margin-top:8px">Data may be outdated (older than 60 days)</div>' : ""}
     <div class="stats"><div><b>${fmtN(m.followers)}</b><span>followers</span></div><div><b>${fmtN(m.avg_views)}</b><span>avg views</span></div>
-      <div><b>${m.engagement_rate}%</b><span>engagement</span></div><div><b>${m.view_rate}%</b><span>view rate</span></div></div>
+      <div><b>${pct(m.engagement_rate)}</b><span>engagement</span></div><div><b>${pct(m.view_rate)}</b><span>view rate</span></div></div>
     <p class="hint">Engagement = (avg likes + avg comments) ÷ followers. View rate = avg views ÷ followers. Worked out by Amend.</p>
     <div class="row wrapx" style="gap:16px;align-items:flex-start">
       <div class="grow" style="min-width:150px"><h3>Countries</h3>${bars(m.audience.countries)}</div>

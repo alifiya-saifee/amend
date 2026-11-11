@@ -19,7 +19,7 @@ def test_24_demo_creators_seeded(client):
 def test_rates_worked_out_by_code():
     assert discovery.rates({"followers": 10000, "avg_likes": 450, "avg_comments": 50, "avg_views": 4000}) == \
         {"engagement_rate": 5.0, "view_rate": 40.0}
-    assert discovery.rates({"followers": 0}) == {"engagement_rate": 0.0, "view_rate": 0.0}
+    assert discovery.rates({"followers": 0}) == {"engagement_rate": None, "view_rate": None}  # unknown, never 0%
 
 
 def test_s61_combined_filters(client):

@@ -63,8 +63,11 @@ function humanDates(s) { return String(s == null ? "" : s).replace(/\b\d{4}-\d{2
 function igReadLine(ig) {
   if (!ig) return "";
   const n = v => v == null ? "–" : Number(v).toLocaleString("en-US");
-  return `Instagram read · updated ${ago(ig.read_at)} · ${n(ig.posts)} posts · typical ${n(ig.median_likes)} likes, ${n(ig.median_comments)} comments (median of the last ${n(ig.posts_used)} posts)`;
+  const used = ig.posts_used || 0;
+  const basis = used >= 12 ? "median of the last 12 posts" : used ? `median of ${used} post${used === 1 ? "" : "s"}: only ${used} available` : "no posts available";
+  return `Instagram read · updated ${ago(ig.read_at)} · ${n(ig.posts)} posts · typical ${n(ig.median_likes)} likes, ${n(ig.median_comments)} comments (${basis})`;
 }
+function pct(v) { return v == null ? "–" : v + "%"; }  // a rate we can't work out shows "–", never 0%
 function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""; }
 function dateStr(iso) { return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""; }
 
@@ -73,7 +76,13 @@ const MONEY_PILL = {
   authorized: ["Held", "held"], paid: ["Collected", "collected"], voided: ["Released", "released"],
   refunded: ["Refunded", "refunded"], failed: ["Failed", "failed"], expired: ["Hold expired", "expired"], cancelled: ["Cancelled", "planned"],
 };
-function moneyPill(status) { if (!status) return ""; const [t, c] = MONEY_PILL[status] || [status, ""]; return `<span class="pill ${c}">${t}</span>`; }
+// "paid" means different things per kind of money line: one word everywhere (Table, row details, Ledger)
+const PAID_WORD = { payout: "Paid out", refund: "Refunded", owed_by_creator: "Settled", platform_cost: "Paid by Amend" };
+function moneyWord(status, kind) {
+  if (status === "paid") return PAID_WORD[kind] || "Collected";
+  return (MONEY_PILL[status] || [status])[0];
+}
+function moneyPill(status, kind) { if (!status) return ""; const c = (MONEY_PILL[status] || ["", ""])[1]; return `<span class="pill ${c}">${moneyWord(status, kind)}</span>`; }
 const DEAL_LABEL = { draft: "Waiting for brief", offered: "Offer to accept", accepted: "Accepted", in_progress: "In progress",
   delivered: "Delivered", completed: "Done", paused: "Paused", cancelled: "Cancelled" };
 function dealPill(s) { return `<span class="pill status">${DEAL_LABEL[s] || s}</span>`; }
