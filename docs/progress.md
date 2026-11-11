@@ -1010,3 +1010,12 @@ question wasn't answered, so the recommended option was taken.
   passwords on camera) and `setup_deal_a.py`. `docs/video/` is git-ignored (brand links, raw clips).
 - Deal A made on live: Maya × Dune Roast (Nadia), Reel $450 + Story set $80 = $530, accepted, editor 20 %, before the
   hold. **Tests: 912 passed, 3 skipped.**
+
+## Docs brought up to date (11 Nov)
+- README: the test count is written once ("912 on 11 Nov 2026; `pytest -q` prints the current number"); the live-tested
+  table has today's live runs (the /try path 13/13 with Rebuild from PayPal ✓; Instagram fail → fix → pass; release with
+  a team batch; the voice-note change card); "usage extension isn't built yet" removed (it is built); Rebuild from
+  PayPal described in the spine section and the PayPal GETs row; the judge path ends with Rebuild from PayPal.
+- docs/judging.md: the judge path ends with Rebuild from PayPal. SANDBOX_TESTING.md: judges' creator has one Demo
+  history deal; chat changes need "Send change card"; Rebuild from PayPal after the release; dispute step reference
+  fixed (step 10). devpost.md: the test count once. The dispute line stays ⟨update after Scene F⟩.

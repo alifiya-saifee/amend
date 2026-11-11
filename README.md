@@ -8,7 +8,7 @@ Entry for the PayPal AI Hackathon. **Built during the hackathon, starting 7 Nov 
 
 **Live:** https://amend-r7le.onrender.com · **Try it in 2 minutes:** https://amend-r7le.onrender.com/try · **Judging guide:** [docs/judging.md](docs/judging.md)
 
-**Judge path (about 3 minutes):** [amend-r7le.onrender.com](https://amend-r7le.onrender.com) → **/try** (enter JUDGE_PASSWORD) → *Start a fresh demo deal* (you see a $70 deal, accepted) → *Open as the brand* → *Pay with PayPal* with the **PayPal sandbox buyer** (you come back to "$70 held by PayPal") → type **"Add one more Story set"**, then tap **Send change card** (Amend first shows you the priced lines: +$20 from the price list, with the exact words) → *Open as the creator* → *Confirm* (version 2, $90; the brand holds the extra $20 with PayPal) → as the creator, upload any short video and say whether AI was used → as the brand, *Approve draft* → as the creator, mark it posted (the date is already today, as agreed; the delivery check says "matches the latest confirmed deal") → the **signed delivery verdict** (Pass, per-check reasons, the PayPal calls next to the button) → both tap *Confirm verdict and release* (PayPal **captures** $90, pays the creator $81 by **Payouts** and keeps a $9 holdback; the spine shows **"$70 held = $70 collected"** and **"$20 held = $20 collected"**, each with a tick).
+**Judge path (about 3 minutes):** [amend-r7le.onrender.com](https://amend-r7le.onrender.com) → **/try** (enter JUDGE_PASSWORD) → *Start a fresh demo deal* (you see a $70 deal, accepted) → *Open as the brand* → *Pay with PayPal* with the **PayPal sandbox buyer** (you come back to "$70 held by PayPal") → type **"Add one more Story set"**, then tap **Send change card** (Amend first shows you the priced lines: +$20 from the price list, with the exact words) → *Open as the creator* → *Confirm* (version 2, $90; the brand holds the extra $20 with PayPal) → as the creator, upload any short video and say whether AI was used → as the brand, *Approve draft* → as the creator, mark it posted (the date is already today, as agreed; the delivery check says "matches the latest confirmed deal") → the **signed delivery verdict** (Pass, per-check reasons, the PayPal calls next to the button) → both tap *Confirm verdict and release* (PayPal **captures** $90, pays the creator $81 by **Payouts** and keeps a $9 holdback; the spine shows **"$70 held = $70 collected"** and **"$20 held = $20 collected"**, each with a tick) → on the Money tab, tap **Rebuild from PayPal**: the deal's money rebuilt from PayPal's own answers (GETs only), line by line next to Amend's record, ending "Rebuilt from PayPal: matches Amend ✓".
 
 *In this quick path you type the post details; the video shows the Instagram read on a connected test account.*
 
@@ -61,6 +61,10 @@ Every payment is in a **ledger** with the words behind it.
 
 Every version of a deal maps to PayPal objects, and every PayPal object leads back to the deal. Open any deal's **PayPal
 spine** panel to see them, with the status read from PayPal (a GET, "Check PayPal now") or from a verified webhook.
+**Rebuild from PayPal** goes further: it re-creates the deal's whole money timeline, per version, from PayPal's own
+answers alone (GETs for orders, authorizations, captures, refunds and payout batches; nothing saved, no money moves)
+and compares it with Amend's record line by line, including the receipt hash in PayPal's `custom_id`. A timeout is
+"not checked", never a pass; made-up demo history says "Demo history: not at PayPal".
 
 | Deal | PayPal object | What Amend writes into PayPal |
 |---|---|---|
@@ -214,7 +218,7 @@ spine** panel to see them, with the status read from PayPal (a GET, "Check PayPa
 | Webhooks: verify-webhook-signature | Every webhook is verified, de-duplicated by event id, and never moves a status backwards |
 | Disputes: get, provide-evidence (`PROOF_OF_FULFILLMENT`) | Read the dispute; send the deal record, only after the creator approves |
 | Disputes: require-evidence, adjudicate (sandbox simulation) | The scripted sandbox run of a dispute won by the seller |
-| Orders / Payments / Payouts GETs | "Check PayPal now" on the spine panel (read-only, no money moves) |
+| Orders / Payments / Payouts GETs (orders, authorizations, captures, refunds, payout batches) | "Check PayPal now" and **Rebuild from PayPal** on the spine panel (read-only, no money moves) |
 | Invoicing v2 | Tried in the day-1 sandbox probe only; not used in the app |
 
 **Idempotency:** every PayPal write carries its own `PayPal-Request-Id`, stored on the money item, so a retry or a double
@@ -306,12 +310,16 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 | Owed balance recovered from the next payout ($99) | ✅ |
 | Call upload: browser converts to WAV, speakers separated, "no change" when nothing changed | ✅ |
 | Webhooks: order approved, authorization created, capture completed, capture refunded, payouts batch + item | ✅ verified |
-| `/try` judge walk: $70 held → "Add a Story and post Monday" → $95 held | ✅ |
+| `/try` judge path, live (11 Nov, 13 of 13 steps): $70 held → "Add one more Story set" → Send change card → creator confirms → $20 more held → draft → posted today → signed verdict Pass → **$90 collected, $81 paid out, $9 held back** → map, Table with Why, CSV → **Rebuild from PayPal: matches Amend ✓** (5 PayPal GETs, receipt hash ✓) | ✅ |
+| Instagram, live (11 Nov): Reel posted without #ad → read from Instagram → verdict Fail ("#ad missing", required by the signed mandate) → caption fixed on Instagram → Re-check → Pass, a new signed verdict | ✅ |
+| Release with a team, live (11 Nov): $450 captured → one Payouts batch: creator $324 + editor $81 (20 %) → $45 holdback scheduled | ✅ |
+| A voice note, live (11 Nov): "shorter, subtitles, deliver tomorrow, paid ad for 30 days" → one card: Subtitles +$40, usage +$150, date +$50 (from the creator's list), Shorter Reel free → Send change card → creator confirms → version 2 | ✅ |
 | On-request creator: no amounts before she accepts, real price after, PayPal hold succeeds | ✅ |
 | Discover AI match with reasons; no hidden price in any response | ✅ |
 | PayPal dispute shield | Tested with PayPal mocked (S126–S130); see live-walk for the sandbox status |
 
-**Tests:** 694 automated tests (PayPal and every AI provider mocked; no test calls a real service), plus browser runs at 390 and 1440 px.
+**Tests:** 912 automated tests on 11 Nov 2026 (PayPal and every AI provider mocked; no test calls a real service), plus
+browser runs at 390 and 1440 px. This is the only place the count is written; `pytest -q` prints the current number.
 
 ## Honest limits
 
@@ -328,7 +336,7 @@ Full write-up: [docs/live-walk.md](docs/live-walk.md).
 - **WhatsApp alerts: coming soon** (waiting for Meta template approval). Alerts appear in Amend.
 - **Hosting:** Render (free plan, Docker) with Postgres on Supabase; the free plan can sleep when idle, so the first page can be slow.
 - **Instagram lookup** uses Meta Business Discovery with a test app's token: public numbers for business and creator accounts only.
-- The UAE permit check is a format and expiry check only. Collecting a usage-rights extension hold isn't built yet.
+- The UAE permit check is a format and expiry check only.
 
 ## Next
 

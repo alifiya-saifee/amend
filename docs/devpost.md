@@ -148,7 +148,7 @@ the ledgers. 912 automated tests (PayPal and every AI provider mocked; no test c
 - **Rebuild from PayPal:** on a real sandbox deal, the money timeline rebuilt from PayPal's own answers matches
   Amend's record line by line, and the receipt hash in PayPal's `custom_id` equals Amend's.
 - A receipt chain where every event holds the previous one's hash, carried into PayPal on every order.
-- 912 tests, and not one place where an AI's number reaches money.
+- A test suite with PayPal and every AI mocked, and not one place where an AI's number reaches money.
 
 ---
 

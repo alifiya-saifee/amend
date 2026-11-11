@@ -7,7 +7,7 @@ public, so it holds **placeholders only**: real passwords are never written into
 
 | Who | Email | Password |
 |---|---|---|
-| Judges: creator (a clean copy of Sara, no history) | `judge.sara@creators.example` | `<JUDGE_PASSWORD, sent privately with the submission>` |
+| Judges: creator (a copy of Sara's price list, with one completed "Demo history" deal) | `judge.sara@creators.example` | `<JUDGE_PASSWORD, sent privately with the submission>` |
 | Judges: brand | `judge.brand@amend.example` | `<JUDGE_PASSWORD, sent privately with the submission>` |
 | PayPal sandbox buyer (to approve a hold) | `<sandbox personal account email>` | `<sandbox personal account password>` |
 
@@ -30,11 +30,13 @@ public, so it holds **placeholders only**: real passwords are never written into
    - the brand mandate;
    - "Receipt chain: N events · verified".
 
-   Tap **Check PayPal now** to read the live status from PayPal.
-4. **As the creator, type in the chat:** "I can add one more Story set." The card applies at once, "inside the signed
-   mandate", and says "+$80 comes out of the existing PayPal hold". No new PayPal approval is needed.
-5. **Ask for something outside the mandate,** e.g. "add a new scene". That card waits for the brand to confirm it live
-   and says it needs a new PayPal approval.
+   Tap **Check PayPal now** to read the live status from PayPal. After the release (step 6), tap **Rebuild from
+   PayPal**: the money timeline rebuilt from PayPal's answers alone, compared line by line with Amend's record.
+4. **As the creator, type in the chat:** "I can add one more Story set." Amend first asks you, under your message
+   ("This looks like a change to the deal:", with the priced line); tap **Send change card**. It applies "inside the
+   signed mandate" and says "+$80 comes out of the existing PayPal hold". No new PayPal approval is needed.
+5. **Ask for something outside the mandate,** e.g. "add a new scene", and tap **Send change card**. That card waits for
+   the brand to confirm it live and says it needs a new PayPal approval.
 6. **Deliver and release:** upload the draft, submit the post link. The **signed delivery verdict** shows pass or fail
    per check with the deal's own words, and the PayPal calls next to the button. Both tap **Confirm verdict and
    release**. The spine shows the capture, the Payouts batch and what went back to the brand, and the Ledger shows the
@@ -49,7 +51,7 @@ Nothing is seeded: every step is a real sandbox call on a new deal, so its recei
 2. **Brand** writes the brief: "1 Reel and 1 Story set, post Friday, #ad". **Creator** accepts.
 3. **Brand** opens **Pre-approve small changes**, ticks "Extra Story set up to $150" and "Every post carries #ad". The hold reads "$530 deal + up to
    $150 pre-approved extras = $680 held". Pay with the sandbox buyer.
-4. **Creator** types in the chat: "I can add one more Story set for the launch". It applies inside the mandate:
+4. **Creator** types in the chat: "I can add one more Story set for the launch", then taps **Send change card**. It applies inside the mandate:
    "+$80 comes out of the existing PayPal hold". The deal is now $610.
 5. **Creator** uploads the draft; **brand** approves it.
 6. **On Instagram**, from the test account **@clinicrobotest** (professional, linked to Amend's Graph token), post a
@@ -69,7 +71,7 @@ Nothing is seeded: every step is a real sandbox call on a new deal, so its recei
    holdback and builds the evidence pack.
 
 Then win it:
-1. The buyer opens the dispute in the sandbox (step 7 above): it needs a **captured** transaction.
+1. The buyer opens the dispute in the sandbox (step 10 above): it needs a **captured** transaction.
 2. Dry run first: `.venv/bin/python -m scripts.dispute_sandbox_run`. It shows the steps and calls nothing.
 3. Then `.venv/bin/python -m scripts.dispute_sandbox_run --run` (with the app's sandbox environment):
    require-evidence → provide-evidence (`PROOF_OF_FULFILLMENT`) → adjudicate `SELLER_FAVOR`. PayPal sends
