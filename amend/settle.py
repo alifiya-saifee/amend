@@ -97,7 +97,7 @@ async def summarise(db: Database, deal: dict) -> dict:
         return {"brand": None, "creator": None, "note": "No messages to summarise yet."}
     user = "\n".join(f"[{side(m['party_id'])}] {m['body']}" for m in msgs)
     try:
-        res = await ai.call_json(SUMMARY_SYSTEM, user)
+        res = await ai.call_json(SUMMARY_SYSTEM, user, purpose="settle_summary")
     except ai.ProviderError:
         return {"brand": None, "creator": None, "note": "The AI couldn't summarise right now. The split below is worked out by code."}
     out = {}

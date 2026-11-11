@@ -17,6 +17,8 @@ import hashlib
 import json
 import logging
 import re
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import httpx
@@ -26,6 +28,28 @@ from amend.config import get_settings
 from amend.engine import quote_in
 
 log = logging.getLogger("amend.ai")
+
+# ---------- ai.called: one record per model call (purpose, provider, model, attempts, cached, latency_ms, ok) ----------
+# Never the prompt, reply, message text, captions or quotes. The app sets the recorder (it writes an `ai.called` event
+# on the deal in the request); with no recorder (scripts, tests) record() does nothing.
+_recorder: Callable[[dict], None] | None = None
+RECORD_FIELDS = ("purpose", "provider", "model", "attempts", "cached", "latency_ms", "ok")
+
+
+def set_recorder(fn: Callable[[dict], None] | None) -> None:
+    global _recorder
+    _recorder = fn
+
+
+def record(*, purpose: str, provider: str | None, model: str | None, attempts: int, cached: bool,
+           latency_ms: int, ok: bool = True) -> None:
+    if _recorder is None:
+        return
+    try:
+        _recorder({"purpose": purpose, "provider": provider, "model": model, "attempts": attempts,
+                   "cached": cached, "latency_ms": latency_ms, "ok": ok})
+    except Exception as e:  # recording must never break the AI call itself
+        log.warning("ai.called not recorded: %s", type(e).__name__)
 
 
 class ProviderError(RuntimeError):
@@ -114,11 +138,14 @@ VISION = {"gemini"}  # providers that read images (Groq's backup chat model is t
 
 
 async def call_json(system: str, user: str, *, retries: int = 2, base_delay: float = 0.5,
-                    use_cache: bool = True, image: str | list[str] | None = None) -> AIResult:
+                    use_cache: bool = True, image: str | list[str] | None = None, purpose: str = "other") -> AIResult:
+    t0 = time.monotonic()
     img_key = hashlib.sha256(json.dumps(image).encode()).hexdigest() if image else ""
     key = hashlib.sha256(json.dumps([system, user, img_key]).encode()).hexdigest()
     if use_cache and key in _cache:
         r = _cache[key]
+        record(purpose=purpose, provider=r.provider, model=PROVIDERS[r.provider].model() if r.provider in PROVIDERS else None,
+               attempts=0, cached=True, latency_ms=int((time.monotonic() - t0) * 1000))
         return AIResult(r.data, r.provider, 0, r.fell_back, cached=True)
     order = FALLBACK.get(get_settings().ai_provider, ["gemini", "groq"])
     attempts, last = 0, None
@@ -133,6 +160,8 @@ async def call_json(system: str, user: str, *, retries: int = 2, base_delay: flo
                 res = AIResult(data, pid, attempts, fell_back=i > 0)
                 _cache[key] = res
                 log.info("ai ok provider=%s attempts=%s", pid, attempts)
+                record(purpose=purpose, provider=pid, model=p.model(), attempts=attempts, cached=False,
+                       latency_ms=int((time.monotonic() - t0) * 1000))
                 return res
             except ProviderError as e:
                 last = e
@@ -141,6 +170,8 @@ async def call_json(system: str, user: str, *, retries: int = 2, base_delay: flo
                     break
                 if n < retries:
                     await asyncio.sleep(base_delay * (2 ** n))
+    record(purpose=purpose, provider=None, model=None, attempts=attempts, cached=False,
+           latency_ms=int((time.monotonic() - t0) * 1000), ok=False)
     raise ProviderError(f"all AI providers failed ({last})", retryable=False)
 
 
@@ -261,7 +292,7 @@ async def brief_to_terms(brief: str, price_list: list[dict], *, today: str, trie
     errors = []
     for t in range(tries):
         note = "" if not errors else f"\n\nYour previous reply was rejected: {errors[-1]}. Copy quotes exactly."
-        res = await call_json(SYSTEM, _user_prompt(brief, price_list, today) + note, use_cache=(t == 0))
+        res = await call_json(SYSTEM, _user_prompt(brief, price_list, today) + note, use_cache=(t == 0), purpose="brief")
         try:
             out = validate_brief_reply(res.data, brief, price_list)
         except DraftRejected as e:

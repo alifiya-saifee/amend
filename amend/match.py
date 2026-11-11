@@ -91,7 +91,7 @@ def validate(data: dict, text: str, today: date) -> dict:
 
 async def read_criteria(text: str, today: date | None = None) -> dict:
     today = today or date.today()
-    res = await ai.call_json(SYSTEM, f"Today is {today.isoformat()}.\n\nCampaign:\n{text}")
+    res = await ai.call_json(SYSTEM, f"Today is {today.isoformat()}.\n\nCampaign:\n{text}", purpose="match")
     crit = validate(res.data if isinstance(res.data, dict) else {}, text, today)
     if not crit["quotes"]:
         raise MatchError("Couldn't read any criteria from that. Try naming a niche, a country or a budget.")

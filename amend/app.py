@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import hmac
 import json
 import logging
+import re
 import secrets
 import time
 from datetime import date, timedelta
@@ -98,6 +100,44 @@ def db() -> Database:
 
 
 # ---------- middleware ----------
+
+_req_path: contextvars.ContextVar[str] = contextvars.ContextVar("amend_req_path", default="")
+_DEAL_PATH = re.compile(r"^/api/(deals|d)/([^/]+)")
+
+
+def _ai_deal_id(path: str) -> str | None:
+    """The deal behind the request that made an AI call: /api/deals/{id}/… or /api/d/{token}/… (read directly, so
+    looking it up never logs anything itself)."""
+    m = _DEAL_PATH.match(path or "")
+    if not m:
+        return None
+    d = get_db()
+    if m.group(1) == "deals":
+        return (d.one("select id from deals where id = :i", {"i": m.group(2)}) or {}).get("id")
+    return (d.one("select deal_id from deal_links where token = :t", {"t": m.group(2)}) or {}).get("deal_id")
+
+
+def record_ai_call(fields: dict) -> None:
+    """ai.called event: purpose, provider, model, attempts, cached, latency_ms, ok. Never prompts, replies or quotes.
+    The Simulator promises it writes nothing, so its call goes to the server log only."""
+    if fields.get("purpose") == "simulate":
+        log.info("ai.called (simulator, not stored) %s", {k: fields.get(k) for k in ai.RECORD_FIELDS})
+        return
+    get_db().log_event("ai.called", actor="ai", deal_id=_ai_deal_id(_req_path.get()),
+                       payload={k: fields.get(k) for k in ai.RECORD_FIELDS})
+
+
+ai.set_recorder(record_ai_call)
+
+
+@app.middleware("http")
+async def remember_path(request: Request, call_next):
+    tok = _req_path.set(request.url.path)
+    try:
+        return await call_next(request)
+    finally:
+        _req_path.reset(tok)
+
 
 @app.middleware("http")
 async def origin_check(request: Request, call_next):
@@ -578,7 +618,7 @@ def my_deals(filter: str = "all", q: str = "", page: int = 0, c: dict = Depends(
     out = []
     for r in rows:
         hold = deals.open_hold(d, r["id"])
-        last = d.one("select type, at, actor from events where deal_id = :d order by id desc limit 1", {"d": r["id"]})
+        last = d.one("select type, at, actor from events where deal_id = :d and type <> 'ai.called' order by id desc limit 1", {"d": r["id"]})
         out.append({"id": r["id"], "brand": r["brand_org"], "status": r["status"], "total_cents": r["total_cents"],
                     "money": hold["status"] if hold else None, "needs_me": r["status"] in NEEDS_ME,
                     "last": last, "updated_at": r["updated_at"], "stage": studio.stage(d, r), "deadline": r.get("deadline"),

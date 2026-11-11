@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 
@@ -75,15 +76,23 @@ async def second_opinion(s: dict, terms_text: str, *, transport: httpx.AsyncBase
             f"Creator's terms: {terms_text}\nTotal fee: {money.fmt_usd(s['total_cents'])}")
     body = {"model": model, "temperature": 0, "max_tokens": 300,
             "messages": [{"role": "system", "content": SECOND_SYSTEM}, {"role": "user", "content": user}]}
+    t0 = time.monotonic()
+
+    def rec(ok: bool) -> None:
+        ai.record(purpose="second_opinion", provider="nvidia", model=model, attempts=1, cached=False,
+                  latency_ms=int((time.monotonic() - t0) * 1000), ok=ok)
     try:
         async with httpx.AsyncClient(transport=transport, timeout=40) as c:
             r = await c.post("https://integrate.api.nvidia.com/v1/chat/completions", json=body, headers={"Authorization": f"Bearer {key}"})
         if r.status_code >= 400:
+            rec(False)
             return {"available": False, "note": f"Second opinion unavailable (HTTP {r.status_code})"}
         d = ai.parse_json(r.json()["choices"][0]["message"].get("content") or "")
         pct = int(d.get("pct"))
     except Exception:
+        rec(False)
         return {"available": False, "note": "Second opinion unavailable right now"}
+    rec(True)
     pct = max(0, min(100, pct))
     return {"available": True, "pct": pct, "reason": str(d.get("reason", ""))[:200], "agrees": abs(pct - s["pct"]) <= 10}
 

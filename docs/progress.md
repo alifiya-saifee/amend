@@ -874,3 +874,12 @@ question wasn't answered, so the recommended option was taken.
   **Tests: 868 passed, 3 skipped.**
 - Open question: on live, the sandbox buyer is a personal account, so judges will likely see "Paid by <buyer name>:
   the brief says Judge Brand. Check before you start." That's honest, but it shows on every /try deal.
+
+## ai.called (11 Nov, finished from the live-walk report)
+- Every model call writes one `ai.called` event on the deal behind the request: purpose, provider, model, attempts,
+  cached, latency_ms, ok. Never the prompt, reply, message text, captions or quotes. Purposes: brief, change_detect,
+  screenshot_read, delivery_check, post_read, insights_read, ig_brands, match, settle_summary, second_opinion (NVIDIA),
+  voice_note / call_timing (Groq Whisper), call_transcript (Gemini audio). The Simulator's call goes to the server log
+  only (it promises no writes). Failed calls are recorded with ok=false, including timeouts on transcription.
+- Hidden from the deal timeline and "last activity"; still in the receipt chain.
+- Tests: `tests/test_ai_called.py` (6). **Tests: 869 passed, 3 skipped.**

@@ -112,7 +112,7 @@ async def write_futures(db: Database, deal: dict) -> tuple[list[dict], str]:
     user = json.dumps({"items": codes, "total_usd": deal["total_cents"] / 100, "bonus": has_bonus,
                        "mandate": bool(db.one("select id from mandates where deal_id = :d and status = 'active'", {"d": deal["id"]}))})
     try:
-        res = await ai.call_json(FUTURES_SYSTEM, user)
+        res = await ai.call_json(FUTURES_SYSTEM, user, purpose="simulate")
         fs = validate((res.data or {}).get("futures") if isinstance(res.data, dict) else None, codes)
         if len(fs) >= 3:
             return fs, "AI-written futures (validated by code)"

@@ -169,7 +169,7 @@ Copy numbers exactly as shown (convert 12.3K to 12300). Never guess a number tha
 
 
 async def read_insights(data_url: str) -> dict:
-    res = await ai.call_json(INSIGHTS_SYSTEM, "Read this insights screenshot.", image=data_url)
+    res = await ai.call_json(INSIGHTS_SYSTEM, "Read this insights screenshot.", image=data_url, purpose="insights_read")
     d = res.data or {}
     clean = {"platform": d.get("platform") if d.get("platform") in PLATFORMS else None}
     for k in ("followers", "avg_views", "avg_likes", "avg_comments"):

@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -25,10 +26,28 @@ from amend.db import Database, new_id, now
 
 MAX_AUDIO = 25_000_000
 GROQ_STT = "https://api.groq.com/openai/v1/audio/transcriptions"
+STT_MODEL = "whisper-large-v3-turbo"
 
 
 class CallError(ValueError):
     pass
+
+
+def _rec(purpose: str, provider: str, model: str, t0: float, ok: bool) -> None:
+    ai.record(purpose=purpose, provider=provider, model=model, attempts=1, cached=False,
+              latency_ms=int((time.monotonic() - t0) * 1000), ok=ok)
+
+
+async def _post(c: httpx.AsyncClient, purpose: str, provider: str, model: str, url: str, **kw) -> httpx.Response:
+    """One AI request, always recorded as ai.called (also when it times out or the connection drops)."""
+    t0 = time.monotonic()
+    try:
+        r = await c.post(url, **kw)
+    except httpx.HTTPError:
+        _rec(purpose, provider, model, t0, False)
+        raise
+    _rec(purpose, provider, model, t0, r.status_code < 400)
+    return r
 
 
 async def transcribe_voice(raw: bytes, mime: str, *, transport=None) -> str:
@@ -39,8 +58,8 @@ async def transcribe_voice(raw: bytes, mime: str, *, transport=None) -> str:
         raise CallError("that recording is too long (25 MB max)")
     ext = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav"}.get(mime, "webm")
     async with httpx.AsyncClient(transport=transport, timeout=120) as c:
-        r = await c.post(GROQ_STT, headers={"Authorization": f"Bearer {key}"},
-                         files={"file": (f"note.{ext}", raw, mime)}, data={"model": "whisper-large-v3-turbo", "response_format": "json"})
+        r = await _post(c, "voice_note", "groq", STT_MODEL, GROQ_STT, headers={"Authorization": f"Bearer {key}"},
+                        files={"file": (f"note.{ext}", raw, mime)}, data={"model": STT_MODEL, "response_format": "json"})
     if r.status_code >= 400:
         raise CallError(f"couldn't transcribe (HTTP {r.status_code})")
     text = (r.json().get("text") or "").strip()
@@ -76,8 +95,8 @@ async def whisper_segments(raw: bytes, mime: str, *, transport=None) -> list[dic
         return []
     ext = {"audio/wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3"}.get(mime, "wav")
     async with httpx.AsyncClient(transport=transport, timeout=120) as c:
-        r = await c.post(GROQ_STT, headers={"Authorization": f"Bearer {key}"}, files={"file": (f"call.{ext}", raw, mime)},
-                         data={"model": "whisper-large-v3-turbo", "response_format": "verbose_json"})
+        r = await _post(c, "call_timing", "groq", STT_MODEL, GROQ_STT, headers={"Authorization": f"Bearer {key}"},
+                        files={"file": (f"call.{ext}", raw, mime)}, data={"model": STT_MODEL, "response_format": "verbose_json"})
     if r.status_code >= 400:
         raise CallError(f"timing unavailable (HTTP {r.status_code})")
     return [{"start": float(s["start"]), "text": str(s.get("text") or "")} for s in (r.json().get("segments") or []) if "start" in s]
@@ -112,7 +131,8 @@ async def _gemini_audio(data_url: str) -> list[dict]:
                          {"role": "user", "content": [{"type": "text", "text": "Transcribe this call."},
                                                       {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}}]}]}
     async with httpx.AsyncClient(transport=p.transport, timeout=180) as c:
-        r = await c.post(f"{p.base_url}/chat/completions", json=body, headers={"Authorization": f"Bearer {p.key()}"})
+        r = await _post(c, "call_transcript", "gemini", p.model(), f"{p.base_url}/chat/completions", json=body,
+                        headers={"Authorization": f"Bearer {p.key()}"})
     if r.status_code >= 400:
         raise CallError(f"couldn't transcribe the call (HTTP {r.status_code})")
     d = ai.parse_json(r.json()["choices"][0]["message"].get("content") or "")

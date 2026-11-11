@@ -224,7 +224,7 @@ creator. Copy each quote word for word. Leave out captions with no brand."""
 
 async def find_brands_ai(posts: list[dict]) -> dict[int, list[dict]]:
     user = "\n\n".join(f"Caption {i}:\n{p['caption']}" for i, p in enumerate(posts) if p["caption"])
-    res = await ai.call_json(BRANDS_SYSTEM, user)
+    res = await ai.call_json(BRANDS_SYSTEM, user, purpose="ig_brands")
     out: dict[int, list[dict]] = {}
     for p in (res.data.get("posts") or []) if isinstance(res.data, dict) else []:
         i = p.get("i")

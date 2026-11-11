@@ -88,7 +88,7 @@ async def detect_change(message: str, *, price_list: list[dict], current: list[d
     codes = [{"item_code": p["code"], "name": p["name"], "kind": p["kind"]} for p in price_list if p["kind"] != "rule"]
     user = (f"Today is {today}. Current deal lines: {json.dumps(current)}. Current posting date: {post_date or 'not set'}.\n"
             f"Price list: {json.dumps(codes)}\n\nMessage:\n{message}")
-    res = await ai.call_json(SYSTEM, user)
+    res = await ai.call_json(SYSTEM, user, purpose="change_detect")
     return validate(res.data, message, {p["code"] for p in price_list})
 
 
@@ -115,7 +115,7 @@ as "Name: message". Reply with ONE JSON object: {"text": "<the text>"}. Copy wor
 
 
 async def read_screenshot(data_url: str) -> str:
-    res = await ai.call_json(IMAGE_SYSTEM, "Read this screenshot.", image=data_url)
+    res = await ai.call_json(IMAGE_SYSTEM, "Read this screenshot.", image=data_url, purpose="screenshot_read")
     text = str(res.data.get("text") or "").strip()
     if not text:
         raise ai.DraftRejected("no text found in the image")

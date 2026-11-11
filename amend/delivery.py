@@ -57,7 +57,7 @@ async def check_frames(frames: list[dict], caption: str, requirements: list[str]
         return []
     user = (f"Requirements:\n" + "\n".join(f"- {r}" for r in requirements) + f"\n\nCaption:\n{caption}\n\n"
             f"There are {len(frames)} frames, in order, at times: " + ", ".join(f"#{i} {f['t']:.1f}s" for i, f in enumerate(frames)))
-    res = await ai.call_json(CHECK_SYSTEM, user, image=[f["data_url"] for f in frames])
+    res = await ai.call_json(CHECK_SYSTEM, user, image=[f["data_url"] for f in frames], purpose="delivery_check")
     out = []
     for c in (res.data.get("checks") or [])[:12]:
         fi = c.get("frame")
@@ -318,7 +318,7 @@ async def read_post(caption: str, deliverables: list[dict]) -> dict:
         return {"none": "no caption was given"}
     user = ("Deliverable codes: " + ", ".join(f"{d['code']} ({d['name']})" for d in deliverables) + f"\n\nCaption:\n{caption}")
     try:
-        res = await ai.call_json(READ_SYSTEM, user)
+        res = await ai.call_json(READ_SYSTEM, user, purpose="post_read")
     except ai.ProviderError:
         return {"error": "The AI couldn't read the caption right now"}
     data, low = res.data if isinstance(res.data, dict) else {}, caption.lower()

@@ -451,7 +451,7 @@ def deal_view(db: Database, deal_id: str) -> dict:
                    **({"funding": {k: v for k, v in money.refund_funding(db, deal_id, i["amount_cents"]).items() if k != "holdback_item"}}
                       if i["kind"] == "refund" and i["status"] == "planned" else {})} for i in items],
         "events": [{"at": e["at"], "type": e["type"], "actor": e["actor"], "text": _event_text(e, items, c["display_name"])}
-                   for e in db.events_for(deal_id)][-30:],
+                   for e in db.events_for(deal_id) if e["type"] != "ai.called"][-30:],
         "dispute": _dispute_view(db, deal_id),
         "draft_status": _draft_status(db, deal_id),
         "caption_fix": next((g.get("fix") for g in __import__("amend.delivery", fromlist=["open_gaps"]).open_gaps(db, deal_id)
