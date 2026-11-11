@@ -998,3 +998,15 @@ question wasn't answered, so the recommended option was taken.
   brand, demo history, a capture carrying its hold's version). Browser `tests/browser/rebuild_flow.py` 390 + 1440
   after try_path: "matches Amend", every line names its endpoint, second tap refused, map has the button, judges'
   demo history says "not at PayPal". Shots in `docs/screenshots/rebuild/`. **Tests: 911 passed, 3 skipped.**
+
+## Before the video (11 Nov)
+- Live (a8417e8), `tests/browser/live_demo.py`: 2.1–2.12 all PASS, no JS errors, including **Rebuild from PayPal on
+  real sandbox data: "matches Amend ✓"** (5 PayPal GETs: 2 authorizations, 2 captures, 1 payout batch; receipt hash ✓)
+  and the neutral /try who-paid line.
+- Bonus views target from 10 (was 1,000) in the mandate tiers, the bonus offer and its API, so a small test account
+  can meet a tier on camera. Form floor only: bonus holds, Instagram reading and release rules unchanged.
+- Maya's Reel length limit comes from her Reel's name ("Reel (up to 45 s)"), not a fixed 30 s.
+- Video kit: `tests/browser/video/rec.py` (one 1920×1080 clip per scene, 110 % zoom, visible cursor, moments log, no
+  passwords on camera) and `setup_deal_a.py`. `docs/video/` is git-ignored (brand links, raw clips).
+- Deal A made on live: Maya × Dune Roast (Nadia), Reel $450 + Story set $80 = $530, accepted, editor 20 %, before the
+  hold. **Tests: 912 passed, 3 skipped.**

@@ -1806,7 +1806,7 @@ def brand_results_csv(token: str):
 
 
 class BonusIn(BaseModel):
-    threshold: int = Field(ge=1000, le=100_000_000)
+    threshold: int = Field(ge=10, le=100_000_000)
     amount_cents: int = Field(ge=1000, le=1_000_000)
     read_day: int = Field(ge=1, le=21)
 

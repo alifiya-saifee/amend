@@ -230,7 +230,7 @@ const Work = (() => {
       if (!canOffer) return "";
       return `<details class="card"><summary><b>${icon("trophy")} Add a performance bonus</b> <span class="small muted">(optional)</span></summary>
         <div class="grid3" style="gap:8px;margin-top:8px">
-          <label>Views target<input id="w-bn-t" type="number" min="1000" step="1000" value="50000"></label>
+          <label>Views target<input id="w-bn-t" type="number" min="10" step="10" value="50000"></label>
           <label>Bonus (USD)<input id="w-bn-a" type="number" min="10" step="10" value="150"></label>
           <label>Read on day<input id="w-bn-d" type="number" min="1" max="21" value="7"></label></div>
         ${rules}<button class="btn primary block" id="w-bn-offer" style="margin-top:8px">Offer the bonus to ${esc(first())}</button></details>`;

@@ -513,7 +513,7 @@ function mandateHtml() {
     <label class="chk"><input type="checkbox" id="m-bn"> <span>Performance bonus, read from Instagram on day <input id="m-bn-day" type="number" value="7" min="1" max="21" style="width:64px" aria-label="Read on day"> after posting:</span></label>
     <div class="m-tiers"><div class="m-tier-head tiny muted"><span></span><span>Views</span><span>Bonus $</span></div>
       ${[[10000, 50], [50000, 150], ["", ""]].map(([v, d], i) => `<div class="m-tier">
-      <span class="small">Tier ${i + 1}</span><input class="m-tv" type="number" min="1000" step="1000" value="${v}" placeholder="views" aria-label="Tier ${i + 1} views">
+      <span class="small">Tier ${i + 1}</span><input class="m-tv" type="number" min="10" step="10" value="${v}" placeholder="views" aria-label="Tier ${i + 1} views">
       <input class="m-tc" type="number" min="10" step="10" value="${d}" placeholder="optional" aria-label="Tier ${i + 1} bonus in dollars"></div>`).join("")}
       <p class="tiny muted" style="margin:4px 0 0">The highest tier reached is paid; the rest of the bonus hold goes back to you. Code reads Instagram's numbers; because you sign this now, only ${esc(V.creator.name.split(" ")[0])} taps to release it. The base price never goes down.</p></div>
     <p class="tiny muted" id="m-note"></p></details>`;

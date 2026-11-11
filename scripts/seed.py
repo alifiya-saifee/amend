@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -435,10 +436,12 @@ def ensure_extra_items(db: Database) -> int:
             r = json.loads(have["usage_rights"]["rules_json"] or "{}")
             if "match" not in r:
                 db.update("price_items", "id", have["usage_rights"]["id"], {"rules_json": json.dumps({**r, "match": PAID_AD_MATCH})})
-        if "reel" in have:
+        if "reel" in have:  # the limit comes from the Reel's own name ("Reel (up to 45 s)"), 30 s if it names none
             r = json.loads(have["reel"]["rules_json"] or "{}")
-            if "max_seconds" not in r:
-                db.update("price_items", "id", have["reel"]["id"], {"rules_json": json.dumps({**r, "min_seconds": 15, "max_seconds": 30})})
+            m = re.search(r"up to (\d+)\s*s\b", have["reel"]["name"])
+            want = int(m.group(1)) if m else 30
+            if r.get("max_seconds") != want or "min_seconds" not in r:
+                db.update("price_items", "id", have["reel"]["id"], {"rules_json": json.dumps({**r, "min_seconds": 15, "max_seconds": want})})
     return made
 
 

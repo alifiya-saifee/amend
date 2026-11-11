@@ -151,9 +151,25 @@ def test_demo_creator_and_maya_lists_price_the_long_message(client):
     for handle in (TRY_HANDLE, TEST_HANDLE):
         cid = db.one("select id from creators where handle = :h", {"h": handle})["id"]
         plist = {p["code"]: p for p in __import__("amend.engine", fromlist=["price_items"]).price_items(db, cid)}
-        assert "subtitles" in plist and "usage_rights" in plist and plist["reel"]["rules"]["max_seconds"] == 30
+        want = 30 if handle == TRY_HANDLE else 45  # from the Reel's own name: "Reel (up to 30 s)" / "Reel (up to 45 s)"
+        assert "subtitles" in plist and "usage_rights" in plist and plist["reel"]["rules"]["max_seconds"] == want, plist["reel"]["name"]
         assert changes.match_item("add subtitles", plist)["code"] == "subtitles"
         assert changes.match_item("run it as a paid ad for 30 days", plist)["code"] == "usage_rights"
     try_list = {p["code"]: p["standard_cents"] for p in db.all(
         "select code, standard_cents from price_items where creator_id = (select id from creators where handle = :h)", {"h": TRY_HANDLE})}
     assert 5000 + 2000 + 500 + try_list["subtitles"] + try_list["usage_rights"] <= 10000  # the long message stays within the $100 cap
+
+
+def test_bonus_targets_from_10_views(client, mocks, held):
+    """A 20-view tier is allowed (small accounts, the demo); under 10 views isn't. Only the form floor changed."""
+    import pytest
+    from amend import bonus, mandates
+    deal, tok = held
+    d = get_db().one("select * from deals where id = :d", {"d": deal})
+    tier = {"type": "bonus_tiers", "metric": "views", "read_day": 1, "tiers": [{"at": 20, "cents": 1000}, {"at": 100, "cents": 3000}]}
+    assert mandates._check_conditions(get_db(), d, [tier])
+    with pytest.raises(mandates.MandateError):
+        mandates._check_conditions(get_db(), d, [{**tier, "tiers": [{"at": 9, "cents": 1000}]}])
+    r = client.post(f"/api/d/{tok}/bonus", json={"threshold": 20, "amount_cents": 1000, "read_day": 1}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    assert bonus.MIN_VIEWS == 10

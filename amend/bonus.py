@@ -32,6 +32,9 @@ class BonusError(ValueError):
     pass
 
 
+
+MIN_VIEWS = 10  # a views target from 10 views (small accounts too); the bonus money rules don't change
+
 def is_bonus(item: dict) -> bool:
     return (item.get("note") or "").startswith("bonus:")
 
@@ -102,8 +105,8 @@ def offer(db: Database, deal: dict, party_id: str, *, threshold: int, amount_cen
         raise BonusError("only the brand's main contact can offer a bonus")
     if deal["status"] not in ("accepted", "in_progress") or deal.get("posted_at"):
         raise BonusError("a bonus is agreed before the post goes up")
-    if not (1000 <= threshold <= 100_000_000) or not (1000 <= amount_cents <= 1_000_000) or not (1 <= read_day <= MAX_READ_DAY):
-        raise BonusError(f"target 1,000+ views, bonus $10 to $10,000, read on day 1 to {MAX_READ_DAY} after posting")
+    if not (MIN_VIEWS <= threshold <= 100_000_000) or not (1000 <= amount_cents <= 1_000_000) or not (1 <= read_day <= MAX_READ_DAY):
+        raise BonusError(f"target {MIN_VIEWS}+ views, bonus $10 to $10,000, read on day 1 to {MAX_READ_DAY} after posting")
     cur = get(db, deal["id"])
     if cur and cur["status"] not in ("offered",):
         raise BonusError("this deal already has an agreed bonus")

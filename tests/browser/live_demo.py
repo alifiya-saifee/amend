@@ -44,19 +44,24 @@ def shot(pg, name, full=False):
 
 def paypal_approve(pg):
     pg.wait_for_url(re.compile(r"sandbox\.paypal\.com"), timeout=60000); pg.wait_for_timeout(5000)
-    if pg.query_selector("#email"):
-        pg.fill("#email", BUYER)
-        if pg.query_selector("#btnNext") and pg.is_visible("#btnNext"):
-            pg.click("#btnNext"); pg.wait_for_timeout(3000)
-    if pg.query_selector("#password") and pg.is_visible("#password"):
-        pg.fill("#password", BUYER_PW); pg.click("#btnLogin"); pg.wait_for_timeout(7000)
-    for _ in range(6):
+    def safe(fn):  # PayPal's pages reload themselves; a read during a reload just waits for the next round
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001
+            return None
+    if safe(lambda: pg.query_selector("#email")):
+        safe(lambda: pg.fill("#email", BUYER))
+        if safe(lambda: pg.query_selector("#btnNext") and pg.is_visible("#btnNext")):
+            safe(lambda: pg.click("#btnNext")); pg.wait_for_timeout(3000)
+    if safe(lambda: pg.query_selector("#password") and pg.is_visible("#password")):
+        safe(lambda: pg.fill("#password", BUYER_PW)); safe(lambda: pg.click("#btnLogin")); pg.wait_for_timeout(7000)
+    for _ in range(8):
         if "amend-r7le.onrender.com" in pg.url:
             break
         for sel in ("[data-testid=submit-button-initial]", "#payment-submit-btn", "#consentButton", "#one-time-cta"):
-            el = pg.query_selector(sel)
-            if el and el.is_visible():
-                el.click(); break
+            el = safe(lambda: pg.query_selector(sel))
+            if el and safe(el.is_visible):
+                safe(el.click); break
         pg.wait_for_timeout(7000)
     if "amend-r7le.onrender.com" not in pg.url:
         shot(pg, "paypal-stuck")
@@ -179,6 +184,14 @@ with sync_playwright() as p:
         csv_ok = f"no download ({type(e).__name__})"
     r("2.11 map + Table", len(ids) >= 3 and "Why" in heads and bool(whys) and csv_ok is True,
       f"map ids={len(ids)}; Why column={'Why' in heads}; first why={whys[:1]}; status words={words}; csv={csv_ok}")
+    # 2.12 Rebuild from PayPal (real sandbox GETs)
+    br.goto(brand_link.split("#")[0] + "#money"); br.reload(); br.wait_for_selector("[data-rebuild]:visible", timeout=60000)
+    br.locator("[data-rebuild]:visible").first.click(); br.wait_for_selector("#rebuild-sheet .rb-line, #rebuild-sheet .banner", timeout=90000)
+    br.wait_for_timeout(1500)
+    rb = txt(br, "#rebuild-sheet"); shot(br, "2.12-rebuild")
+    lines = [" ".join(x.inner_text().split())[:170] for x in br.query_selector_all("#rebuild-sheet .rb-line")]
+    r("2.12 rebuild from PayPal", "matches Amend" in rb and "Receipt hash in PayPal custom_id = Amend" in rb,
+      rb[:200] + " || " + " | ".join(lines))
     print("deal:", creator_link.split("/")[-1].split("#")[0], flush=True)
     b.close()
 print("\nJS errors:", errs[:6] or "none")

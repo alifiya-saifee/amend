@@ -101,11 +101,11 @@ def _check_conditions(db: Database, deal: dict, conds) -> list[dict]:
             ok = isinstance(tiers, list) and 1 <= len(tiers) <= MAX_TIERS and c.get("metric") == "views" \
                 and isinstance(c.get("read_day"), int) and 1 <= c["read_day"] <= 21 \
                 and all(isinstance(x, dict) and isinstance(x.get("at"), int) and isinstance(x.get("cents"), int)
-                        and 1000 <= x["at"] <= 100_000_000 and 1000 <= x["cents"] <= 1_000_000 for x in tiers)
+                        and 10 <= x["at"] <= 100_000_000 and 1000 <= x["cents"] <= 1_000_000 for x in tiers)
             if ok:  # each tier higher than the last, in views and in money (a bonus only ever adds)
                 ok = all(a["at"] < b["at"] and a["cents"] < b["cents"] for a, b in zip(tiers, tiers[1:]))
             if not ok:
-                raise MandateError("bonus tiers: 1 to 3 tiers, each with more views and a bigger bonus ($10 to $10,000), "
+                raise MandateError("bonus tiers: 1 to 3 tiers, each with more views (10+) and a bigger bonus ($10 to $10,000), "
                                    "read on day 1 to 21 after posting")
     return conds
 
