@@ -14,8 +14,13 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rec import B, ROOT, S, signed_in_state  # noqa: E402
 
-BRIEF = ("Hi Maya! For our new Dune Roast cold brew: 1 Reel showing it at home, plus 1 Story set. "
-         "Post Friday. Start the caption with #ad and tag @duneroast.")
+# no @handle in the brief: a real Instagram account might own it, and the video shows no third-party accounts
+BRIEFS = {"A": ("Hi Maya! For our new Dune Roast cold brew: 1 Reel showing it at home, plus 1 Story set. "
+                "Post Friday. Start the caption with #ad."),
+          "B": ("Hi Maya! For our new Dune Roast cold brew: 1 Reel showing it at home. Post today. "
+                "Start the caption with #ad.")}
+WHICH = (sys.argv[1] if len(sys.argv) > 1 else "A").upper()
+BRIEF = BRIEFS[WHICH]
 OUT = ROOT / "docs" / "video" / "deals.json"
 
 with sync_playwright() as p:
@@ -44,8 +49,8 @@ with sync_playwright() as p:
     else:
         print("team: no SANDBOX_EDITOR_EMAIL in settings, skipped", flush=True)
     d = maya.request.get(f"{B}/api/deals/{deal}").json()["deal"]
-    print("deal A:", deal, "status", d["status"], "total", d["total_cents"], "deadline", d.get("deadline"), flush=True)
+    print(f"deal {WHICH}:", deal, "status", d["status"], "total", d["total_cents"], "deadline", d.get("deadline"), flush=True)
     data = json.loads(OUT.read_text()) if OUT.exists() else {}
-    data["A"] = {"deal": deal, "brand_link": link, "made": time.strftime("%Y-%m-%d %H:%M")}
+    data[WHICH] = {"deal": deal, "brand_link": link, "made": time.strftime("%Y-%m-%d %H:%M")}
     OUT.write_text(json.dumps(data, indent=1))
     b.close()

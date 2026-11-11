@@ -25,9 +25,9 @@ BUYER, BUYER_PW = S.sandbox_brand_email, S.sandbox_brand_password.get_secret_val
 
 CURSOR_JS = """
 (() => {
-  document.documentElement.style.zoom = '1.1';
   const add = () => {
-    if (document.getElementById('rec-cursor')) return;
+    if (!document.body || document.getElementById('rec-cursor')) return;
+    document.documentElement.style.zoom = '1.1';
     const c = document.createElement('div'); c.id = 'rec-cursor';
     c.style.cssText = 'position:fixed;z-index:2147483647;left:-40px;top:-40px;width:26px;height:26px;border-radius:50%;' +
       'background:rgba(232,199,122,.55);border:2px solid #b8912f;pointer-events:none;transform:translate(-50%,-50%);transition:transform .08s';
@@ -36,7 +36,7 @@ CURSOR_JS = """
     addEventListener('mousedown', () => c.style.transform = 'translate(-50%,-50%) scale(.7)', true);
     addEventListener('mouseup', () => c.style.transform = 'translate(-50%,-50%)', true);
   };
-  if (document.body) add(); else addEventListener('DOMContentLoaded', add);
+  if (document.readyState !== 'loading') add(); else addEventListener('DOMContentLoaded', add);
 })();
 """
 

@@ -705,3 +705,5 @@ html.theme-dark:has(body:not(.marketing)) { background: #0E1013; }
 .rb-na { color: var(--muted); font-weight: 700; }
 .rb-line.mismatch { border-color: var(--bad, #b3261e); }
 .rb-problems { margin: 4px 0 0 18px; padding: 0; }
+
+.chat-audio { display: block; width: 100%; max-width: 280px; height: 36px; margin-top: 6px; }

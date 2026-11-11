@@ -76,7 +76,8 @@ const Chat = (() => {
       <div class="row" style="gap:8px;margin-top:8px">${i.asked ? `<span class="pill held">You asked them</span>`
         : `<button class="btn small primary" data-act="nudge" data-id="${i.change_id}">Ask them</button>`}</div></div>`;
     if (i.type === "brief") return briefCard(i);
-    const media = i.media_url ? (i.kind === "image"
+    const media = i.media_url && i.kind === "voice" ? `<audio class="chat-audio" controls preload="none" src="${mediaUrl(i.media_url)}" aria-label="Voice note"></audio>`
+      : i.media_url ? (i.kind === "image"
       ? `<a href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><img class="chat-img" src="${mediaUrl(i.media_url)}" alt="${esc(i.meta.name || "image")}"></a>`
       : `<a class="filechip" href="${mediaUrl(i.media_url)}" target="_blank" rel="noopener"><i data-lucide='file-text' aria-hidden='true'></i> ${esc(i.meta.name || "file")}</a>`) : "";
     if (i.meta && i.meta.nudge) return `<div class="changecard"><b><i data-lucide='phone' aria-hidden='true'></i> ${esc(i.body)}</b><div class="row" style="gap:8px;margin-top:8px">
@@ -232,7 +233,7 @@ const Chat = (() => {
       const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" }); const mime = (rec.mimeType || "audio/webm").split(";")[0]; rec = null;
    $("#chat-mic").innerHTML = "<i data-lucide='mic' aria-hidden='true'></i>"; $("#chat-ai").hidden = false;
       const data = await new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(",")[1]); f.readAsDataURL(blob); });
-   try { const r = await api(`${base}/voice`, { body: { data_b64: data, mime } }); lastSig = ""; draw(r); if (r.change) toast("Change card added from your voice note"); }
+   try { const r = await api(`${base}/voice`, { body: { data_b64: data, mime } }); lastSig = ""; draw(r); if (r.change && !r.change.asked) toast("Change card added from your voice note"); }
    catch (e) { toast(e.message, "bad"); }
       $("#chat-ai").hidden = true;
     };
