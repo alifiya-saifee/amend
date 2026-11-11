@@ -52,6 +52,10 @@ def _fonts():
 FONTS = _fonts()
 
 CARD_BODIES = dict(CARD_BODIES)
+CARD_BODIES["also"] = ('<div class="kicker">Also in Amend</div>' + "".join(
+    f'<p><span class="tick">·</span> {t}</p>' for t in (
+        "Settle before a dispute", "Usage-rights extensions", "AI-content rule (Content Credentials)",
+        "Test the deal before you sign it", "Team payouts in one batch")))
 CARD_BODIES["bridge"] = ('<div class="kicker">Same flow, a delivered deal</div><h1>$450 Reel<br>+ a $30 bonus hold</h1>'
                          '<p>Maya × Dune Roast Coffee, posted on Instagram today.</p>')
 
@@ -79,8 +83,9 @@ T = [
     # B · the voice note → a priced change card
     # the voice note bubble from just under its transcript (this take's transcript repeats its first sentence: the
     # fake microphone looped; fixed since) down to "Checking the message for deal changes…"
-    ("clip", "B-voice-change-card", 23.5, 25.5, (310, 791, 744, 141), "Then the brand sends a voice note with four changes.", LB, None,
-     {"quote": "Make the Reel shorter, add subtitles, deliver tomorrow, and run it as a paid ad for 30 days.", "oy": 420}),
+    # the quote is the voice note's transcript, word for word (the take's repeated last sentence left out)
+    ("clip", "B-voice-change-card", 23.5, 26.0, (310, 791, 744, 141), "Then the brand sends a voice note with four changes.", LB, None,
+     {"quote": "Hey, can you make the reel shorter? Add subtitles, deliver tomorrow, and we'd like to run it as a paid ad for 30 days.", "oy": 420}),
     # the change card, ~4 s: its priced lines, then "Confirmed by both · applied"
     ("clip", "B-voice-change-card", 35.5, 37.7, (313, 375, 737, 496), "The AI quotes her words; code prices each line from Maya’s list: +$240.", LB),
     ("clip", "B2-maya-confirms", 10.0, 12.0, (318, 336, 744, 488), "Both confirm, and the extra comes out of the hold Nadia signed.", LB, (336, 336)),
@@ -105,7 +110,7 @@ T = [
     # G · the proof
     ("clip", "G-rebuild-from-paypal", 13.0, 14.0, (300, 156, 1320, 766), "The whole deal, rebuilt from PayPal alone…", LG),
     ("img", "B-rebuild-3.png", 2.0, "Rebuilt from PayPal: every line matches Amend.", LG),
-    ("card", "07-same-engine", 6.0, None), ("card", "08-end", 6.0, None),
+    ("card", "also", 4.0, None), ("card", "07-same-engine", 6.0, None), ("card", "08-end", 6.0, None),
 ]
 MOTION = {"01-title": V / "act1-opening.mp4", "08-end": V / "act3-closing.mp4"}
 
@@ -249,6 +254,12 @@ def build(out_name="amend-draft-5"):
             pg.set_content(overlay_html(cap, lab, lx, ly, *((q, ox, ow) if seg[0] != "card" and q else ())))
             pg.evaluate("Promise.all([document.fonts.load('600 46px Inter'), document.fonts.load('700 24px Inter')])")
             assert pg.evaluate("document.fonts.check('600 46px Inter')"), "Inter didn't load"
+            if pg.locator(".quote").count():
+                n = pg.evaluate("""(() => { const q = document.querySelector('.quote'); let px = 52;
+                    const lines = () => Math.round(q.getBoundingClientRect().height / (px * 1.3));
+                    while (lines() > 2 && px > 34) { px -= 2; q.style.fontSize = px + 'px'; } return [lines(), px] })()""")
+                assert n[0] <= 2, f"segment {i}: the quote needs {n[0]} lines"
+                print(f"  quote: {n[0]} lines at {n[1]} px")
             if cap:
                 lines = pg.evaluate("(() => { const r = document.getElementById('c').getClientRects(); return r.length })()")
                 assert lines <= 2, f"segment {i}: caption wraps to {lines} lines: {cap}"

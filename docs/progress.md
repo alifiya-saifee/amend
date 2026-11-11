@@ -1042,3 +1042,5 @@ question wasn't answered, so the recommended option was taken.
   Holding for: motion clips, Scene E, Scene F, the voiceover, her phone clip (re-film the voice note with the loop fix).
 - Draft 5 update: the voice-note shot has the brand's words as a quote above it (Inter SemiBold, white, 2 s); the
   wording is a shortened version of the transcript, not word for word. Then the change card as before.
+- Draft 5 update 2: the voice-note quote is the exact transcript (2 lines, 50 px, 2.5 s); a 4 s "Also in Amend" card
+  before "Same engine". devpost.md: "Every place AI meets PayPal" (12 rows) and "Agentic Commerce".

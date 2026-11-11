@@ -73,6 +73,33 @@ discovery with Instagram public numbers; AG Grid ledgers with CSV.
 
 ---
 
+## Every place AI meets PayPal
+
+The AI reads; code decides every amount and status; people confirm; then PayPal moves the money.
+
+| Amend does (AI reads, code decides) | PayPal does |
+|---|---|
+| Change cards from chat, voice notes and calls (each line quoted word for word, priced from the creator's list) | The change comes out of the existing hold, or the brand approves a new hold |
+| The brand's signed mandate (pre-approved extras, post window, #ad, bonus tiers) | Hold = deal + the mandate's cap; the unused part is released |
+| Reads the Instagram post and its caption, then a signed delivery verdict | Capture only after the signed verdict passes |
+| Release: the creator's share, her team's shares and the holdback | Final capture, one Payouts batch, the holdback paid later |
+| Rebuild from PayPal: the whole money timeline from PayPal's answers | GETs only (orders, authorizations, captures, refunds, payouts), compared with Amend line by line |
+| Instagram's view count picks the bonus tier | A separate bonus hold: captured if a tier is met, voided if not |
+| A dispute webhook → a signed evidence pack from the receipt chain | Provide-evidence on the dispute |
+| The AI summarises each side's position (quotes only), code proposes the split | Settle before a dispute: partial capture with final_capture, the rest goes back to the brand |
+| Usage-rights extension, priced from the deal's usage rate | A new hold → capture → payout |
+| Content Credentials read in the browser + the creator's AI declaration | The AI-content rule can block release (when it's in the brand's signed mandate) |
+| The AI writes possible futures of the deal | The deal simulator runs them on the real rules against a fake PayPal: nothing touches PayPal |
+| Team splits, with a refund rule chosen when the team is set | One Payouts batch for the creator and her team |
+
+## Agentic Commerce
+
+The brand's signed mandate is AP2-style consent: within it, changes apply without a new tap from the brand (the creator
+still confirms), and PayPal's hold enforces the cap. Agents can propose, never confirm. Next: an MCP server so outside
+agents can read deals and propose change cards.
+
+---
+
 ## PayPal APIs used
 
 | API | What Amend uses it for |
