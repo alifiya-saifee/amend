@@ -67,9 +67,14 @@ def compare(brand: str | None, p: dict) -> dict:
     return {**out, "result": "mismatch", "text": f"Paid by {who}: the brief says {brand}. Check before you start."}
 
 
-def record(db, item: dict, brand: str | None, order: dict | None, *, actor: str) -> dict:
-    """Compare and log it in the receipt chain, once per hold. Never raises into the money path's caller."""
+def record(db, item: dict, brand: str | None, order: dict | None, *, actor: str, demo: bool = False) -> dict:
+    """Compare and log it in the receipt chain, once per hold. Never raises into the money path's caller.
+    A /try deal is always paid by the sandbox buyer, so it gets a neutral line instead of a comparison."""
     c = compare(brand, extract(order))
+    if demo:
+        who = c.get("payer")
+        c = {**c, "result": "demo",
+             "text": f"Held by PayPal account {who} (sandbox buyer for this demo)" if who else "Held by PayPal (sandbox buyer for this demo)"}
     db.log_event("paypal.payer_checked", actor=actor, deal_id=item["deal_id"],
                  payload={"item": item["id"], **{k: c[k] for k in ("result", "payer", "email_domain", "brand", "text")}},
                  key=f"paypal.payer_checked:{item['id']}")

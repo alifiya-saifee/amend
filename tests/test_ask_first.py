@@ -17,8 +17,9 @@ STORY = {"kind": "change", "lines": [{"item_code": "story_set", "qty_delta": 1, 
          "quote": "Add one more Story set"}
 TOMORROW = (datetime.now(timezone.utc) + timedelta(days=1)).date().isoformat()
 MULTI = {"kind": "change", "lines": [], "fields": [{"field": "post_date", "value": TOMORROW, "quote": "deliver tomorrow"}],
-         "specs": [{"what": "Shorter Reel", "quote": "Make the Reel shorter"}, {"what": "Subtitles", "quote": "add subtitles"}],
-         "not_on_list": [{"what": "Paid ad use for 30 days", "quote": "run it as a paid ad for 30 days"}],
+         "mentions": [{"what": "Shorter Reel", "quote": "Make the Reel shorter", "scope": "within_agreed"},
+                      {"what": "Subtitles", "quote": "add subtitles", "scope": "new_work"},
+                      {"what": "Paid ad use for 30 days", "quote": "run it as a paid ad for 30 days", "scope": "new_work"}],
          "quote": "Make the Reel shorter"}
 LONG = "Make the Reel shorter, add subtitles, deliver tomorrow, and run it as a paid ad for 30 days"
 
@@ -109,37 +110,37 @@ def test_voice_note_asks_the_sender_too(client, mocks, held):
 
 
 def test_one_message_several_lines_unpriced_marked(client, mocks, held):
+    """Sara's list has no Subtitles item: it's new work she prices, never $0. "Paid ad" names her usage item."""
     deal, tok = held
     says(mocks, MULTI)
     c = brand_says(client, tok, LONG, send=False)["change"]
     labels = {l["label"]: l for l in c["lines"]}
-    assert labels["Shorter Reel"]["amount_cents"] == 0 and labels["Shorter Reel"]["source"] == "no extra cost"
-    assert labels["Subtitles"]["spec"]
-    paid = labels["Paid ad use for 30 days"]
-    assert paid["unpriced"] and paid["source"].startswith("not on ") and paid["source"].endswith("'s price list")
-    assert any(l.get("field") == "post_date" for l in c["lines"])  # the date line, priced by the notice rule
-    assert c["delta_cents"] == sum(l["amount_cents"] for l in c["lines"])  # unpriced never adds money
-    s = client.post(f"/api/d/{tok}/changes/{c['id']}/send", json={}, headers=ORIGIN).json()["change"]
-    client.post(f"/api/deals/{deal}/changes/{s['id']}/confirm", json={}, headers=ORIGIN)
-    specs = {f["value"] for f in get_db().all("select value from facts where deal_id = :d and field = 'spec'", {"d": deal})}
-    assert specs == {"Shorter Reel", "Subtitles"}  # $0 spec lines recorded with their quotes; the unpriced item isn't
+    assert labels["Shorter Reel"]["amount_cents"] == 0 and labels["Shorter Reel"]["source"] == "no extra cost (within what's agreed)"
+    subs = labels["Subtitles"]
+    assert subs["unpriced"] and subs["source"] == "not on Sara's price list · Sara adds a price"
+    assert any(l.get("item_code") == "usage_rights" and l["amount_cents"] == 15000 for l in c["lines"])  # her "Usage rights (brand ads)"
+    assert any(l.get("field") == "post_date" for l in c["lines"])
+    assert c["delta_cents"] == sum(l["amount_cents"] for l in c["lines"])
 
 
-def test_only_unpriced_cannot_be_sent(client, mocks, held):
+def test_only_unpriced_can_be_sent_and_waits_for_her_price(client, mocks, held):
     deal, tok = held
-    says(mocks, {"kind": "change", "not_on_list": [{"what": "Paid ad use for 30 days", "quote": "run it as a paid ad for 30 days"}],
-                 "quote": "run it as a paid ad for 30 days"})
-    c = brand_says(client, tok, "Can you run it as a paid ad for 30 days?", send=False)["change"]
+    says(mocks, {"kind": "change", "mentions": [{"what": "Subtitles", "quote": "add subtitles", "scope": "new_work"}],
+                 "quote": "add subtitles"})
+    c = brand_says(client, tok, "Could you add subtitles?", send=False)["change"]
     assert c["only_unpriced"] and c["delta_cents"] == 0
-    r = client.post(f"/api/d/{tok}/changes/{c['id']}/send", json={}, headers=ORIGIN)
-    assert r.status_code == 400 and "price list" in r.json()["detail"]
+    s = client.post(f"/api/d/{tok}/changes/{c['id']}/send", json={}, headers=ORIGIN).json()["change"]
+    assert s["status"] == "previewed"
+    r = client.post(f"/api/deals/{deal}/changes/{c['id']}/confirm", json={}, headers=ORIGIN)
+    assert r.status_code == 400 and "add a price" in r.json()["detail"]
 
 
 def test_ai_quotes_must_be_in_the_message():
     import pytest
     from amend import ai
     with pytest.raises(ai.DraftRejected):
-        changes.validate({"kind": "change", "specs": [{"what": "Subtitles", "quote": "with captions"}], "quote": ""}, LONG, {"reel"})
+        changes.validate({"kind": "change", "mentions": [{"what": "Subtitles", "quote": "with captions", "scope": "new_work"}],
+                          "quote": ""}, LONG, {"reel"})
 
 
 def test_no_notification_until_sent(client, mocks, held, monkeypatch):

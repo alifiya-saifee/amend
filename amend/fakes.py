@@ -124,7 +124,16 @@ async def fake_call_json(system: str, user: str, **kw):
         m = re.search(r"\bpost (?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
         if m:
             fields.append({"field": "post_date", "value": m.group(1).title(), "quote": _q(text, "post")}); kind = "change" if kind == "none" else kind
-        return AIResult({"kind": kind, "lines": lines, "fields": fields, "quote": text.strip()[:200]}, "fake", 1, False)
+        mentions = []  # "Make the Reel shorter, add subtitles, … run it as a paid ad for 30 days" (local screenshots only)
+        clause = lambda w: next((c.strip() for c in re.split(r",|;|[.!?]|\band\b", text) if w in c.lower()), None)  # word for word
+        for word, what, scope in (("shorter", "Shorter Reel", "within_agreed"), ("subtitle", "Subtitles", "new_work"),
+                                  ("paid ad", "Paid-ad usage (30 days)", "new_work"), ("voiceover", "Voiceover", "new_work")):
+            if word in low and (q := clause(word)):
+                mentions.append({"what": what, "quote": q, "scope": scope}); kind = "change" if kind == "none" else kind
+        if "tomorrow" in low and (q := clause("tomorrow")):
+            from datetime import date as _d, timedelta as _td
+            fields.append({"field": "post_date", "value": (_d.today() + _td(days=1)).isoformat(), "quote": q}); kind = "change" if kind == "none" else kind
+        return AIResult({"kind": kind, "lines": lines, "fields": fields, "mentions": mentions, "quote": text.strip()[:200]}, "fake", 1, False)
     if "describes a campaign" in system:  # Discovery v2 (B): rule-based reading, every quote taken from the text
         camp = user.split("Campaign:\n", 1)[-1]
         lowc = camp.lower()

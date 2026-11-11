@@ -61,6 +61,8 @@ async def lifespan(_app):
     except Exception as e:  # never stops the app starting
         log.warning("judge demo history not seeded: %s", type(e).__name__)
     ensure_test_creator(d)  # "Test creator · @clinicrobotest": real Instagram numbers only; Sara stays demo-only
+    from scripts.seed import ensure_extra_items
+    ensure_extra_items(d)  # subtitles + paid-ad usage + Reel lengths on the demo creator's and Maya's lists (idempotent)
     try:  # connected real creators (Maya): her Instagram numbers on her card, once a day (never blocks start-up)
         from amend import iglookup as _igl
         _igl.sync_connected(d)
@@ -2993,6 +2995,19 @@ async def _send(deal: dict, party_id: str, body: str) -> dict:
     if paused:
         return {"message": m["id"], "paused": True, **_chat(paused, party_id)}
     out = await _detect(deal, party_id, body, f"chat:{m['id']}", m["id"])
+    if changes.typed_price(body) and not out.get("change"):  # the AI never sets a price: say where prices come from
+        d, first = get_db(), changes._creator_first(get_db(), deal)
+        side = changes.side_of(d, deal, party_id)
+        if deal["status"] in ("draft", "offered") and side == "brand":
+            note = (f"To offer a different price, tap “Offer a different price” on a line of the offer. {first} can accept, "
+                    "counter or decline it.")
+        elif deal["status"] not in ("draft", "offered"):
+            note = f"Prices come from {first}'s price list. Ask {first} if you'd like a different price."
+        else:
+            note = None
+        if note:
+            changes.post_message(d, deal["id"], None, note, kind="system")
+            out["price_note"] = note
     return {"message": m["id"], **out, **_chat(deals.get_deal(get_db(), deal["id"]), party_id)}
 
 
@@ -3068,14 +3083,17 @@ async def creator_upload(deal_id: str, body: UploadIn, c: dict = Depends(require
 class ActIn(BaseModel):
     reason: str | None = Field(None, max_length=300)
     qty: int | None = Field(None, ge=-10, le=10)
+    line: int | None = Field(None, ge=0, le=20)                        # "Creator: add a price" on this line
+    amount_cents: int | None = Field(None, ge=1, le=10_000_00)
 
 
-async def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, qty: int | None = None) -> dict:
+async def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | None, qty: int | None = None,
+               line: int | None = None, amount_cents: int | None = None) -> dict:
     d = get_db()
     if not d.one("select id from changes where id = :c and deal_id = :d", {"c": cid, "d": deal["id"]}):
         raise HTTPException(404, "change not found")
     try:
-        card = changes.act(d, cid, party_id, action, reason=reason, qty=qty)
+        card = changes.act(d, cid, party_id, action, reason=reason, qty=qty, line=line, amount_cents=amount_cents)
     except changes.ChangeError as e:
         raise HTTPException(400, str(e))
     if action == "send":  # the card now exists for the other side: tell them, as a card made straight from words was before
@@ -3089,12 +3107,12 @@ async def _act(deal: dict, party_id: str, cid: str, action: str, reason: str | N
 
 @app.post("/api/d/{token}/changes/{cid}/{action}")
 async def brand_act(token: str, cid: str, action: str, body: ActIn):
-    return await _act(*_brand_ctx(token), cid, action, body.reason, body.qty)
+    return await _act(*_brand_ctx(token), cid, action, body.reason, body.qty, body.line, body.amount_cents)
 
 
 @app.post("/api/deals/{deal_id}/changes/{cid}/{action}")
 async def creator_act(deal_id: str, cid: str, action: str, body: ActIn, c: dict = Depends(require_creator)):
-    return await _act(*_creator_ctx(deal_id, c), cid, action, body.reason, body.qty)
+    return await _act(*_creator_ctx(deal_id, c), cid, action, body.reason, body.qty, body.line, body.amount_cents)
 
 
 class InviteIn(BaseModel):

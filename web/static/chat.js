@@ -126,9 +126,9 @@ const Chat = (() => {
         <button class="q" data-quote="${esc(l.quote)}" data-who="You" title="The exact words" aria-label="Show the exact words"><i data-lucide='quote' aria-hidden='true'></i></button></div>`).join("")}</div>
       <div class="row between" style="margin-top:6px"><span class="small">Total change</span><b class="num">${c.delta_cents ? total : "$0"}</b></div>
       ${c.conflicts.map(x => `<div class="conflict"><i data-lucide='triangle-alert' aria-hidden='true'></i> ${esc(x)}</div>`).join("")}
-      ${c.only_unpriced ? `<p class="small" style="margin:8px 0 0">Not on the price list yet: ask for a price in the chat first.</p>` : ""}
+      ${c.lines.some(l => l.unpriced) ? `<p class="small" style="margin:8px 0 0">Lines with no price: ${isBrand ? "the creator adds a price after you send it" : "you add a price after you send it"}; then you both confirm.</p>` : ""}
       <div class="row wrapx" style="margin-top:10px;gap:8px">
-        ${c.only_unpriced ? "" : `<button class="btn primary small" data-act="send" data-id="${c.id}">Send change card</button>`}
+        <button class="btn primary small" data-act="send" data-id="${c.id}">Send change card</button>
         <button class="btn small" data-act="edit" data-id="${c.id}" data-body="${esc(c.message_body || "")}">Edit</button>
         <button class="btn small" data-act="dismiss" data-id="${c.id}">Just a message</button></div>
       <div class="tiny muted" style="margin-top:6px">Only you see this. Sending it counts as your confirmation; ${isBrand ? "the creator" : "the brand"} confirms next.</div>
@@ -146,6 +146,11 @@ const Chat = (() => {
       ${c.suggestion ? `<p class="small muted">From ${esc(c.proposed_by || "a teammate")}. Suggestions can't move money until the brand's main contact proposes them.</p>` : ""}
       <div class="list">${c.lines.map(l => `<div class="line"><div class="grow">${esc(l.label)}
           ${l.source ? `<div class="tiny muted">${esc(l.source)}${l.second != null ? ` · at ${Math.floor(l.second / 60)}:${String(Math.round(l.second % 60)).padStart(2, "0")} in the call` : ""}</div>` : ""}
+          ${l.unpriced && open && !c.suggestion ? (isBrand ? `<div class="tiny" style="margin-top:4px">Waiting for the creator to add a price</div>`
+            : `<div class="row wrapx" style="gap:6px;margin-top:6px"><span class="small">$</span><input class="price-in" type="number" min="1" step="1" inputmode="numeric"
+                 style="width:90px" aria-label="Your price for ${esc(l.label)} in USD" data-line="${c.lines.indexOf(l)}">
+               <button class="btn small primary" data-act="price" data-id="${c.id}" data-line="${c.lines.indexOf(l)}">Add price</button>
+               <button class="btn small" data-act="drop" data-id="${c.id}" data-line="${c.lines.indexOf(l)}">Not offered</button></div>`) : ""}
           ${l.choices && open && !c.suggestion ? `<div class="row wrapx" style="gap:6px;margin-top:6px">${l.choices.map(ch =>
             `<button class="btn small" data-act="choose" data-qty="${ch.qty}" data-id="${c.id}">${esc(ch.label)} · −${usd(Math.abs(ch.amount_cents))}</button>`).join("")}</div>` : ""}</div>
           <div class="amt cc-amt ${l.unpriced ? "" : l.amount_cents > 0 ? "plus" : l.amount_cents < 0 ? "minus" : ""}">${lineAmt(l)}</div>
@@ -157,6 +162,7 @@ const Chat = (() => {
       ${open ? `<div class="row wrapx" style="margin-top:10px;gap:8px">
           ${c.suggestion ? (isBrand ? `<button class="btn primary small" data-act="propose" data-id="${c.id}">Propose this change</button>` : "")
             : c.lines.some(l => l.choices) ? `<span class="pill waiting">Pick one above · nothing moves until you both confirm it</span>`
+            : c.lines.some(l => l.unpriced) ? `<span class="pill waiting">Waiting for a price · then you both confirm</span>`
             : (iOk ? `<span class="pill held">You confirmed</span>` : `<button class="btn primary small" data-act="confirm" data-id="${c.id}" data-conflict="${c.conflicts.length && !isBrand && !c.override_reason ? 1 : 0}">Confirm</button>`)}
           <button class="btn small" data-act="discuss" data-id="${c.id}">Discuss</button>
           <button class="btn small danger" data-act="reject" data-id="${c.id}">Reject</button>
@@ -175,13 +181,20 @@ const Chat = (() => {
       if (!reason) return;
     }
     if (action === "discuss") { $("#chat-in").focus(); }
+    let line = b.dataset.line != null ? +b.dataset.line : null, amount_cents = null;
+    if (action === "price") {
+      const v = +((b.closest(".row") || document).querySelector(".price-in") || {}).value;
+      if (!(v > 0)) { toast("Enter your price in USD", "bad"); return; }
+      amount_cents = Math.round(v * 100);
+    }
     await busy(b, async () => {
       try {
-        const r = await api(`${base}/changes/${id}/${action}`, { body: { reason, qty: b.dataset.qty ? +b.dataset.qty : null } });
+        const r = await api(`${base}/changes/${id}/${action}`, { body: { reason, qty: b.dataset.qty ? +b.dataset.qty : null, line, amount_cents } });
         lastSig = ""; draw(r);
         if (action === "edit") { const box = $("#chat-in"); box.value = b.dataset.body || ""; box.focus(); $("#chat-send").disabled = !box.value.trim(); }
         if (action === "send") toast(`Change card sent · ${isBrand ? "the creator" : "the brand"} confirms next`);
         if (action === "nudge") toast("Asked them to send it as a card");
+        if (action === "price") toast("Price added · you both confirm the new total");
     if (r.change && r.change.status === "applied") { toast("Confirmed by both · applied"); if (onApplied) onApplied(); }
    } catch (e) { toast(e.message, "bad"); }
     });

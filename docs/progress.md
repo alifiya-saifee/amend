@@ -955,3 +955,28 @@ question wasn't answered, so the recommended option was taken.
   older tests now tap Send change card. Browser `tests/browser/ask_first.py` and `try_path.py` at 390 + 1440: problems
   none, no JS errors. Shots in `docs/screenshots/ask-first/`. **Tests: 890 passed, 3 skipped.**
 - Open: 3.9 (a typed price gets no reply) not changed.
+
+## Who prices what (11 Nov, after deploying b8c4e80)
+1. **$0 only inside what's agreed.** The AI now labels each request "within_agreed" or "new_work" (with a quote);
+   code decides. On the creator's price list → priced from the list (her items' "match" words, or standard ones for
+   `usage_rights` / `subtitles`). "within_agreed" with a quote → $0 "no extra cost (within what's agreed)", unless the
+   words are new work (subtitles, extra edit, paid ad, voiceover, translation…: never $0). A shorter Reel below her
+   minimum length is a clash she decides (override with a reason, or reject); longer than her maximum is new work.
+   Anything else → "not on <creator>'s price list · <creator> adds a price", never $0.
+2. Demo creator's list: Subtitles $10, Paid-ad usage (30 days) $15, Reel 15–30 s (the long message stays ≤ $100).
+   Maya: Subtitles $40, Reel 15–30 s; her existing "Usage rights (brand ads)" is what "paid ad" names (not
+   duplicated). Added at start-up and when the /try creator is made (idempotent).
+   "Make the Reel shorter, add subtitles, deliver tomorrow, and run it as a paid ad for 30 days" → one fully priced
+   card: date +$5, Shorter Reel free, Subtitles +$10, Paid-ad usage +$15 = +$30.
+3. **Creator: add a price.** On a sent card, an unpriced line shows "$ [ ] Add price · Not offered" to the creator
+   ("Waiting for the creator to add a price" to the brand). A price makes it a line at her price (kept as a hidden
+   item on her list) and **both confirm again**; nobody can confirm while a line has no price. "Not offered" removes
+   the line. An unpriced-only request can now be sent.
+4. **Typed prices** (code spots "$5", "500 AED"…): before acceptance the brand is pointed to "Offer a different
+   price"; after acceptance: "Prices come from <creator>'s price list. Ask <creator> if you'd like a different price."
+5. **/try who paid:** "Held by PayPal account <name> (sandbox buyer for this demo)", no comparison.
+- Tests: `tests/test_pricing_rules.py` (14: subtitles never free, extra edit, shorter within limit, shorter below
+  minimum, longer = new work, on the list = priced, add a price → both confirm, not offered, typed price before /
+  after acceptance, price spotting, /try line, demo lists price the long message within $100). Browser
+  `tests/browser/pricing_rules.py` 390 + 1440: problems none, no JS errors; shots in `docs/screenshots/pricing/`.
+  **Tests: 903 passed, 3 skipped.**

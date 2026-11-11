@@ -42,7 +42,7 @@ EVENT_TYPES = {
     # webhooks (Phase 2)
     "webhook.verified", "webhook.rejected", "webhook.duplicate", "webhook.applied",
     # chat and changes (Phase 3)
-    "message.sent", "message.imported", "change.previewed", "change.asked", "change.sent", "change.edited", "change.dismissed", "change.nudged", "change.discussed", "change.reminded", "change.override",
+    "message.sent", "message.imported", "change.previewed", "change.asked", "change.sent", "change.edited", "change.dismissed", "change.nudged", "change.priced", "change.line_dropped", "change.discussed", "change.reminded", "change.override",
     "feedback.classified", "teammate.invited", "change.suggested",
     # discovery and briefs (Phase 4–5)
     "profile.saved", "metrics.saved", "metrics.read_from_screenshot", "brief.field_countered", "brief.field_agreed", "brief.accepted_all",

@@ -331,8 +331,8 @@ async def finish_hold(db: Database, rail: PlatformRail, item_id: str, order_id: 
                      key=f"paypal.authorize:{item_id}")
     try:  # who paid: a hint for the creator, compared by code; never blocks or changes money
         from amend import payer
-        deal = db.one("select brand_org from deals where id = :d", {"d": item["deal_id"]}) or {}
-        payer.record(db, item, deal.get("brand_org"), r.get("order"), actor="system")
+        deal = db.one("select brand_org, is_try from deals where id = :d", {"d": item["deal_id"]}) or {}
+        payer.record(db, item, deal.get("brand_org"), r.get("order"), actor="system", demo=bool(deal.get("is_try")))
     except Exception as e:  # noqa: BLE001  the hold is already safe; the hint is optional
         db.log_event("paypal.error", actor="system", deal_id=item["deal_id"], payload={"item": item_id, "call": "payer_check", "error": type(e).__name__})
     return get_item(db, item_id)

@@ -64,16 +64,18 @@ class FieldChange(BaseModel):
 
 
 class Mention(BaseModel):
+    """Something the message asks for that isn't a price-list line. The AI only says which kind; code decides the price."""
     what: str = Field(min_length=1, max_length=80)
     quote: str
+    scope: str = Field(pattern="^(within_agreed|new_work)$")
+    seconds: int | None = Field(None, ge=1, le=600)  # a new length, when the words give one
 
 
 class ChangeOut(BaseModel):
     kind: str = Field(pattern="^(none|change|revision|new_work)$")
     lines: list[LineDelta] = []
     fields: list[FieldChange] = []
-    specs: list[Mention] = []        # how existing work is made (shorter Reel, subtitles): no extra cost
-    not_on_list: list[Mention] = []  # something new that isn't on the creator's price list: never priced by the AI
+    mentions: list[Mention] = []
     quote: str = ""
 
 
@@ -82,14 +84,15 @@ Reply with ONE JSON object only:
 {"kind": "none" | "change" | "revision" | "new_work",
  "lines": [{"item_code": "<code from the price list>", "qty_delta": <int, + adds, - removes>, "quote": "<exact words>"}],
  "fields": [{"field": "post_date", "value": "<YYYY-MM-DD or weekday name>", "quote": "<exact words>"}],
- "specs": [{"what": "<short, e.g. Shorter Reel>", "quote": "<exact words>"}],
- "not_on_list": [{"what": "<short, e.g. Paid ad use for 30 days>", "quote": "<exact words>"}],
+ "mentions": [{"what": "<short, e.g. Shorter Reel>", "quote": "<exact words>", "scope": "within_agreed" | "new_work",
+               "seconds": <whole seconds, only when the words give a new length>}],
  "quote": "<the exact words that make the change>"}
 - "revision": feedback on a draft that adjusts existing work (brighter colours, shorter intro). No lines.
 - "new_work": feedback asking for something new on a draft (a new scene, a new location): one line with the item code.
 - "change": adds or removes deliverables, or moves the posting date. One message can hold several of these: list every one.
-- "specs": how the agreed work is made (shorter, subtitles, a colour) when it isn't a draft revision. No price.
-- "not_on_list": something new the message asks for that has no item code in the price list (e.g. paid ad use). No price.
+- "mentions": anything else the message asks for that no item code fits. "within_agreed" only for adjusting work
+  already agreed, inside what was agreed (a shorter Reel, a colour). Anything new is "new_work" (subtitles, an extra
+  edit, paid ad use, a new scene). If an item code fits, put it in "lines" instead. Never give a price.
 - "none": chit-chat, questions, thanks.
 Never set prices or totals. Every quote must be copied word for word from the message. Only use item codes from the list."""
 
@@ -113,7 +116,7 @@ def validate(data: dict, message: str, codes: set[str]) -> ChangeOut:
             raise ai.DraftRejected(f"unknown item code {l.item_code!r}")
         if l.qty_delta == 0:
             raise ai.DraftRejected("a line must add or remove something")
-    for x in [*out.lines, *out.fields, *out.specs, *out.not_on_list]:
+    for x in [*out.lines, *out.fields, *out.mentions]:
         if not engine.quote_in(x.quote, message):
             raise ai.DraftRejected(f"quote not in the message: {x.quote!r}")
     if out.kind != "none" and out.quote and not engine.quote_in(out.quote, message):
@@ -344,7 +347,7 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
           existing: dict | None = None, ask: str | None = None) -> dict | None:
     """Price the AI's reading with code, build the ripple, and save the change card. None when nothing changes."""
     today = today or datetime.now(timezone.utc).date()
-    if out.kind == "none" or (not out.lines and not out.fields and not out.specs and not out.not_on_list and out.kind != "revision"):
+    if out.kind == "none" or (not out.lines and not out.fields and not out.mentions and out.kind != "revision"):
         return None
     side = side_of(db, deal, proposer)
     if side == "other":
@@ -352,6 +355,7 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
     plist = {p["code"]: p for p in engine.price_items(db, deal["creator_id"])}
     cur = {l["item_code"]: l for l in _current_lines(db, deal)}
     lines, ripple_changes, delta = [], [], 0
+    rip_extra_conflicts: list[str] = []
     if out.kind == "revision":
         reel = plist.get("reel") or {}
         included = (reel.get("rules") or {}).get("included_revisions", 0)
@@ -412,15 +416,39 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         delta += fee
         ripple_changes.append({"fact_id": None, "delta_cents": fee, "field": "post_date", "value": new_d.isoformat(),
                                "quote": f.quote})
-    for m in out.specs:  # $0: how the agreed work is made; recorded with its quote when both confirm
+    first = _creator_first(db, deal)
+    have_codes = {l.get("item_code") for l in lines}
+    for m in out.mentions:  # code decides: on the price list → its price; inside what's agreed → $0; else she prices it
+        item = match_item(f"{m.what} {m.quote}", plist)
+        if item and item["code"] not in have_codes:
+            unit = item["standard_cents"] or 0
+            lines.append({"label": f"+ 1 {item['name']}", "item_code": item["code"], "qty_delta": 1, "amount_cents": unit,
+                          "quote": m.quote, "source": f"Price from {first}'s list"})
+            delta += unit
+            have_codes.add(item["code"])
+            ripple_changes.append({"fact_id": None, "delta_cents": unit, "field": "deliverable", "quote": m.quote})
+            continue
+        if item:
+            continue
+        reel = (plist.get("reel") or {}).get("rules") or {}
+        if m.scope == "within_agreed" and not looks_new(f"{m.what} {m.quote}") and m.quote:
+            if m.seconds and reel.get("min_seconds") and m.seconds < reel["min_seconds"]:
+                msg = f"{m.what}: {m.seconds} s is shorter than {first}'s minimum Reel length ({reel['min_seconds']} s)"
+                lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
+                              "source": f"below {first}'s minimum: {first} decides", "spec": True, "seconds": m.seconds})
+                rip_extra_conflicts.append(msg)
+                continue
+            if not (m.seconds and reel.get("max_seconds") and m.seconds > reel["max_seconds"]):
+                lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
+                              "source": "no extra cost (within what's agreed)", "spec": True,
+                              **({"seconds": m.seconds} if m.seconds else {})})
+                continue
         lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
-                      "source": "no extra cost", "spec": True})
-    for m in out.not_on_list:  # never priced: not part of the change until the creator puts a price on it
-        lines.append({"label": m.what, "item_code": None, "qty_delta": 0, "amount_cents": 0, "quote": m.quote,
-                      "source": f"not on {_creator_first(db, deal)}'s price list", "unpriced": True})
+                      "source": f"not on {first}'s price list · {first} adds a price", "unpriced": True})
     if not lines:
         return None
     rip = engine.ripple(db, deal["id"], ripple_changes)
+    rip.conflicts.extend(x for x in rip_extra_conflicts if x not in rip.conflicts)  # e.g. shorter than her minimum
     for l in lines:  # banned claims in the message
         for c in engine.limit_conflicts(db, deal["id"], [{"quote": message}]):
             if c not in rip.conflicts:
@@ -454,6 +482,40 @@ def build(db: Database, deal: dict, out: ChangeOut, *, message: str, proposer: s
         return db.one("select * from changes where id = :id", {"id": cid})
     from amend import mandates  # inside the brand's signed mandate → the brand's confirmation, signed in advance
     return mandates.pre_confirm(db, deal, db.one("select * from changes where id = :id", {"id": cid}))
+
+
+# new work, whatever the AI calls it: never "no extra cost" (code decides; the AI only labels)
+NEW_WORK_WORDS = ("subtitle", "voiceover", "voice-over", "voice over", "paid ad", "paid-ad", "ads ", "whitelist", "boost",
+                  "raw footage", "extra edit", "another edit", "second edit", "translat", "new scene", "usage", "licen",
+                  "additional", "another reel", "extra reel", "extra story", "another story")
+CODE_WORDS = {"usage_rights": ["paid ad", "paid-ad", "ads", "whitelist", "boost", "usage"], "subtitles": ["subtitle"]}
+_STOP = {"extra", "additional", "new", "package", "posting", "date", "change", "fee", "with", "from", "rights", "brand"}
+
+
+_PRICE = re.compile(r"(\$|usd|aed|dhs?)\s?\d|\d[\d,.]*\s?(\$|usd|aed|dhs?|dollars?|dirhams?)\b", re.I)
+
+
+def typed_price(text: str) -> bool:
+    """A price typed in the chat ("do it for $5", "500 AED"). Code only."""
+    return bool(_PRICE.search(text or ""))
+
+
+def looks_new(text: str) -> bool:
+    t = f" {text.lower()} "
+    return any(w in t for w in NEW_WORK_WORDS)
+
+
+def match_item(text: str, plist: dict) -> dict | None:
+    """An extra on her price list that the words name (its own "match" words, or the main word of its name). Code only."""
+    t = f" {re.sub(r'[^a-z0-9 ]+', ' ', text.lower())} "
+    for p in plist.values():
+        if p["kind"] in ("rule", "deliverable", "package") or p.get("hidden") or not p.get("active", 1):
+            continue
+        words = ((p.get("rules") or {}).get("match") or CODE_WORDS.get(p["code"])
+                 or [w for w in re.findall(r"[a-z]{4,}", re.sub(r"\(.*?\)", "", p["name"].lower())) if w not in _STOP][:1])
+        if any(f" {w}" in t for w in words):
+            return p
+    return None
 
 
 NUM_WORDS = {"one": 1, "single": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
@@ -525,7 +587,54 @@ def _pending_hold(db: Database, c: dict) -> dict | None:
     return {"id": h["id"], "amount_cents": h["amount_cents"]} if h else None
 
 
-def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str | None = None, qty: int | None = None) -> dict:
+def _out_from_lines(c: dict, lines: list[dict], forced: dict | None = None) -> ChangeOut:
+    """The card's lines back into the AI's shape (to re-price the same card with code)."""
+    forced = forced or {}
+    rev = c["kind"] == "revision"
+    return ChangeOut(
+        kind=c["kind"], quote=c["quote"] or "",
+        lines=[LineDelta(item_code=l["item_code"], qty_delta=forced.get(l["item_code"], l["qty_delta"]) or -1, quote=l["quote"])
+               for l in lines if l.get("item_code") and l.get("item_code") != "date_change" and not l.get("field")
+               and not (rev and l.get("item_code") == "extra_revision")],
+        fields=[FieldChange(field="post_date", value=l["value"], quote=l["quote"]) for l in lines if l.get("field") == "post_date"],
+        mentions=[Mention(what=l["label"], quote=l["quote"], scope="within_agreed" if l.get("spec") else "new_work",
+                          seconds=l.get("seconds")) for l in lines if l.get("spec") or l.get("unpriced")])
+
+
+def _price_line(db: Database, c: dict, deal: dict, party_id: str, side: str, action: str, line: int | None,
+                amount_cents: int | None) -> dict:
+    """"Creator: add a price": the line joins the card at her price, and both confirm again as usual.
+    "Not offered": the line leaves the card. Only the creator, only on a sent card, only unpriced lines."""
+    if side != "creator":
+        raise ChangeError(f"only {_creator_first(db, deal)} can price this")
+    if c["status"] != "previewed":
+        raise ChangeError("send the change card first")
+    lines = json.loads(c["lines_json"] or "[]")
+    if line is None or not 0 <= line < len(lines) or not lines[line].get("unpriced"):
+        raise ChangeError("pick a line that has no price yet")
+    if action == "drop":
+        gone = lines.pop(line)
+        db.update("changes", "id", c["id"], {"lines_json": json.dumps(lines)})
+        db.log_event("change.line_dropped", actor=party_id, deal_id=deal["id"], payload={"change": c["id"], "what": gone["label"]})
+        return db.one("select * from changes where id = :id", {"id": c["id"]})
+    if not amount_cents or amount_cents <= 0 or amount_cents > 10_000_00:
+        raise ChangeError("enter a price above $0")
+    code = f"custom_{c['id'][-8:]}_{line}"
+    if not db.one("select id from price_items where creator_id = :c and code = :k", {"c": deal["creator_id"], "k": code}):
+        db.insert("price_items", {"id": new_id("pi"), "creator_id": deal["creator_id"], "code": code, "name": lines[line]["label"][:80],
+                                  "kind": "extra", "min_cents": amount_cents, "max_cents": amount_cents, "standard_cents": amount_cents,
+                                  "unit": "item", "rules_json": json.dumps({"note": "Priced in a change card"}), "hidden": 1,
+                                  "active": 1, "created_at": now()})
+    lines[line] = {**lines[line], "item_code": code, "qty_delta": 1, "unpriced": False}
+    build(db, deal, _out_from_lines(c, lines), message=c["quote"] or "", proposer=c["proposed_by"], source=c["source"],
+          message_id=c["message_id"], existing=c)
+    db.update("changes", "id", c["id"], {"confirmed_brand_at": None, "confirmed_creator_at": None})  # a new price: both confirm again
+    db.log_event("change.priced", actor=party_id, deal_id=deal["id"], payload={"change": c["id"], "amount_cents": amount_cents})
+    return db.one("select * from changes where id = :id", {"id": c["id"]})
+
+
+def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str | None = None, qty: int | None = None,
+        line: int | None = None, amount_cents: int | None = None) -> dict:
     c = db.one("select * from changes where id = :id", {"id": change_id})
     if not c:
         raise ChangeError("change not found")
@@ -542,6 +651,8 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
         expire(db, c)
         raise ChangeError("this change expired; the last confirmed version stays in force")
     rip = json.loads(c["ripple_json"] or "{}")
+    if action in ("price", "drop"):
+        return card(db, _price_line(db, c, deal, party_id, side, action, line, amount_cents))
     if action == "propose":  # the main contact turns a reviewer's suggestion into a proposal
         if side != "brand":
             raise ChangeError("only someone who can confirm changes can propose this")
@@ -568,16 +679,15 @@ def act(db: Database, change_id: str, party_id: str, action: str, *, reason: str
             raise ChangeError("pick one of the options on the card")
         forced = {l["item_code"]: l["qty_delta"] for l in lines if l.get("item_code") and "choices" not in l and l.get("qty_delta")}
         forced[open_line["item_code"]] = qty
-        out = ChangeOut(kind=c["kind"], quote=c["quote"] or "",
-                        lines=[LineDelta(item_code=l["item_code"], qty_delta=forced.get(l["item_code"], l["qty_delta"]) or -1, quote=l["quote"])
-                               for l in lines if l.get("item_code") and l.get("item_code") != "date_change" and not l.get("field")],
-                        fields=[FieldChange(field="post_date", value=l["value"], quote=l["quote"]) for l in lines if l.get("field") == "post_date"])
+        out = _out_from_lines(c, lines, forced)
         build(db, deal, out, message=c["quote"] or "", proposer=party_id, source=c["source"], message_id=c["message_id"],
               forced=forced, existing=c)
         db.log_event("change.choice_made", actor=party_id, deal_id=deal["id"], payload={"change": change_id, "qty": qty})
     elif action == "confirm":
         if any("choices" in l for l in json.loads(c["lines_json"] or "[]")):
             raise ChangeError("pick which one first: no money moves until the choice is confirmed")
+        if any(l.get("unpriced") for l in json.loads(c["lines_json"] or "[]")):
+            raise ChangeError(f"waiting for {_creator_first(db, deal)} to add a price, or to say it isn't offered")
         if c["status"] == "detected":
             raise ChangeError("this is a suggestion: the brand's main contact needs to propose it first")
         if side == "creator":
@@ -632,8 +742,6 @@ def _act_asked(db: Database, c: dict, deal: dict, party_id: str, side: str, acti
     if action != "send":
         raise ChangeError("send it as a change card first")
     lines = json.loads(c["lines_json"] or "[]")
-    if all(l.get("unpriced") for l in lines):
-        raise ChangeError(f"nothing on {_creator_first(db, deal)}'s price list here yet: ask for a price in the chat first")
     if deal["status"] == "paused":
         raise ChangeError("the deal is paused: money actions wait until the brand decides")
     rip = json.loads(c["ripple_json"] or "{}")

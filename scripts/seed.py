@@ -406,10 +406,47 @@ def seed_history(db: Database) -> int:
     return 8
 
 
+PAID_AD_MATCH = ["paid ad", "paid-ad", "ads", "whitelist", "boost", "usage"]
+
+
+def ensure_extra_items(db: Database) -> int:
+    """Subtitles and paid-ad usage on the demo creator's and Maya's price lists, and their Reel length limits (15–30 s),
+    so "Make the Reel shorter, add subtitles, deliver tomorrow, and run it as a paid ad for 30 days" is fully priced
+    by code. Idempotent: adds only what's missing. Demo creator prices keep every /try deal at or under $100."""
+    made = 0
+    for handle, subs, usage in ((TRY_HANDLE, 1000, 1500), (TEST_HANDLE, 4000, None)):
+        c = db.one("select id from creators where handle = :h", {"h": handle})
+        if not c:
+            continue
+        have = {r["code"]: r for r in db.all("select * from price_items where creator_id = :c", {"c": c["id"]})}
+        if "subtitles" not in have:
+            db.insert("price_items", {"id": new_id("pi"), "creator_id": c["id"], "code": "subtitles", "name": "Subtitles",
+                                      "kind": "extra", "min_cents": subs, "max_cents": subs, "standard_cents": subs, "unit": "item",
+                                      "rules_json": json.dumps({"match": ["subtitle"], "note": "Burned-in subtitles"}),
+                                      "hidden": 0, "active": 1, "created_at": now()})
+            made += 1
+        if "usage_rights" not in have and usage:
+            db.insert("price_items", {"id": new_id("pi"), "creator_id": c["id"], "code": "usage_rights", "name": "Paid-ad usage (30 days)",
+                                      "kind": "extra", "min_cents": usage, "max_cents": usage, "standard_cents": usage, "unit": "month",
+                                      "rules_json": json.dumps({"match": PAID_AD_MATCH, "note": "The brand runs the Reel as a paid ad for 30 days"}),
+                                      "hidden": 0, "active": 1, "created_at": now()})
+            made += 1
+        elif "usage_rights" in have:  # Maya already has "Usage rights (brand ads)": "paid ad" names it
+            r = json.loads(have["usage_rights"]["rules_json"] or "{}")
+            if "match" not in r:
+                db.update("price_items", "id", have["usage_rights"]["id"], {"rules_json": json.dumps({**r, "match": PAID_AD_MATCH})})
+        if "reel" in have:
+            r = json.loads(have["reel"]["rules_json"] or "{}")
+            if "max_seconds" not in r:
+                db.update("price_items", "id", have["reel"]["id"], {"rules_json": json.dumps({**r, "min_seconds": 15, "max_seconds": 30})})
+    return made
+
+
 def ensure_try_creator(db: Database) -> str:
     """The judges' demo creator (/try): small made-up prices so every try deal stays at or under $100."""
     c = db.one("select id from creators where handle = :h", {"h": TRY_HANDLE})
     if c:
+        ensure_extra_items(db)
         return c["id"]
     t = now()
     pid, cid = new_id("p"), new_id("c")
@@ -429,6 +466,7 @@ def ensure_try_creator(db: Database) -> str:
         db.insert("price_items", {"id": new_id("pi"), "creator_id": cid, "code": code, "name": nm, "kind": kind, "min_cents": std,
                                   "max_cents": std, "standard_cents": std, "unit": unit, "rules_json": json.dumps(rules), "hidden": 0,
                                   "active": 1, "created_at": f"{t}-{k:02d}"})
+    ensure_extra_items(db)
     return cid
 
 
