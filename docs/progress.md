@@ -1040,3 +1040,5 @@ question wasn't answered, so the recommended option was taken.
   bubble from just under its transcript ("voice note · transcribed" → "Checking the message…"), so the repeated first
   sentence of that take never shows; mandate → "$680 held" close-up; rebuild sheet 1 s → close-up 2 s.
   Holding for: motion clips, Scene E, Scene F, the voiceover, her phone clip (re-film the voice note with the loop fix).
+- Draft 5 update: the voice-note shot has the brand's words as a quote above it (Inter SemiBold, white, 2 s); the
+  wording is a shortened version of the transcript, not word for word. Then the change card as before.

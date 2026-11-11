@@ -79,7 +79,8 @@ T = [
     # B · the voice note → a priced change card
     # the voice note bubble from just under its transcript (this take's transcript repeats its first sentence: the
     # fake microphone looped; fixed since) down to "Checking the message for deal changes…"
-    ("clip", "B-voice-change-card", 23.5, 25.5, (310, 791, 744, 141), "Then the brand sends a voice note with four changes.", LB),
+    ("clip", "B-voice-change-card", 23.5, 25.5, (310, 791, 744, 141), "Then the brand sends a voice note with four changes.", LB, None,
+     {"quote": "Make the Reel shorter, add subtitles, deliver tomorrow, and run it as a paid ad for 30 days.", "oy": 420}),
     # the change card, ~4 s: its priced lines, then "Confirmed by both · applied"
     ("clip", "B-voice-change-card", 35.5, 37.7, (313, 375, 737, 496), "The AI quotes her words; code prices each line from Maya’s list: +$240.", LB),
     ("clip", "B2-maya-confirms", 10.0, 12.0, (318, 336, 744, 488), "Both confirm, and the extra comes out of the hold Nadia signed.", LB, (336, 336)),
@@ -115,19 +116,25 @@ def png_size(p: Path):
         return struct.unpack(">II", f.read(8))
 
 
+def seg_opts(seg):
+    """Optional per-shot settings, the dict after a clip's pan: min_w, oy (shot top), quote (a line above the shot)."""
+    return seg[8] if seg[0] == "clip" and len(seg) > 8 and seg[8] else {}
+
+
 def layout(seg):
     """→ (src box x,y,w,h, crop height shown, out w, out h, out x, out y, pan (y0, y1) or None)."""
     if seg[0] == "img":
         w, h = png_size(CRISP / seg[1]); x = y = 0
     else:
         x, y, w, h = seg[4] if seg[0] == "clip" else seg[3]
-    min_w = seg[8].get("min_w", MIN_W) if seg[0] == "clip" and len(seg) > 8 else MIN_W
+    opts = seg_opts(seg)
+    min_w = opts.get("min_w", MIN_W)
     s = min(MAX_W / w, AREA_H / h)
     if w * s < min_w:
         s = min_w / w
     vis = min(h, int(AREA_H / s))
     ow, oh = int(round(w * s / 2) * 2), int(round(vis * s / 2) * 2)
-    ox, oy = AREA_X + (AREA_W - ow) // 2, AREA_Y + (AREA_H - oh) // 2
+    ox, oy = AREA_X + (AREA_W - ow) // 2, opts.get("oy", AREA_Y + (AREA_H - oh) // 2)
     pan = (y, y + h - vis) if vis < h else None
     return (x, y, w, h), vis, ow, oh, ox, oy, pan, s
 
@@ -138,8 +145,10 @@ def caption_of(seg):
     return (seg[3], seg[4]) if seg[0] == "img" else (seg[5], seg[6])
 
 
-def overlay_html(caption, label, lab_x, lab_y):
+def overlay_html(caption, label, lab_x, lab_y, quote=None, q_x=0, q_w=0):
     lab = f'<div class="lab" style="left:{lab_x}px;top:{lab_y}px">{html.escape(label)}</div>' if label else ""
+    if quote:  # the brand's words, Inter SemiBold, white on the warm background, above the shot
+        lab += f'<div class="quote" style="left:{q_x}px;width:{q_w}px">“{html.escape(quote)}”</div>'
     cap = f'<div class="cap"><span id="c">{html.escape(caption)}</span></div>' if caption else ""
     return f"""<!doctype html><html><head><meta charset="utf-8">{FONTS}<style>
     html,body{{margin:0;width:{W}px;height:{H}px;background:transparent;font-family:{INTER};}}
@@ -147,6 +156,8 @@ def overlay_html(caption, label, lab_x, lab_y):
           font-size:24px;font-weight:700;border:1.5px solid rgba(232,199,122,.55);white-space:nowrap}}
     .cap{{position:absolute;left:{AREA_X}px;width:{AREA_W}px;top:{CAP_Y}px;height:{CAP_H}px;display:flex;align-items:center;
           justify-content:center;text-align:center}}
+    .quote{{position:absolute;top:150px;color:#fff;font-size:52px;line-height:1.3;font-weight:600;letter-spacing:-.3px;
+          text-shadow:0 2px 16px rgba(0,0,0,.55)}}
     #c{{color:{CREAM};font-size:46px;line-height:1.25;font-weight:600;letter-spacing:-.2px;text-shadow:0 2px 12px rgba(0,0,0,.6)}}
     </style></head><body>{lab}{cap}</body></html>"""
 
@@ -232,9 +243,10 @@ def build(out_name="amend-draft-5"):
             if seg[0] == "card":
                 lx, ly = AREA_X, 28
             else:
-                _, _, _, _, ox, oy, _, _ = layout(seg)
-                lx, ly = ox, max(24, oy - 64)
-            pg.set_content(overlay_html(cap, lab, lx, ly))
+                _, _, ow, _, ox, oy, _, _ = layout(seg)
+                q = seg_opts(seg).get("quote")
+                lx, ly = ox, (60 if q else max(24, oy - 64))
+            pg.set_content(overlay_html(cap, lab, lx, ly, *((q, ox, ow) if seg[0] != "card" and q else ())))
             pg.evaluate("Promise.all([document.fonts.load('600 46px Inter'), document.fonts.load('700 24px Inter')])")
             assert pg.evaluate("document.fonts.check('600 46px Inter')"), "Inter didn't load"
             if cap:
