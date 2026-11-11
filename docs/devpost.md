@@ -8,8 +8,8 @@ Scene F⟩** (the sandbox dispute run). The testing instructions at the end go *
 
 ## Tagline
 
-Money that changes when the deal changes: PayPal holds the brand's money, every change becomes a priced card both
-sides confirm, and PayPal moves only what was agreed and delivered.
+When a brand deal changes, the money does too: every change becomes a priced card both sides confirm, and a PayPal
+authorization hold pays only what was agreed and delivered.
 
 ---
 
@@ -146,7 +146,7 @@ provide-evidence → adjudicate).
 
 Python 3.12 and FastAPI, plain HTML/JS (mobile-first, no build step), PayPal REST (sandbox) over `httpx`, Postgres on
 Supabase, hosted on Render, Meta Graph API for Instagram (Business Discovery, media, insights), AG Grid Community for
-the ledgers. 912 automated tests (PayPal and every AI provider mocked; no test calls a real service), browser walks at
+the ledgers. 900+ automated tests (PayPal and every AI provider mocked; no test calls a real service), browser walks at
 390 and 1440 px, and repeated end-to-end runs on the live site against the PayPal sandbox.
 
 ---
@@ -251,5 +251,6 @@ Each starts with one completed "Demo history" deal (made-up history: its PayPal 
 sent to PayPal).
 
 **Notes:** PayPal sandbox only, no real money. The site sleeps when idle; the first page can take up to about a minute.
+If the PayPal window doesn't open, allow pop-ups for amend-r7le.onrender.com.
 In the quick path you type the post details; the video shows the post read from Instagram on a connected test
 account. Full guide: `docs/judging.md` in the repo.

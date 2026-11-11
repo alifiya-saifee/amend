@@ -52,10 +52,13 @@ def _fonts():
 FONTS = _fonts()
 
 CARD_BODIES = dict(CARD_BODIES)
-CARD_BODIES["also"] = ('<div class="kicker">Also in Amend</div>' + "".join(
-    f'<p><span class="tick">·</span> {t}</p>' for t in (
+# the five items as pills, 46 px (the "Same engine" card's text size), in the same block as the other cards
+PILL = ("display:inline-block;font-size:46px;font-weight:600;padding:16px 34px;margin:0 22px 26px 0;border-radius:999px;"
+        "border:2px solid rgba(232,199,122,.6);background:rgba(232,199,122,.08)")
+CARD_BODIES["also"] = ('<div class="kicker">Also in Amend</div><div style="max-width:1560px">' + "".join(
+    f'<span style="{PILL}">{t}</span>' for t in (
         "Settle before a dispute", "Usage-rights extensions", "AI-content rule (Content Credentials)",
-        "Test the deal before you sign it", "Team payouts in one batch")))
+        "Test the deal before you sign it", "Team payouts in one batch")) + "</div>")
 CARD_BODIES["bridge"] = ('<div class="kicker">Same flow, a delivered deal</div><h1>$450 Reel<br>+ a $30 bonus hold</h1>'
                          '<p>Maya × Dune Roast Coffee, posted on Instagram today.</p>')
 
