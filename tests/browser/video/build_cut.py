@@ -98,10 +98,11 @@ TIMELINE = [
     ("clip", "A-mandate-hold", 47.0, 52.0, "…and PayPal places an authorization hold on her account. Nothing is collected yet.", LAB_A, (330, 0, 1300, 731)),
     ("clip", "A2-spine", 6.0, 12.5, "That’s a real PayPal authorization, with its twenty-nine-day clock.", LAB_A, (240, 0, 1440, 810)),
     # B · the voice note → change card
-    ("clip", "B-voice-change-card", 2.2, 5.5, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
-    ("clip", "B-voice-change-card", 14.5, 17.0, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
+    ("clip", "B-voice-change-card", 2.5, 5.5, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
+    ("clip", "B-voice-change-card", 21.5, 25.0, "Then the brand sends a voice note with four changes.", LAB_B, (200, 270, 1440, 810)),
     ("clip", "B-voice-change-card", 27.0, 40.0, "The AI only reads, and quotes her exact words. Code prices every line from Maya’s own price list: free if it’s inside what was agreed, priced if it’s new work.", LAB_B, (180, 250, 1280, 720)),
-    ("clip", "B2-maya-confirms", 3.0, 6.0, "Nadia sends it, Maya confirms, and the extra comes out of the hold Nadia already signed for.", LAB_B, (200, 220, 1280, 720)),
+    ("clip", "B2-maya-confirms", 3.0, 5.2, "Nadia sends it, Maya confirms…", LAB_B, (200, 220, 1280, 720)),
+    ("clip", "B2-maya-confirms", 9.3, 12.0, "…and the extra comes out of the hold Nadia already signed for.", LAB_B, (200, 220, 1280, 720)),
     # C · Instagram check: fail → fix → pass
     ("clip", "C1-instagram-check", 12.0, 18.6, "Maya posts. Amend reads the post straight from Instagram. #ad is missing, which the brand required, so code fails it and no money moves.", LAB_C, (200, 0, 1440, 810)),
     ("clip", "C-caption-edit-mac", 6.0, 13.5, "She fixes the caption on Instagram…", LAB_C, (736, 306, 1350, 759)),
