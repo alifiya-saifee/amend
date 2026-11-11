@@ -909,3 +909,12 @@ question wasn't answered, so the recommended option was taken.
 - "Quick view" stays on one line on narrow cards.
 - Tests: `tests/test_freeze_fixes.py` +3 (page words run in Node), test_discovery rates. Browser
   `tests/browser/freeze_fixes.py` 390 + 1440: problems none, no JS errors. **Tests: 879 passed, 3 skipped.**
+
+## Live check after deploying 9395ce9 (11 Nov)
+- New code live. Instagram lookup on (a brand lookup of @instagram works). Maya: handle set, connected, but still no
+  numbers. Fix: the account linked to Amend's token is now read directly (same fields, code maths, 24 h cache);
+  Business Discovery stays for other accounts (it may refuse to look up the token's own account). Skips are logged
+  with the status only. Test: Business Discovery refuses her account, the direct read fills her card.
+  **Tests: 880 passed, 3 skipped.**
+- JUDGE_PASSWORD is set on Render (judge logins work) but has the same value as the demo password, so /try can't
+  refuse the demo password. Open question: choose a different JUDGE_PASSWORD?

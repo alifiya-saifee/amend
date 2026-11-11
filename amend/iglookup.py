@@ -155,8 +155,9 @@ def sync_connected(db: Database, *, transport: httpx.BaseTransport | None = None
         if not force and db.one("select id from creator_metrics where creator_id = :c and source = 'instagram_read' and created_at >= :s",
                                 {"c": c["id"], "s": since}):
             continue
-        r = lookup(db, SYNC_ACCOUNT, handle, transport=transport)
+        r = _read_own(db, handle) or lookup(db, SYNC_ACCOUNT, handle, transport=transport)
         if r["status"] != "ok" or not r["numbers"].get("followers"):
+            log.info("instagram numbers not read for a connected creator: %s", r["status"])  # status only
             continue
         nums = r["numbers"]
         prev = db.one("select audience_json from creator_metrics where creator_id = :c and platform = 'instagram' "
@@ -169,6 +170,31 @@ def sync_connected(db: Database, *, transport: httpx.BaseTransport | None = None
         db.log_event("metrics.saved", actor="system", payload={"creator": c["id"], "platform": "instagram", "source": "instagram_read"})
         n += 1
     return n
+
+
+OWN_FIELDS = ("username,followers_count,media_count,"
+              "media.limit(12){like_count,comments_count,timestamp,media_type,permalink,caption}")
+
+
+def _read_own(db: Database, handle: str) -> dict | None:
+    """The account linked to Amend's token is read directly (Business Discovery is for other accounts and may refuse
+    to look up the account itself). Same fields, same code maths, same 24 h cache. None if it isn't that account."""
+    from amend import igdata
+    try:
+        if not igdata.connected(db, handle):
+            return None
+        d = igdata._get(get_settings().meta_ig_user_id or "me", {"fields": OWN_FIELDS})
+    except igdata.Unavailable:
+        return None
+    if (d.get("username") or "").lower() != handle:
+        return None
+    nums = numbers(d)
+    at = now()
+    if db.one("select handle from ig_lookups where handle = :h", {"h": handle}):
+        db.update("ig_lookups", "handle", handle, {"json": json.dumps(nums), "fetched_at": at})
+    else:
+        db.insert("ig_lookups", {"handle": handle, "json": json.dumps(nums), "fetched_at": at})
+    return {"status": "ok", "numbers": nums, "fetched_at": at, "cached": False}
 
 
 def read_facts(db: Database, creator_id: str) -> dict | None:

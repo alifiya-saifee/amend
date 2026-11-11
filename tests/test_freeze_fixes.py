@@ -28,7 +28,8 @@ def maya():
 def test_maya_numbers_read_from_instagram(client, mocks, on):
     g = mocks.get(GRAPH).mock(return_value=httpx.Response(200, json=MAYA))
     assert iglookup.sync_connected(get_db()) == 1
-    assert iglookup.sync_connected(get_db()) == 0 and g.call_count == 1  # once a day
+    bd = lambda: [c for c in g.calls if c.request.url.params.get("fields", "").startswith("business_discovery")]
+    assert iglookup.sync_connected(get_db()) == 0 and len(bd()) == 1  # once a day
     cards = client.get("/api/creators", params={"q": "@clinicrobotest"}).json()["creators"]
     card = next(c for c in cards if c["handle"] == "clinicrobotest")
     assert card["followers"] == 412 and card["source"] == "instagram_read"
@@ -44,7 +45,7 @@ def test_demo_creators_never_read(client, mocks, on):
     handles = [c["handle"] for c in get_db().all(
         "select c.handle from creator_metrics m join creators c on c.id = m.creator_id where m.source = 'instagram_read'")]
     assert handles == ["clinicrobotest"]  # Sara and the other demo creators never touch Instagram
-    assert all("clinicrobotest" in str(c.request.url) for c in g.calls)
+    assert all("clinicrobotest" in str(c.request.url) for c in g.calls if "business_discovery" in str(c.request.url))
 
 
 def test_off_or_refused_keeps_the_card_as_it_was(client, mocks):
@@ -132,3 +133,23 @@ def test_detail_and_table_use_the_same_word_and_quick_view_does_not_wrap():
     deal = (web / "deal.html").read_text()
     assert '["Status in Amend", moneyWord(r.status, r.kind)]' in deal and "moneyPill(p.value, p.data.kind)" in deal
     assert 'data-qv="${esc(c.handle)}" style="white-space:nowrap"' in (web / "creators.html").read_text()
+
+
+def test_connected_account_read_directly_when_business_discovery_refuses(client, mocks, on):
+    """Live (11 Nov): lookup on, Maya connected, yet no numbers. The account linked to the token is now read directly."""
+    own = {"username": "clinicrobotest", "followers_count": 412, "media_count": 14, "id": "IG-ME-1",
+           "media": {"data": [{"like_count": 30, "comments_count": 4}, {"like_count": 31, "comments_count": 2},
+                              {"like_count": 40, "comments_count": 6}]}}
+
+    def graph(req):
+        f = req.url.params.get("fields", "")
+        if f.startswith("business_discovery"):
+            return httpx.Response(400, json={"error": {"code": 100, "message": "cannot query this account"}})
+        if f == "username":
+            return httpx.Response(200, json={"username": "clinicrobotest", "id": "IG-ME-1"})
+        return httpx.Response(200, json=own)
+    g = mocks.get(GRAPH).mock(side_effect=graph)
+    assert iglookup.sync_connected(get_db()) == 1
+    assert not any(c.request.url.params.get("fields", "").startswith("business_discovery") for c in g.calls)  # read directly
+    card = next(c for c in client.get("/api/creators", params={"q": "@clinicrobotest"}).json()["creators"] if c["handle"] == "clinicrobotest")
+    assert card["followers"] == 412 and card["source"] == "instagram_read" and card["ig"]["posts"] == 14 and card["ig"]["posts_used"] == 3
