@@ -67,3 +67,9 @@ def test_private_pages_are_never_indexed(client, mocks):
 def test_og_image_is_served(client):
     r = client.get("/static/og.png")
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_robots_and_sitemap_answer_head_too(client):
+    """Some crawlers and checkers send HEAD first (Search Console showed "Couldn't fetch" on 12 Nov)."""
+    for path in ("/robots.txt", "/sitemap.xml"):
+        assert client.head(path).status_code == 200, path

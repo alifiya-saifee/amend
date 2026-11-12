@@ -294,13 +294,13 @@ def public_page(name: str, path: str) -> HTMLResponse:
     return HTMLResponse(seo.apply((WEB / name).read_text(), path, get_settings().base_url), headers={"Cache-Control": "no-store"})
 
 
-@app.get("/robots.txt")
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
 def robots():
     from amend import seo
     return Response(seo.robots_txt(get_settings().base_url), media_type="text/plain")
 
 
-@app.get("/sitemap.xml")
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
 def sitemap():
     from amend import seo
     return Response(seo.sitemap_xml(get_settings().base_url), media_type="application/xml")
