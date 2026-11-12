@@ -1,7 +1,6 @@
 # Devpost submission: Amend
 
-Copy each section into the matching Devpost field. **Before submitting, update the one line marked ⟨update after
-Scene F⟩** (the sandbox dispute run). The testing instructions at the end go **only** into Devpost's private
+Copy each section into the matching Devpost field. The testing instructions at the end go **only** into Devpost's private
 "Testing instructions" field, never into this repo.
 
 ---
@@ -176,6 +175,13 @@ the ledgers. 900+ automated tests (PayPal and every AI provider mocked; no test 
   PayPal collects exactly the agreed amount and pays the creator and her editor in one Payouts batch.
 - **Rebuild from PayPal:** on a real sandbox deal, the money timeline rebuilt from PayPal's own answers matches
   Amend's record line by line, and the receipt hash in PayPal's `custom_id` equals Amend's.
+- **A bonus paid from Instagram's own numbers:** the Reel's views were read from Instagram insights (111), code
+  decided the +$30 tier the brand had pre-signed in her mandate was met, the creator tapped once, and PayPal collected
+  the separate $30 bonus hold and paid her by Payouts. No screenshot involved.
+- **A real PayPal dispute, answered with evidence:** the sandbox buyer disputed the $450 payment; the case reached
+  Amend by webhook in under 3 minutes, froze the holdback, and the creator's one tap sent the signed deal record to
+  PayPal. Testing it live caught a real bug: at the chargeback stage PayPal only accepts the evidence types it asked
+  for, so Amend now sends the type PayPal requested.
 - A receipt chain where every event holds the previous one's hash, carried into PayPal on every order.
 - A test suite with PayPal and every AI mocked, and not one place where an AI's number reaches money.
 
@@ -212,8 +218,9 @@ the ledgers. 900+ automated tests (PayPal and every AI provider mocked; no test 
 - PayPal has no public mandate API: Amend enforces the signed mandate; PayPal enforces the hold.
 - Real Instagram numbers come from one connected test account (Instagram insights need Meta app review for other
   creators); other accounts' Stories can't be read.
-- PayPal dispute: a real sandbox case reached Amend by webhook and the evidence pack was built and sent.
-  ⟨update after Scene F: "The scripted sandbox run took it to RESOLVED in the seller's favour."⟩
+- PayPal dispute: a real sandbox case ($450) reached Amend by webhook and the creator's tap sent the signed deal
+  record to PayPal. The sandbox buyer paid by card, so the case became a chargeback, which PayPal's sandbox won't
+  adjudicate; it stays under review. We don't claim a won dispute.
 - AI readings are advisory: code decides, people confirm.
 
 ---

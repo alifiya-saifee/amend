@@ -1059,3 +1059,11 @@ question wasn't answered, so the recommended option was taken.
 - **Live /try judge path after the blocked-days deploy: PASS.** $70 held → change card (+$20 Story, Monday date free with 48 h notice) → both confirm → $90 held by PayPal; no JS errors. No rollback needed. The live check script was out of date (it predated the 11 Nov "ask first" step) and now taps "Send change card" first.
 - **Scene E filmed on the live sandbox (Deal B):** Instagram insights 111 views → code decided tier +$30 met → Nadia pre-signed in her mandate → Maya tapped → PayPal collected the $30 bonus hold and paid her by Payouts (capture paid, payout paid). Draft 7 (2:41) uses it in place of the E placeholder. Video commit kept local.
 - **Next:** Scene F (Alifiya opens the dispute as the sandbox buyer on Deal B's $450), then devpost Accomplishments + Honest limits; her voiceover, phone clip, motion clips.
+
+## Thu 12 Nov (later): Scene F, dispute evidence fix, copy fixes
+- **Dispute opened** as the sandbox buyer on Deal B's $450 (case PP-R-VXY-10200144, "service incomplete"); the webhook matched it in 2.8 min.
+- **Bug found live:** after escalation the case went to the chargeback stage (card-funded), where PayPal only takes the evidence types it requested (OTHER / PROOF_OF_REFUND) and refused PROOF_OF_FULFILLMENT (`EVIDENCE_TYPE_IS_NOT_ALLOWED`). Fix: send the type PayPal asked for (6984151). A refused proof now shows "PayPal didn't accept this: <reason>".
+- **Copy fixes** (8782d08): FAQ hold length, post-check wording, "the brand's and the creator's own words", request ID wording, /try buyer term, "Open as the brand/creator", "$90 / $81 / $9". Tests 924 passed; live /try walk after deploy: PASS.
+- **Scene F filmed:** banner → Send proof → "Proof sent to PayPal" → spine UNDER_REVIEW. Sandbox adjudicate is refused for a chargeback (ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE), so it is **not resolved**; caption and devpost say "under review". Draft 7 (2:37) has E and F.
+- devpost.md: bonus and dispute in Accomplishments, honest dispute line, caption pre-fill line.
+- **Next:** her voiceover, phone clip, motion clips; Devpost gallery images.
