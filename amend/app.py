@@ -138,6 +138,16 @@ ai.set_recorder(record_ai_call)
 
 
 @app.middleware("http")
+async def no_index_private(request: Request, call_next):
+    """Deal links, workspaces, sign-in, the API and PayPal returns are never indexed (robots.txt says so too)."""
+    from amend import seo
+    resp = await call_next(request)
+    if seo.is_private(request.url.path):
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
+@app.middleware("http")
 async def remember_path(request: Request, call_next):
     tok = _req_path.set(request.url.path)
     try:
@@ -267,14 +277,33 @@ POST_CHECK_LIVE = {
 }
 
 
-def landing() -> HTMLResponse:
+def landing(path: str = "/") -> HTMLResponse:
     """The landing page says Amend reads the post from Instagram only while that is actually switched on."""
     import re as _re
+    from amend import seo
     html = (WEB / "index.html").read_text()
     if iglookup_enabled():
         for k, v in POST_CHECK_LIVE.items():
             html = _re.sub(rf"<!--{k}-->.*?<!--/{k}-->", v, html, flags=_re.S)
-    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+    return HTMLResponse(seo.apply(html, path, get_settings().base_url), headers={"Cache-Control": "no-store"})
+
+
+def public_page(name: str, path: str) -> HTMLResponse:
+    """A public page with its search and link-preview tags (amend/seo.py)."""
+    from amend import seo
+    return HTMLResponse(seo.apply((WEB / name).read_text(), path, get_settings().base_url), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/robots.txt")
+def robots():
+    from amend import seo
+    return Response(seo.robots_txt(get_settings().base_url), media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    from amend import seo
+    return Response(seo.sitemap_xml(get_settings().base_url), media_type="application/xml")
 
 
 @app.api_route("/", methods=["GET", "HEAD"])  # HEAD: uptime monitors (UptimeRobot) check with HEAD
@@ -287,8 +316,8 @@ def home(request: Request):
 
 @app.get("/pricing")
 @app.get("/faq")
-def marketing_pages():
-    return landing()
+def marketing_pages(request: Request):
+    return landing(request.url.path)
 
 
 @app.get("/login")
@@ -316,8 +345,8 @@ def brand_page(request: Request, tab: str = ""):
 
 @app.get("/creators")
 @app.get("/creators/compare")
-def creators_page():
-    return page("creators.html")
+def creators_page(request: Request):
+    return public_page("creators.html", request.url.path) if request.url.path == "/creators" else page("creators.html")
 
 
 @app.get("/studio")
@@ -2908,7 +2937,7 @@ def _try_ok(request: Request) -> bool:
 
 @app.get("/try")
 def try_page():
-    return page("try.html")
+    return public_page("try.html", "/try")
 
 
 class TryIn(BaseModel):

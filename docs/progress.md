@@ -1074,3 +1074,8 @@ question wasn't answered, so the recommended option was taken.
 - Checked over real stdio against the live database: tools listed, get_deal on Deal B returns its lines and PayPal IDs.
 - README "Agents (MCP)" (Claude Desktop config, env var names only), `requirements-mcp.txt` (kept out of the app's requirements), devpost Agentic Commerce updated. Pushed with [skip render]: the live app is unchanged.
 - 14:35: MCP fake mode (`AMEND_FAKE=1`, local SQLite only; `--seed-demo` prints Sara × Dune Roast Coffee's deal_id); a stdio test runs it in an empty folder with no secrets; README example + Try it locally; devpost example line.
+
+## Thu 12 Nov, 16:30: search and link previews (SEO)
+- `amend/seo.py`: keyword titles + descriptions, canonical, Open Graph / Twitter (web/static/og.png = gallery image 1), schema.org WebApplication on the home page, optional `GOOGLE_SITE_VERIFICATION` meta tag; `/robots.txt` and `/sitemap.xml` (public pages only: /, /pricing, /faq, /try, /creators).
+- Private paths (deal links, studio, brand, sign-in, API, PayPal returns) get `X-Robots-Tag: noindex, nofollow` and are disallowed in robots.txt. Page bodies unchanged (head only).
+- tests/test_seo.py (6). Suite 936 passed.
