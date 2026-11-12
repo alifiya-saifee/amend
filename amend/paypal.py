@@ -179,14 +179,14 @@ class PayPalClient:
                                  request_id=request_id, approval=approval)
 
     async def provide_evidence(self, dispute_id: str, *, pdf: bytes, notes: str, request_id: str | None,
-                               approval: dict | None) -> dict:
+                               approval: dict | None, evidence_type: str = "PROOF_OF_FULFILLMENT") -> dict:
         """Disputes API provide-evidence (multipart: the JSON part + the PDF). Same guards as every write."""
         if not request_id:
             raise ValueError("every PayPal write needs a PayPal-Request-Id")
         if not approval or approval.get("decision") != "approved":
             raise NoApproval("no approved approval record for this PayPal write")
         token = await self._get_token()
-        meta = {"evidences": [{"evidence_type": "PROOF_OF_FULFILLMENT", "notes": notes[:2000],
+        meta = {"evidences": [{"evidence_type": evidence_type, "notes": notes[:2000],
                                "documents": [{"name": "amend-deal-record.pdf"}]}]}
         files = {"input": (None, json.dumps(meta), "application/json"),
                  "file1": ("amend-deal-record.pdf", pdf, "application/pdf")}

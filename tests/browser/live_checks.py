@@ -80,8 +80,9 @@ def check_try(b):
     say("2. after PayPal:", " ".join(brand.inner_text(".banner").split())[:80])
     brand.goto(brand_link + "#chat"); brand.wait_for_selector("#chat-in", timeout=60000)
     brand.fill("#chat-in", "Add a Story and post Monday"); brand.click("#chat-send")
-    brand.wait_for_selector(".changecard", timeout=120000); brand.wait_for_timeout(1500)
-    say("3. card:", " ".join(brand.locator(".changecard").last.inner_text().split())[:200])
+    brand.wait_for_selector(".askcard [data-act=send]", timeout=120000); brand.wait_for_timeout(1500)
+    say("3. ask first:", " ".join(brand.locator(".askcard").last.inner_text().split())[:200])
+    brand.click(".askcard [data-act=send]"); brand.wait_for_timeout(3000)  # the sender sends it as a change card
     cr = pg.context.new_page(); cr.goto(creator_link); cr.wait_for_timeout(4000)
     cr.goto(cr.url.split("#")[0] + "#chat"); cr.wait_for_timeout(4000)
     cr.locator(".changecard [data-act=confirm]:visible").last.click(); cr.wait_for_timeout(5000)

@@ -301,7 +301,7 @@ def evidence_pdf(db: Database, deal_id: str) -> bytes:
 
 def stage_evidence(db: Database, deal_id: str) -> dict:
     """On CUSTOMER.DISPUTE.CREATED: build the pack at once and record its fingerprint in the chain. Sending it is a
-    PayPal write, so the creator taps "Send proof" (an approval record) and Amend sends it as PROOF_OF_FULFILLMENT."""
+    PayPal write, so the creator taps "Send proof" (an approval record) and Amend sends it as PROOF_OF_FULFILLMENT (or OTHER when PayPal asks for that)."""
     import hashlib
     from amend import chain
     pdf = evidence_pdf(db, deal_id)
@@ -313,6 +313,15 @@ def stage_evidence(db: Database, deal_id: str) -> dict:
 
 
 # ---------- submit to PayPal (a PayPal write: creator's approval first) ----------
+
+def evidence_type_for(dispute: dict | None) -> str:
+    """The evidence type PayPal will take. Amend's deal record is proof of fulfilment, but once a case reaches the
+    claim or chargeback stage PayPal only accepts the types it requested from the seller (e.g. OTHER, PROOF_OF_REFUND)
+    and refuses anything else with EVIDENCE_TYPE_IS_NOT_ALLOWED. So: PROOF_OF_FULFILLMENT unless PayPal asked for
+    specific types without it; then OTHER (Amend never claims a refund it didn't make)."""
+    asked = {e.get("evidence_type") for e in (dispute or {}).get("evidences") or [] if e.get("source") == "REQUESTED_FROM_SELLER"}
+    return "OTHER" if asked and "PROOF_OF_FULFILLMENT" not in asked and "OTHER" in asked else "PROOF_OF_FULFILLMENT"
+
 
 async def submit_evidence(db: Database, pp, deal: dict, party_id: str) -> dict:
     from amend.changes import side_of
@@ -330,8 +339,12 @@ async def submit_evidence(db: Database, pp, deal: dict, party_id: str) -> dict:
     db.update("disputes", "id", d["id"], {"evidence_request_id": rid, "evidence_status": "sending", "updated_at": now()})
     approval = {"id": aid, "decision": "approved", "subject_kind": "dispute_evidence", "subject_id": d["id"]}
     pdf = evidence_pdf(db, deal["id"])
+    try:  # a read: which evidence types PayPal accepts at this stage (if it can't say, send proof of fulfilment)
+        etype = evidence_type_for(await pp.get_dispute(d["paypal_dispute_id"]))
+    except Exception:  # noqa: BLE001
+        etype = "PROOF_OF_FULFILLMENT"
     try:
-        await pp.provide_evidence(d["paypal_dispute_id"], pdf=pdf, notes=f"Amend deal record for deal {deal['id']}: agreed terms with "
+        await pp.provide_evidence(d["paypal_dispute_id"], evidence_type=etype, pdf=pdf, notes=f"Amend deal record for deal {deal['id']}: agreed terms with "
                                   "exact quotes, both sides' confirmations, the delivery check and the release approvals.",
                                   request_id=rid, approval=approval)
     except Exception:
@@ -341,5 +354,5 @@ async def submit_evidence(db: Database, pp, deal: dict, party_id: str) -> dict:
     from amend.changes import post_message
     post_message(db, deal["id"], None, f"{_first(db, deal)} sent the deal record to PayPal for the dispute.", kind="system")
     db.log_event("dispute.evidence_sent", actor=party_id, deal_id=deal["id"],
-                 payload={"dispute": d["paypal_dispute_id"], "request_id": rid, "bytes": len(pdf)})
+                 payload={"dispute": d["paypal_dispute_id"], "request_id": rid, "bytes": len(pdf), "evidence_type": etype})
     return db.one("select * from disputes where id = :i", {"i": d["id"]})

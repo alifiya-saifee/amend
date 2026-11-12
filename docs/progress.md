@@ -1054,3 +1054,8 @@ question wasn't answered, so the recommended option was taken.
   chips show the event type ("Hold expires · Dune Roast Coffee"). No money code touched.
 - Tests: `tests/test_blocked_days.py` (7). Browser walk `tests/browser/blocked_days.py` at 390 and 1440: no problems,
   no page errors; screenshots in `docs/screenshots/blocked-days/`.
+
+## Thu 12 Nov: live check after blocked days, Scene E filmed
+- **Live /try judge path after the blocked-days deploy: PASS.** $70 held → change card (+$20 Story, Monday date free with 48 h notice) → both confirm → $90 held by PayPal; no JS errors. No rollback needed. The live check script was out of date (it predated the 11 Nov "ask first" step) and now taps "Send change card" first.
+- **Scene E filmed on the live sandbox (Deal B):** Instagram insights 111 views → code decided tier +$30 met → Nadia pre-signed in her mandate → Maya tapped → PayPal collected the $30 bonus hold and paid her by Payouts (capture paid, payout paid). Draft 7 (2:41) uses it in place of the E placeholder. Video commit kept local.
+- **Next:** Scene F (Alifiya opens the dispute as the sandbox buyer on Deal B's $450), then devpost Accomplishments + Honest limits; her voiceover, phone clip, motion clips.

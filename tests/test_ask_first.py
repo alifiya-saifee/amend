@@ -112,6 +112,7 @@ def test_voice_note_asks_the_sender_too(client, mocks, held):
 def test_one_message_several_lines_unpriced_marked(client, mocks, held):
     """Sara's list has no Subtitles item: it's new work she prices, never $0. "Paid ad" names her usage item."""
     deal, tok = held
+    get_db().update("deals", "id", deal, {"deadline": "2026-12-31"})  # "Friday" is tomorrow on a Thursday: no date change
     says(mocks, MULTI)
     c = brand_says(client, tok, LONG, send=False)["change"]
     labels = {l["label"]: l for l in c["lines"]}

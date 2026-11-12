@@ -107,3 +107,28 @@ def test_script_dry_run_calls_nothing(client, mocks, paid, capsys):
     out = capsys.readouterr().out
     assert g.call_count == 1 and writes.call_count == 0 and "Dry run" in out
     assert "require-evidence" in out and "provide-evidence" in out and "adjudicate SELLER_FAVOR" in out
+
+
+def test_send_proof_uses_the_type_paypal_asked_for_at_chargeback(client, mocks, paid):
+    """Live sandbox, 12 Nov: at the chargeback stage PayPal requested OTHER / PROOF_OF_REFUND and refused
+    PROOF_OF_FULFILLMENT (EVIDENCE_TYPE_IS_NOT_ALLOWED). Amend now sends the deal record as OTHER then."""
+    deal, _ = paid
+    send(client, dispute("WH-D1", "CUSTOMER.DISPUTE.CREATED"))
+    mocks.get(f"{PP}/v1/customer/disputes/PP-D-1").mock(return_value=httpx.Response(200, json={
+        "status": "WAITING_FOR_SELLER_RESPONSE", "dispute_life_cycle_stage": "CHARGEBACK",
+        "evidences": [{"evidence_type": "CREATE", "source": "SUBMITTED_BY_BUYER"},
+                      {"evidence_type": "PROOF_OF_REFUND", "source": "REQUESTED_FROM_SELLER"},
+                      {"evidence_type": "OTHER", "source": "REQUESTED_FROM_SELLER"}]}))
+    pe = mocks.post(f"{PP}/v1/customer/disputes/PP-D-1/provide-evidence").mock(return_value=httpx.Response(200, json={}))
+    assert client.post(f"/api/deals/{deal}/dispute/evidence", headers=ORIGIN).status_code == 200
+    body = pe.calls[0].request.content
+    assert pe.call_count == 1 and b'"evidence_type": "OTHER"' in body and b"PROOF_OF_FULFILLMENT" not in body
+
+
+def test_evidence_type_choice():
+    from amend.disputes import evidence_type_for
+    ask = lambda *t: {"evidences": [{"evidence_type": x, "source": "REQUESTED_FROM_SELLER"} for x in t]}
+    assert evidence_type_for(None) == evidence_type_for({}) == "PROOF_OF_FULFILLMENT"
+    assert evidence_type_for(ask("PROOF_OF_FULFILLMENT", "OTHER")) == "PROOF_OF_FULFILLMENT"
+    assert evidence_type_for(ask("OTHER", "PROOF_OF_REFUND")) == "OTHER"
+    assert evidence_type_for(ask("PROOF_OF_REFUND")) == "PROOF_OF_FULFILLMENT"  # never claim a refund Amend didn't make
