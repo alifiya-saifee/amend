@@ -96,8 +96,13 @@ The AI reads; code decides every amount and status; people confirm; then PayPal 
 ## Agentic Commerce
 
 The brand's signed mandate is AP2-style consent: within it, changes apply without a new tap from the brand (the creator
-still confirms), and PayPal's hold enforces the cap. Agents can propose, never confirm. Next: an MCP server so outside
-agents can read deals and propose change cards.
+still confirms), and PayPal's hold enforces the cap. Agents can propose, never confirm.
+
+**Built: an Amend MCP server** (`mcp/amend_mcp.py`, stdio). An agent such as Claude Desktop can read a deal with its
+PayPal IDs (`get_deal`), price a change from a message with Amend's own code and quotes, including whether it fits the
+hold or needs a new PayPal approval (`price_change`, preview only, nothing saved), and rebuild the deal's money from
+PayPal's GETs (`rebuild_from_paypal`). No tool can confirm, capture, void, refund or pay out, and a test proves it.
+Agents read and propose; people confirm; PayPal enforces the hold. It can run next to PayPal's own MCP server.
 
 ---
 

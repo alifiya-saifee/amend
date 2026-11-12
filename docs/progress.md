@@ -1067,3 +1067,9 @@ question wasn't answered, so the recommended option was taken.
 - **Scene F filmed:** banner → Send proof → "Proof sent to PayPal" → spine UNDER_REVIEW. Sandbox adjudicate is refused for a chargeback (ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE), so it is **not resolved**; caption and devpost say "under review". Draft 7 (2:37) has E and F.
 - devpost.md: bonus and dispute in Accomplishments, honest dispute line, caption pre-fill line.
 - **Next:** her voiceover, phone clip, motion clips; Devpost gallery images.
+
+## Thu 12 Nov, 14:20: Amend MCP server (no deploy)
+- `mcp/amend_mcp.py` (Python MCP SDK, stdio): `get_deal`, `price_change` (real detection + pricing on an in-memory copy of the deal; nothing saved, not even the ai.called row), `rebuild_from_paypal` (GETs only). No write tools.
+- `tests/test_mcp_server.py` (5): only these three tools, no write-named functions; price_change leaves every table unchanged and calls no PayPal; get_deal returns PayPal IDs; rebuild only GETs. Suite 929 passed.
+- Checked over real stdio against the live database: tools listed, get_deal on Deal B returns its lines and PayPal IDs.
+- README "Agents (MCP)" (Claude Desktop config, env var names only), `requirements-mcp.txt` (kept out of the app's requirements), devpost Agentic Commerce updated. Pushed with [skip render]: the live app is unchanged.

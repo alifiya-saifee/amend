@@ -357,6 +357,47 @@ Not in yet, and why:
 - Results reports at 7 and 30 days for creators who aren't connected. *Insights need the creator's own Instagram
   connection (Meta app review).*
 
+## Agents (MCP)
+
+**Agents read and propose; people confirm; PayPal enforces the hold.** `mcp/amend_mcp.py` is an MCP server (Python MCP
+SDK, stdio) that lets an agent such as Claude Desktop look at a deal and price a change, without ever moving money.
+Three tools, read-only or preview-only:
+
+| Tool | What it returns | Writes? |
+|---|---|---|
+| `get_deal(deal_id)` | The latest confirmed version: status, lines (with their quotes), and every hold, capture and payout with its PayPal ID. | No (reads the database) |
+| `price_change(deal_id, text)` | Amend's own change detection and pricing on a message: each line quoted word for word, priced from the creator's list ($0 when within what's agreed, "not on the price list" when she must price it), the total, and whether it fits the existing PayPal hold or needs a new PayPal approval. | No: it runs on a throwaway in-memory copy of the deal; no card is saved, nothing is sent |
+| `rebuild_from_paypal(deal_id)` | The deal's money rebuilt from PayPal's own answers (GETs only), line by line, matches or mismatch. | No (PayPal GETs only) |
+
+No tool can confirm, capture, void, refund or pay out; a test checks that the server exposes nothing else and that
+`price_change` leaves the database unchanged (`tests/test_mcp_server.py`). Confirming a change and releasing money
+stay in Amend, with a person's tap and an approval record.
+
+**Add it to Claude Desktop** (`claude_desktop_config.json`; fill the values in your own environment, never in a file
+you commit; `PAYPAL_ENV` must be `sandbox`):
+
+```json
+{
+  "mcpServers": {
+    "amend": {
+      "command": "/path/to/amend/.venv/bin/python",
+      "args": ["/path/to/amend/mcp/amend_mcp.py"],
+      "env": {
+        "PAYPAL_ENV": "sandbox",
+        "PAYPAL_CLIENT_ID": "",
+        "PAYPAL_CLIENT_SECRET": "",
+        "DATABASE_URL": "",
+        "GEMINI_API_KEY": ""
+      }
+    }
+  }
+}
+```
+
+Install: `pip install -r requirements.txt -r requirements-mcp.txt`. It can run next to **PayPal's own MCP server** in the
+same client: PayPal's server works with PayPal objects (orders, invoices, disputes), while Amend's explains which
+words in a deal each payment belongs to and what a change would cost, and PayPal's hold still enforces the amount.
+
 ## Run it locally
 
 Prerequisites: Python 3.12 and git. For real PayPal calls: a [PayPal developer](https://developer.paypal.com) account.
