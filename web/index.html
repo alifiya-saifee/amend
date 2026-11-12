@@ -167,14 +167,14 @@
           <li><i data-lucide="lock" aria-hidden="true"></i> <span><b>Held by PayPal on the brand's account</b> (a PayPal authorization hold, sandbox demo). Amend never holds the money or touches card details.</span></li>
           <li><i data-lucide="quote" aria-hidden="true"></i> <span><b>Every term shows the exact words it came from</b>, checked word for word.</span></li>
           <li><i data-lucide="undo-2" aria-hidden="true"></i> <span><b>Paid means refund, never cancel.</b> A correction after payment is a refund the creator approves.</span></li>
-          <li><i data-lucide="users" aria-hidden="true"></i> <span><b>Only the deciders' words move money.</b> Anyone else's are suggestions.</span></li>
+          <li><i data-lucide="users" aria-hidden="true"></i> <span><b>Only the brand's and the creator's own words move money.</b> Anyone else's are suggestions.</span></li>
           <li><i data-lucide="trash-2" aria-hidden="true"></i> <span><b>Your data:</b> delete recordings and screenshots any time.</span></li></ul>
         <div class="card" aria-label="Diagram: words, then a card both confirm, then PayPal">
           <ol class="steps compact" style="margin:0">
             <li><span class="num">1</span><div><b>Words</b><p>A message, voice note or call says the deal changed.</p></div></li>
             <li><span class="num">2</span><div><b>A priced card</b><p>Prices come from the creator's list; the AI never sets them.</p></div></li>
             <li><span class="num">3</span><div><b>Both confirm</b><p>An approval record is saved for each payment.</p></div></li>
-            <li><span class="num">4</span><div><b>PayPal updates</b><p>A new hold, collect less, or a refund. Every call has its own request ID, so it can't run twice.</p></div></li>
+            <li><span class="num">4</span><div><b>PayPal updates</b><p>A new hold, collect less, or a refund. Every call has its own request ID, so a retry or a double tap never charges twice.</p></div></li>
           </ol></div>
       </div>
     </div>
@@ -196,8 +196,9 @@
       <div class="eyebrow">FAQ</div>
       <h2 class="mk-h2 leak">Questions</h2>
       <details><summary>Is my money safe? <i data-lucide="plus" aria-hidden="true"></i></summary><p>The brand's payment is a PayPal authorization hold on the brand's account, not money held by Amend. Money is collected only when both sides approve the release, and only after the delivery check passes. This is a sandbox demo: no real money moves.</p></details>
+      <details><summary>How long does PayPal hold the money? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Up to 29 days. Amend collects as soon as the delivery matches, usually within days of posting, so a deal never waits 30–90 days. If a hold gets close to expiry, Amend warns both sides, and can renew it once.</p></details>
       <details><summary>What if the brand cancels? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Amend proposes a fair split from the evidence (draft uploaded, approved, posted) and the creator's own cancellation terms, with the maths shown and a second-opinion check. Both approve; PayPal collects the creator's share and releases the rest.</p></details>
-      <details><summary>How is the post checked? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Amend checks the post against the latest confirmed deal: the link, the date, the caption and what was delivered. When the creator's Instagram account is connected, Amend reads the post itself from Instagram (its type, when it went up and the caption); otherwise it uses the details the creator gives, and says so on the check. Stories can't be read for other accounts. Code decides; no money is released until they match.</p></details>
+      <details><summary>How is the post checked? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Amend checks the post against the latest confirmed deal: the link, the date, the caption and what was delivered. When the creator's Instagram account is connected, Amend reads the post itself from Instagram (its type, when it went up and the caption); otherwise it uses the details the creator gives, and says so on the check. When the creator's Instagram isn't connected, her details are labelled as hers and the brand confirms them. Stories can't be read for other accounts. Code decides; no money is released until they match.</p></details>
       <details><summary>What if the creator doesn't deliver? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Nothing is released until the delivery matches the latest confirmed deal. Missing items become cards: remove them from the deal (and collect less) or wait for delivery.</p></details>
       <details><summary>Do brands need an account? <i data-lucide="plus" aria-hidden="true"></i></summary><p>No. The creator's link is enough to write a brief, pay with PayPal and confirm changes. Brands can create an account to keep a shortlist and see all their deals.</p></details>
       <details><summary>Which countries and currencies? <i data-lucide="plus" aria-hidden="true"></i></summary><p>Payments are in USD (PayPal doesn't support AED). AED shown at the official peg (3.6725 per USD, UAE Central Bank). PayPal settles in USD in this sandbox flow. The demo is built for the UAE and the GCC.</p></details>

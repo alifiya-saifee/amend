@@ -2,6 +2,7 @@
 in the chain; on CUSTOMER.DISPUTE.CREATED the evidence pack (mandate, confirmed version, delivery check, post link,
 chain) is built at once and the creator sends it as PROOF_OF_FULFILLMENT; the sandbox script dry-runs safely."""
 import asyncio
+from pathlib import Path
 
 import httpx
 import pytest
@@ -132,3 +133,15 @@ def test_evidence_type_choice():
     assert evidence_type_for(ask("PROOF_OF_FULFILLMENT", "OTHER")) == "PROOF_OF_FULFILLMENT"
     assert evidence_type_for(ask("OTHER", "PROOF_OF_REFUND")) == "OTHER"
     assert evidence_type_for(ask("PROOF_OF_REFUND")) == "PROOF_OF_FULFILLMENT"  # never claim a refund Amend didn't make
+
+
+def test_refused_proof_shows_paypals_reason(client, mocks, paid):
+    """The page shows PayPal's own reason for a refused write, not "Amend didn't answer just now"."""
+    deal, _ = paid
+    send(client, dispute("WH-D1", "CUSTOMER.DISPUTE.CREATED"))
+    mocks.post(f"{PP}/v1/customer/disputes/PP-D-1/provide-evidence").mock(return_value=httpx.Response(400, json={
+        "name": "INVALID_REQUEST", "details": [{"issue": "EVIDENCE_TYPE_IS_NOT_ALLOWED", "description": ""}]}))
+    r = client.post(f"/api/deals/{deal}/dispute/evidence", headers=ORIGIN)
+    assert r.status_code == 502 and r.json()["detail"].startswith("PayPal didn't accept this: EVIDENCE_TYPE_IS_NOT_ALLOWED.")
+    js = (Path(__file__).resolve().parents[1] / "web" / "static" / "app.js").read_text()
+    assert "e.status === 502 && /^PayPal /.test" in js  # friendlyError passes PayPal's reason through

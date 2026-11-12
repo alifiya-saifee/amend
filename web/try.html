@@ -11,16 +11,16 @@
   <h1>Try Amend in 2 minutes</h1>
   <p>You play both sides of a small made-up deal (capped at $100, PayPal sandbox). Watch the money change when the deal changes.</p>
   <ol class="steps">
-    <li><span class="num">1</span><div><b>Hold</b><p class="muted">Open the brand's link and hold the money with a PayPal sandbox buyer account.</p></div></li>
+    <li><span class="num">1</span><div><b>Hold</b><p class="muted">After Start, tap <b>Open as the brand</b> and hold the money with the PayPal sandbox buyer (a personal sandbox account; details in Devpost).</p></div></li>
     <li><span class="num">2</span><div><b>Change</b><p class="muted">In the chat, type as the brand: “Add one more Story set”, then tap <b>Send change card</b>. Amend shows you the priced lines first (+$20 from the price list, with the exact words); sending it is your confirmation.</p></div></li>
-    <li><span class="num">3</span><div><b>Confirm</b><p class="muted">Confirm as the creator too. The deal goes to version 2 ($90) and the brand holds the extra $20 with PayPal.</p></div></li>
-    <li><span class="num">4</span><div><b>Deliver and get paid</b><p class="muted">As the creator, upload a short video; as the brand, approve it; as the creator, mark it posted (today, as agreed). Both confirm the signed verdict: PayPal collects $90 and pays the creator.</p></div></li>
+    <li><span class="num">3</span><div><b>Confirm</b><p class="muted">Tap <b>Open as the creator</b> and confirm there too. The deal goes to version 2 ($90) and the brand holds the extra $20 with PayPal.</p></div></li>
+    <li><span class="num">4</span><div><b>Deliver and get paid</b><p class="muted">As the creator, upload a short video; as the brand, approve it; as the creator, mark it posted (today, as agreed). Both confirm the signed verdict: PayPal collects $90, pays the creator $81 and holds back $9.</p></div></li>
   </ol>
   <form id="gate" class="card"><label for="pw">Judge password (JUDGE_PASSWORD, in the Devpost testing instructions)</label>
     <div class="row" style="gap:8px"><input id="pw" type="password" class="grow" required><button class="btn primary" id="go">Start</button></div>
     <div class="err" id="err" hidden></div></form>
   <div id="out"></div>
-  <p class="hint">PayPal sandbox only: no real money. Use a PayPal <b>sandbox personal account</b> to pay (details in the Devpost submission).</p>
+  <p class="hint">PayPal sandbox only: no real money. Pay with the <b>PayPal sandbox buyer</b> (a personal sandbox account; details in Devpost).</p>
 </main>
 <script>
 // Make a fresh demo deal. Called inside the Start button's busy() and by the Reset button: one busy() per button,

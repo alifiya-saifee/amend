@@ -70,6 +70,8 @@ window, #ad and bonus tiers; a separate bonus hold paid from Instagram's view co
 payouts (creator + editor in one batch, holdback kept back); refunds after payout (holdback first, then owed); a
 settlement before a dispute; usage-rights extensions; "Who paid" (PayPal's payer details compared with the brief);
 discovery with Instagram public numbers; AG Grid ledgers with CSV.
+The draft caption is pre-filled by code with what the deal requires (#ad first, the brand's handle, must-include
+items), and the posted caption is checked against it from Instagram.
 
 ---
 

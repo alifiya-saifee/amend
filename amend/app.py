@@ -2463,7 +2463,8 @@ async def creator_send_evidence(deal_id: str, c: dict = Depends(require_creator)
     except disputes.DisputeError as e:
         raise HTTPException(400, str(e))
     except PayPalError as e:
-        raise HTTPException(502, f"PayPal didn't take the proof ({e.name}). Nothing was sent twice; try again.")
+        why = (e.issues[0].split(":")[0] if e.issues else "") or e.name
+        raise HTTPException(502, f"PayPal didn't accept this: {why}. Nothing was sent twice; try again.")
     return studio_deal(deal_id, c)
 
 

@@ -19,6 +19,7 @@ async function api(path, opts = {}) {
 // One plain sentence for "the server or the network failed"; a 4xx keeps its own message (it says what to fix).
 function friendlyError(e) {
   if (!e || e.status === 0) return (e && e.message) || "Can't reach Amend. Check your connection and try again.";
+  if (e.status === 502 && /^PayPal /.test(e.message || "")) return e.message;  // PayPal's own reason for a refused write
   return e.status >= 500 ? "Amend didn't answer just now. Nothing has changed; try again in a moment." : e.message;
 }
 
