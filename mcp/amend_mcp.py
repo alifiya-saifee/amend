@@ -7,10 +7,14 @@ Three tools, all read-only or preview-only. None of them can confirm, capture, v
   rebuild_from_paypal(deal_id)  the deal's money rebuilt from PayPal's own answers (GETs only), line by line
 
 Run:  python mcp/amend_mcp.py   (uses DATABASE_URL, PAYPAL_*, GEMINI_API_KEY… from the environment, like the app;
-PAYPAL_ENV must be sandbox). Folder note: this folder has no __init__.py on purpose, so it never shadows the `mcp` SDK.
+PAYPAL_ENV must be sandbox).
+Try it locally with no secrets: AMEND_FAKE=1 PAYPAL_ENV=sandbox DATABASE_URL=sqlite:///./mcp-demo.db, then
+`python mcp/amend_mcp.py --seed-demo` (made-up demo data; prints the demo deal_id), then run the server the same way.
+Fake mode = the app's rule-based AI and fake PayPal, and only on a local SQLite database. Folder note: this folder has no __init__.py on purpose, so it never shadows the `mcp` SDK.
 """
 from __future__ import annotations
 
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -21,6 +25,16 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 from amend import changes, deals, engine  # noqa: E402
 from amend.db import get_db  # noqa: E402
+
+from amend import fakes  # noqa: E402
+from amend.config import get_settings  # noqa: E402
+
+FAKE = os.environ.get("AMEND_FAKE") == "1" and fakes.enabled()  # AMEND_FAKE=1 and a localhost BASE_URL (the default): rule-based AI, fake PayPal
+if FAKE:
+    if not get_settings().database_url.startswith("sqlite"):
+        raise SystemExit("AMEND_FAKE=1 runs on a local SQLite database only (set DATABASE_URL=sqlite:///./mcp-demo.db)")
+    from amend import ai as _ai
+    _ai.call_json = fakes.fake_call_json
 
 RULE = "Agents read and propose; people confirm; PayPal enforces the hold."
 server = FastMCP("amend", instructions=f"Amend: brand deals whose money follows the agreed words. {RULE} "
@@ -96,13 +110,30 @@ async def rebuild_from_paypal(deal_id: str) -> dict:
     """The deal's money rebuilt only from PayPal's answers (authorizations, captures, payouts: GETs only), compared
     with Amend's record line by line (matches / mismatch). Read-only."""
     from amend import rebuild
-    from amend.config import get_settings
     from amend.paypal import PayPalClient
     _deal(deal_id)
-    return await rebuild.rebuild(get_db(), PayPalClient(get_settings()), deal_id)
+    pp = (fakes.FakePayPal if FAKE else PayPalClient)(get_settings())
+    return await rebuild.rebuild(get_db(), pp, deal_id)
+
+
+def seed_demo() -> str:
+    """Fake mode only: seed the made-up demo data (Sara Malik, Dune Roast Coffee…) and return the demo deal to try:
+    Sara × Dune Roast Coffee, in progress, a Reel and a Story set with the money held."""
+    from scripts.seed import ensure_extra_items, seed, seed_history
+    db = get_db()
+    seed(db)
+    ensure_extra_items(db)
+    seed_history(db)
+    return db.one("select d.id from deals d join creators c on c.id = d.creator_id where c.handle = 'sara.eats' "
+                  "and d.is_demo = 1 and d.status = 'in_progress' and d.brand_org = 'Dune Roast Coffee'")["id"]
 
 
 TOOLS = ("get_deal", "price_change", "rebuild_from_paypal")
 
 if __name__ == "__main__":
+    if "--seed-demo" in sys.argv:
+        if not FAKE:
+            raise SystemExit("--seed-demo needs AMEND_FAKE=1 and a local SQLite DATABASE_URL")
+        print(seed_demo())
+        raise SystemExit(0)
     server.run()  # stdio

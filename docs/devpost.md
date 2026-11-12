@@ -103,6 +103,9 @@ PayPal IDs (`get_deal`), price a change from a message with Amend's own code and
 hold or needs a new PayPal approval (`price_change`, preview only, nothing saved), and rebuild the deal's money from
 PayPal's GETs (`rebuild_from_paypal`). No tool can confirm, capture, void, refund or pay out, and a test proves it.
 Agents read and propose; people confirm; PayPal enforces the hold. It can run next to PayPal's own MCP server.
+Example: the brand asks "Can you add one more Story set? And we'd like to run the Reel as a paid ad for 30 days";
+`price_change` answers +$80 Story set and +$150 usage rights, each with its quote and priced from Sara's list,
+total +$230, "needs a new PayPal approval from the brand". Nothing was saved.
 
 ---
 

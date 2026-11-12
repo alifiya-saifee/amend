@@ -369,6 +369,12 @@ Three tools, read-only or preview-only:
 | `price_change(deal_id, text)` | Amend's own change detection and pricing on a message: each line quoted word for word, priced from the creator's list ($0 when within what's agreed, "not on the price list" when she must price it), the total, and whether it fits the existing PayPal hold or needs a new PayPal approval. | No: it runs on a throwaway in-memory copy of the deal; no card is saved, nothing is sent |
 | `rebuild_from_paypal(deal_id)` | The deal's money rebuilt from PayPal's own answers (GETs only), line by line, matches or mismatch. | No (PayPal GETs only) |
 
+A real exchange (from the fake-mode run below, Sara × Dune Roast Coffee):
+
+> **Brand:** "Can you add one more Story set? And we'd like to run the Reel as a paid ad for 30 days."<br>
+> **Agent → `price_change`:** `+ 1 Story set (3 frames)` +$80, quoting "Can you add one more Story set"; `+ 1 Usage rights (brand ads)` +$150, quoting "And we'd like to run the Reel as a paid ad for 30 days"; both priced from Sara's list.<br>
+> **Answer:** total change +$230, which "needs a new PayPal approval from the brand". Nothing was saved.
+
 No tool can confirm, capture, void, refund or pay out; a test checks that the server exposes nothing else and that
 `price_change` leaves the database unchanged (`tests/test_mcp_server.py`). Confirming a change and releasing money
 stay in Amend, with a person's tap and an approval record.
@@ -394,7 +400,20 @@ you commit; `PAYPAL_ENV` must be `sandbox`):
 }
 ```
 
-Install: `pip install -r requirements.txt -r requirements-mcp.txt`. It can run next to **PayPal's own MCP server** in the
+Install: `pip install -r requirements.txt -r requirements-mcp.txt`.
+
+**Try it locally** (no PayPal, AI or database secrets: fake mode uses the app's rule-based AI and fake PayPal, made-up
+demo data, and only a local SQLite file):
+
+```bash
+export AMEND_FAKE=1 PAYPAL_ENV=sandbox DATABASE_URL=sqlite:///./mcp-demo.db
+python mcp/amend_mcp.py --seed-demo     # seeds the demo data, prints the deal_id of Sara × Dune Roast Coffee
+python mcp/amend_mcp.py                 # the server (stdio); in Claude Desktop, put these three variables in "env"
+```
+
+The deal_id is printed by `--seed-demo` (IDs are generated per database). In fake mode `rebuild_from_paypal` answers
+"Demo history: not at PayPal": seeded demo deals were never at PayPal; on a real sandbox deal it rebuilds from PayPal's
+GETs. `tests/test_mcp_server.py` runs exactly this, over stdio, in an empty folder with no `.env`. It can run next to **PayPal's own MCP server** in the
 same client: PayPal's server works with PayPal objects (orders, invoices, disputes), while Amend's explains which
 words in a deal each payment belongs to and what a change would cost, and PayPal's hold still enforces the amount.
 
