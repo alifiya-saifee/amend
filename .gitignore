@@ -13,4 +13,5 @@ docs/screenshots/**/18-paypal-page.png
 
 # demo video: brand links (they open a deal room) and raw clips (may show PayPal pages) never go public
 docs/video/*
+docs/video/*.mp4
 !docs/video/README.md
